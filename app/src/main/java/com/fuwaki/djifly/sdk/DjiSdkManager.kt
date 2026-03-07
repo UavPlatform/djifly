@@ -3,166 +3,146 @@ package com.fuwaki.djifly.sdk
 import android.content.Context
 import android.util.Log
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import dji.sdk.keyvalue.key.AirLinkKey
+import dji.sdk.keyvalue.key.BatteryKey
+import dji.sdk.keyvalue.key.FlightControllerKey
 import dji.sdk.keyvalue.key.ProductKey
+import dji.sdk.keyvalue.value.common.ComponentIndexType
 import dji.sdk.keyvalue.value.product.ProductType
+import dji.sdk.keyvalue.value.flightcontroller.LowBatteryRTHInfo
 import dji.v5.common.error.IDJIError
 import dji.v5.common.register.DJISDKInitEvent
 import dji.v5.et.create
 import dji.v5.et.get
+import dji.v5.et.listen
+import dji.v5.et.action
 import dji.v5.manager.SDKManager
 import dji.v5.manager.interfaces.SDKManagerCallback
+import dji.v5.manager.aircraft.perception.PerceptionManager
+import dji.v5.manager.aircraft.perception.listener.PerceptionInformationListener
+import dji.v5.manager.KeyManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/**
- * Manages DJI SDK connection and provides SDK status to the UI
- */
 class DjiSdkManager private constructor() {
 
     private val TAG = "DjiSdkManager"
-
-    // SDK status state
     private val _sdkStatus = MutableStateFlow(DjiSdkStatus())
     val sdkStatus: StateFlow<DjiSdkStatus> = _sdkStatus.asStateFlow()
 
-    // Current product info
     private var currentProductInfo = ProductInfo()
+    private var currentFlightData = FlightDataState()
 
-    // Initialization progress
     var initProgress by mutableIntStateOf(0)
         private set
 
-    // Database download progress
-    var databaseProgress by mutableStateOf(0f)
-        private set
+    private val perceptionListener = PerceptionInformationListener { info ->
+        currentFlightData = currentFlightData.copy(isVisionSystemHealthy = info.isVisionPositioningEnabled)
+        updateSdkStatus { copy(flightData = currentFlightData) }
+    }
 
-    /**
-     * Initialize DJI SDK
-     */
     fun initSdk(context: Context) {
-        Log.i(TAG, "Initializing DJI SDK...")
-
         SDKManager.getInstance().init(context, object : SDKManagerCallback {
             override fun onInitProcess(event: DJISDKInitEvent?, totalProcess: Int) {
-                Log.i(TAG, "onInitProcess: event=$event, totalProcess=$totalProcess")
                 initProgress = totalProcess
-                updateSdkStatus {
-                    copy(initProgress = totalProcess)
-                }
-
                 if (event == DJISDKInitEvent.INITIALIZE_COMPLETE) {
                     SDKManager.getInstance().registerApp()
-                    updateSdkStatus {
-                        copy(
-                            connectionState = SdkConnectionState.Initializing,
-                            initProgress = 100
-                        )
-                    }
                 }
             }
 
             override fun onRegisterSuccess() {
-                Log.i(TAG, "onRegisterSuccess: DJI SDK registered successfully")
-                updateSdkStatus {
-                    copy(connectionState = SdkConnectionState.Registered)
-                }
+                updateSdkStatus { copy(connectionState = SdkConnectionState.Registered) }
             }
 
             override fun onRegisterFailure(error: IDJIError?) {
-                val errorMsg = error?.toString() ?: "Unknown error"
-                Log.e(TAG, "onRegisterFailure: $errorMsg")
-                updateSdkStatus {
-                    copy(connectionState = SdkConnectionState.RegistrationFailed(errorMsg))
-                }
+                updateSdkStatus { copy(connectionState = SdkConnectionState.RegistrationFailed(error?.toString() ?: "")) }
             }
 
             override fun onProductConnect(productId: Int) {
-                Log.i(TAG, "onProductConnect: productId=$productId")
-                // Fetch product details from SDK
                 fetchProductDetails()
+                startListeningToFlightData()
             }
 
             override fun onProductDisconnect(productId: Int) {
-                Log.i(TAG, "onProductDisconnect: productId=$productId")
                 currentProductInfo = ProductInfo()
                 updateSdkStatus {
-                    copy(
-                        connectionState = SdkConnectionState.ProductDisconnected,
-                        productInfo = currentProductInfo
-                    )
+                    copy(connectionState = SdkConnectionState.ProductDisconnected, productInfo = currentProductInfo)
                 }
+                stopListeningToFlightData()
             }
 
-            override fun onProductChanged(productId: Int) {
-                Log.i(TAG, "onProductChanged: productId=$productId")
-                // Refresh product details when product changes
-                fetchProductDetails()
-            }
-
-            override fun onDatabaseDownloadProgress(current: Long, total: Long) {
-                val progress = if (total > 0) current.toFloat() / total else 0f
-                databaseProgress = progress
-                Log.d(TAG, "Database download progress: ${progress * 100}%")
-            }
+            override fun onProductChanged(productId: Int) { fetchProductDetails() }
+            override fun onDatabaseDownloadProgress(current: Long, total: Long) {}
         })
     }
 
-    /**
-     * Fetch detailed product information from SDK
-     */
-    private fun fetchProductDetails() {
-        try {
-            // Get product type
-            val productType = ProductKey.KeyProductType.create().get(ProductType.UNRECOGNIZED)
-            Log.d(TAG, "Product type: $productType")
-            currentProductInfo = currentProductInfo.copy(type = productType)
-            updateProductInfo(productType.name ?: "Unknown Product")
-
-            // Get firmware version
-            ProductKey.KeyFirmwareVersion.create().get(
-                onSuccess = { firmware ->
-                    Log.d(TAG, "Firmware version: $firmware")
-                    currentProductInfo = currentProductInfo.copy(firmwareVersion = firmware ?: "N/A")
-                    updateSdkStatus { copy(productInfo = currentProductInfo) }
-                },
-                onFailure = { error ->
-                    Log.e(TAG, "Failed to get firmware version: $error")
-                }
-            )
-
-            // Get serial number
-            ProductKey.KeySerialNumber.create().get(
-                onSuccess = { serial ->
-                    Log.d(TAG, "Serial number: $serial")
-                    currentProductInfo = currentProductInfo.copy(serialNumber = serial ?: "N/A")
-                    updateSdkStatus { copy(productInfo = currentProductInfo) }
-                },
-                onFailure = { error ->
-                    Log.e(TAG, "Failed to get serial number: $error")
-                }
-            )
-
-        } catch (e: Exception) {
-            Log.e(TAG, "Error fetching product details: ${e.message}")
-            e.printStackTrace()
+    private fun startListeningToFlightData() {
+        BatteryKey.KeyChargeRemainingInPercent.create(ComponentIndexType.LEFT_OR_MAIN).listen(this) { percent: Int? ->
+            percent?.let { 
+                currentFlightData = currentFlightData.copy(batteryPercentage = it)
+                updateSdkStatus { copy(flightData = currentFlightData) }
+            }
         }
+        FlightControllerKey.KeyGPSSatelliteCount.create().listen(this) { count: Int? ->
+            count?.let {
+                currentFlightData = currentFlightData.copy(gpsSatelliteCount = it)
+                updateSdkStatus { copy(flightData = currentFlightData) }
+            }
+        }
+        AirLinkKey.KeyUpLinkQualityRaw.create().listen(this) { quality: Int? ->
+            quality?.let {
+                currentFlightData = currentFlightData.copy(uplinkQuality = it)
+                updateSdkStatus { copy(flightData = currentFlightData) }
+            }
+        }
+        AirLinkKey.KeyDownLinkQualityRaw.create().listen(this) { quality: Int? ->
+            quality?.let {
+                currentFlightData = currentFlightData.copy(downlinkQuality = it)
+                updateSdkStatus { copy(flightData = currentFlightData) }
+            }
+        }
+        // 监听剩余飞行时间
+        FlightControllerKey.KeyLowBatteryRTHInfo.create().listen(this) { info: LowBatteryRTHInfo? ->
+            info?.let {
+                currentFlightData = currentFlightData.copy(flightTimeRemaining = it.remainingFlightTime)
+                updateSdkStatus { copy(flightData = currentFlightData) }
+            }
+        }
+        PerceptionManager.getInstance().addPerceptionInformationListener(perceptionListener)
     }
 
-    private fun updateProductInfo(productName: String) {
-        currentProductInfo = currentProductInfo.copy(
-            isConnected = true,
-            name = productName
-        )
-        updateSdkStatus {
-            copy(
-                connectionState = SdkConnectionState.ProductConnected(productName, currentProductInfo.type),
-                productInfo = currentProductInfo
-            )
-        }
+    private fun stopListeningToFlightData() {
+        KeyManager.getInstance().cancelListen(this)
+        PerceptionManager.getInstance().removePerceptionInformationListener(perceptionListener)
+    }
+
+    fun performTakeOff() {
+        FlightControllerKey.KeyStartTakeoff.create().action({
+            Log.d(TAG, "Takeoff action success")
+        }, { error ->
+            Log.e(TAG, "Takeoff action failed: $error")
+        })
+    }
+
+    fun performRTH() {
+        FlightControllerKey.KeyStartGoHome.create().action({
+            Log.d(TAG, "RTH action success")
+        }, { error ->
+            Log.e(TAG, "RTH action failed: $error")
+        })
+    }
+
+    private fun fetchProductDetails() {
+        ProductKey.KeyProductType.create().get({ type: ProductType? ->
+            val nonNullType = type ?: ProductType.UNKNOWN
+            currentProductInfo = currentProductInfo.copy(type = nonNullType, name = nonNullType.name, isConnected = true)
+            updateSdkStatus {
+                copy(connectionState = SdkConnectionState.ProductConnected(nonNullType.name, nonNullType), productInfo = currentProductInfo)
+            }
+        }, { error -> Log.e(TAG, "fetchProductDetails failed: $error") })
     }
 
     private fun updateSdkStatus(update: DjiSdkStatus.() -> DjiSdkStatus) {
@@ -170,13 +150,9 @@ class DjiSdkManager private constructor() {
     }
 
     companion object {
-        @Volatile
-        private var instance: DjiSdkManager? = null
-
-        fun getInstance(): DjiSdkManager {
-            return instance ?: synchronized(this) {
-                instance ?: DjiSdkManager().also { instance = it }
-            }
+        @Volatile private var instance: DjiSdkManager? = null
+        fun getInstance() = instance ?: synchronized(this) {
+            instance ?: DjiSdkManager().also { instance = it }
         }
     }
 }

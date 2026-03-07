@@ -1,53 +1,54 @@
 package com.fuwaki.djifly.ui.screen
 
+import android.content.Context
+import android.content.ContextWrapper
 import android.util.Log
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.navigation.NavController
 import com.fuwaki.djifly.sdk.DjiSdkManager
 import com.fuwaki.djifly.sdk.SdkConnectionState
 import com.fuwaki.djifly.ui.widget.*
+import com.fuwaki.djifly.ui.widget.compose.TopStatusRow
+import com.fuwaki.djifly.ui.widget.compose.TakeOffButton
+import com.fuwaki.djifly.ui.widget.compose.ReturnHomeButton
 
 private const val TAG = "FlightScreen"
 
-/**
- * Main Flight Screen
- * Entry point that checks product connection before displaying flight interface
- *
- * @param sdkManager DJI SDK manager instance
- * @param navController Navigation controller for screen navigation
- */
+fun Context.findFragmentActivity(): FragmentActivity? {
+    var currentContext = this
+    while (currentContext is ContextWrapper) {
+        if (currentContext is FragmentActivity) {
+            return currentContext
+        }
+        currentContext = currentContext.baseContext
+    }
+    return null
+}
+
 @Composable
 fun FlightScreen(
     sdkManager: DjiSdkManager,
@@ -55,185 +56,203 @@ fun FlightScreen(
 ) {
     val sdkStatus by sdkManager.sdkStatus.collectAsState()
 
-    // Only show flight interface when product is connected
     if (sdkStatus.connectionState is SdkConnectionState.ProductConnected) {
-        FlightScreenContent(
-            sdkManager = sdkManager,
-            navController = navController
-        )
+        FlightScreenContent(sdkManager = sdkManager, navController = navController)
     } else {
-        // Show connection required message
         ConnectionRequiredScreen(navController)
     }
 }
 
-/**
- * Connection Required Screen
- * Displayed when no product is connected
- */
 @Composable
 private fun ConnectionRequiredScreen(navController: NavController) {
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.background
-    ) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Text(
-                    text = "No Product Connected",
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = MaterialTheme.colorScheme.error
-                )
+    Surface(modifier = Modifier.fillMaxSize(), color = Color(0xFF0A0A0A)) {
+        Box(contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(Icons.Default.Warning, null, tint = Color.LightGray, modifier = Modifier.size(48.dp))
                 Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = "Please connect to a DJI product",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                Spacer(modifier = Modifier.height(24.dp))
-                androidx.compose.material3.Button(
-                    onClick = { navController.navigateUp() }
+                Text("DISCONNECTED", color = Color.White, letterSpacing = 2.sp, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(32.dp))
+                OutlinedButton(
+                    onClick = { navController.navigateUp() },
+                    border = ButtonDefaults.outlinedButtonBorder.copy(width = 1.dp)
                 ) {
-                    Text("Go Back")
+                    Text("BACK TO HOME", color = Color.White)
                 }
             }
         }
     }
 }
 
-/**
- * Flight Screen Content
- * Main flight interface with UXSDK components
- */
 @Composable
 private fun FlightScreenContent(
     sdkManager: DjiSdkManager,
     navController: NavController
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
-    val currentOnResume = rememberUpdatedState(Unit)
-    val currentOnPause = rememberUpdatedState(Unit)
+    var isSettingsOpen by remember { mutableStateOf(false) }
 
-    // Handle lifecycle events for UXSDK components
+    // 侧边栏动画偏移量 (0dp 展开，510dp 完全收起并隐藏在右侧)
+    val panelOffsetX by animateDpAsState(
+        targetValue = if (isSettingsOpen) 0.dp else 510.dp,
+        animationSpec = tween(durationMillis = 300),
+        label = "settings_panel_anim"
+    )
+
     LaunchedEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            when (event) {
-                Lifecycle.Event.ON_RESUME -> {
-                    Log.d(TAG, "ON_RESUME - Resuming video stream")
-                    // Video stream automatically resumes when FPVWidget is visible
-                }
-                Lifecycle.Event.ON_PAUSE -> {
-                    Log.d(TAG, "ON_PAUSE - Pausing video stream")
-                    // Video stream automatically pauses when FPVWidget is hidden
-                }
-                Lifecycle.Event.ON_DESTROY -> {
-                    Log.d(TAG, "ON_DESTROY - Cleaning up resources")
-                }
-                else -> {}
-            }
+            if (event == Lifecycle.Event.ON_RESUME) Log.d(TAG, "Flight Screen Active")
         }
         lifecycleOwner.lifecycle.addObserver(observer)
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        // 1. Top status bar
-        TopBarPanelWidget(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(40.dp)
-                .background(Color.Black),
-            onSettingClick = {
-                Log.d(TAG, "Settings button clicked")
-                // TODO: Navigate to settings screen
-            }
-        )
+    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+        // 1. FPV 背景层
+        FpvWidget(modifier = Modifier.fillMaxSize())
 
-        // 2. Remaining flight time (below top bar)
-        RemainingFlightTimeWidget(
+        // 2. 顶部状态栏
+        Column(
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .offset(y = 40.dp)
                 .fillMaxWidth()
-                .height(20.dp)
-        )
-
-        // 3. Main FPV video stream (full screen background)
-        FpvWidget(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(top = 60.dp), // Reserve space for top bar and flight time
-            cameraIndex = dji.sdk.keyvalue.value.common.ComponentIndexType.LEFT_OR_MAIN,
-            enableCenterPoint = true,
-            enableGridLines = true
-        )
-
-        // 4. Camera control buttons (top right)
-        Row(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(end = 8.dp, top = 60.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            AutoExposureLockWidget(modifier = Modifier.size(50.dp))
-            FocusModeWidget(modifier = Modifier.size(50.dp))
-            FocusExposureSwitchWidget(modifier = Modifier.size(50.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Brush.verticalGradient(listOf(Color.Black.copy(0.7f), Color.Transparent)))
+                    .statusBarsPadding()
+            ) {
+                TopStatusRow(
+                    sdkManager = sdkManager,
+                    modifier = Modifier.fillMaxWidth().height(42.dp),
+                    onSettingsClick = {
+                        isSettingsOpen = true
+                    }
+                )
+            }
+            RemainingFlightTimeWidget(modifier = Modifier.fillMaxWidth().height(12.dp))
         }
 
-        // 5. Camera controls (right side)
-        CameraControlsWidget(
+        // 3. 左侧控制按钮
+        Column(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(start = 16.dp, top = 72.dp)
+                .fillMaxHeight(0.65f),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            IconButton(
+                onClick = { navController.navigateUp() },
+                modifier = Modifier.size(34.dp).background(Color.Black.copy(0.4f), CircleShape)
+            ) {
+                Icon(Icons.Default.ArrowBack, null, tint = Color.White, modifier = Modifier.size(20.dp))
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                TakeOffButton(
+                    onConfirm = { sdkManager.performTakeOff() }
+                )
+                ReturnHomeButton(
+                    onConfirm = { sdkManager.performRTH() }
+                )
+            }
+        }
+
+        // 4. 右侧相机控制
+        Box(
             modifier = Modifier
                 .align(Alignment.CenterEnd)
                 .padding(end = 16.dp)
-                .height(300.dp)
-        )
-
-        // 6. Left side flight control buttons column
-        Column(
-            modifier = Modifier
-                .align(Alignment.CenterStart)
-                .padding(start = 12.dp, top = 125.dp)
-                .width(80.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+                .fillMaxHeight(0.85f)
+                .width(90.dp)
         ) {
-            TakeOffWidget(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(80.dp)
-            )
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Row(
+                    modifier = Modifier
+                        .background(Color.Black.copy(0.4f), RoundedCornerShape(20.dp))
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    AutoExposureLockWidget(modifier = Modifier.size(26.dp))
+                    FocusModeWidget(modifier = Modifier.size(26.dp))
+                }
 
-            ReturnHomeWidget(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(80.dp)
-            )
+                Spacer(modifier = Modifier.height(16.dp))
+                LensControlWidget(modifier = Modifier.width(44.dp).height(90.dp))
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Box(modifier = Modifier.height(200.dp), contentAlignment = Alignment.Center) {
+                    CameraControlsWidget(modifier = Modifier.fillMaxSize())
+                }
+            }
         }
 
-        // 7. Bottom attitude indicator
-        HorizontalSituationIndicatorWidget(
+        // 5. 底部姿态球 (HSI)
+        Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 16.dp)
-                .width(350.dp)
-        )
-
-        // 8. Back button (top left)
-        IconButton(
-            onClick = { navController.navigateUp() },
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(8.dp)
-                .background(Color.Black.copy(alpha = 0.5f), CircleShape)
         ) {
-            Icon(
-                imageVector = Icons.Default.ArrowBack,
-                contentDescription = "Back to Starter Screen",
-                tint = Color.White
+            Surface(
+                color = Color.Black.copy(0.3f),
+                shape = RoundedCornerShape(12.dp),
+                border = ButtonDefaults.outlinedButtonBorder.copy(width = 0.5.dp, brush = Brush.linearGradient(listOf(Color.White.copy(0.15f), Color.Transparent)))
+            ) {
+                HorizontalSituationIndicatorWidget(
+                    modifier = Modifier.width(260.dp).height(100.dp).padding(4.dp)
+                )
+            }
+        }
+
+        // 6. 遮罩层 (当面板打开时变暗，点击空白处关闭)
+        if (panelOffsetX < 510.dp) {
+            val alpha = (1f - (panelOffsetX.value / 510f)).coerceIn(0f, 1f) * 0.5f
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = alpha))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) {
+                        isSettingsOpen = false
+                    }
+            )
+        }
+
+        // 7. 大疆设置面板 (动画滑动层)
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .width(510.dp)
+                .fillMaxHeight()
+                .offset(x = panelOffsetX)
+                .background(Color.Black.copy(alpha = 0.95f))
+        ) {
+            AndroidView(
+                factory = { context ->
+                    val activity = context.findFragmentActivity()
+                        ?: throw IllegalStateException("当前 Context 无法转换为 FragmentActivity")
+
+                    // 自定义 SettingPanelWidget，拦截返回事件来触发 Compose 动画收起
+                    object : dji.v5.ux.core.widget.setting.SettingPanelWidget(activity) {
+                        override fun onBackPressed(): Boolean {
+                            // 先调用父类处理逻辑
+                            val handled = super.onBackPressed()
+                            if (!handled) {
+                                // 父类返回 false 说明没有 Fragment 处理返回事件
+                                // 此时用户想要关闭整个设置面板
+                                isSettingsOpen = false
+                                return true // 拦截返回事件
+                            }
+                            return handled
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxSize()
             )
         }
     }

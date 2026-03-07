@@ -1,5 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- 必须继承自 Theme.AppCompat 以兼容 DJI UXSDK 的自定义 View -->
+    <style name="Theme.Djifly" parent="Theme.AppCompat.NoActionBar">
+        <!-- 基础颜色 -->
+        <item name="colorPrimary">@color/black</item>
+        <item name="colorPrimaryDark">@color/black</item>
+        <item name="colorAccent">#2196F3</item>
 
-    <style name="Theme.Djifly" parent="android:Theme.Material.Light.NoActionBar" />
+        <!-- DJI 控件可能依赖的基础样式属性 -->
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowNoTitle">true</item>
+
+        <!-- 适配旧版控件可能直接引用的属性 -->
+        <item name="windowNoTitle">true</item>
+        <item name="windowActionBar">false</item>
+    </style>
 </resources>
