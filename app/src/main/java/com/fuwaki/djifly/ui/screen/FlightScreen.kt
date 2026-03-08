@@ -35,6 +35,9 @@ import com.fuwaki.djifly.ui.widget.*
 import com.fuwaki.djifly.ui.widget.compose.TopStatusRow
 import com.fuwaki.djifly.ui.widget.compose.TakeOffButton
 import com.fuwaki.djifly.ui.widget.compose.ReturnHomeButton
+import com.fuwaki.djifly.ui.widget.compose.CameraConfigBar
+import dji.sdk.keyvalue.value.common.CameraLensType
+import dji.sdk.keyvalue.value.common.ComponentIndexType
 
 private const val TAG = "FlightScreen"
 
@@ -129,7 +132,6 @@ private fun FlightScreenContent(
                     }
                 )
             }
-            RemainingFlightTimeWidget(modifier = Modifier.fillMaxWidth().height(12.dp))
         }
 
         // 3. 左侧控制按钮
@@ -176,7 +178,6 @@ private fun FlightScreenContent(
                         .padding(horizontal = 6.dp, vertical = 2.dp),
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    AutoExposureLockWidget(modifier = Modifier.size(26.dp))
                     FocusModeWidget(modifier = Modifier.size(26.dp))
                 }
 
@@ -184,13 +185,18 @@ private fun FlightScreenContent(
                 LensControlWidget(modifier = Modifier.width(44.dp).height(90.dp))
                 Spacer(modifier = Modifier.height(16.dp))
 
-                Box(modifier = Modifier.height(200.dp), contentAlignment = Alignment.Center) {
-                    CameraControlsWidget(modifier = Modifier.fillMaxSize())
+                Box(modifier = Modifier.height(260.dp), contentAlignment = Alignment.Center) {
+                    CameraControlsComposeWidget(
+                        cameraIndex = ComponentIndexType.LEFT_OR_MAIN,
+                        lensType = CameraLensType.UNKNOWN,
+                        modifier = Modifier.fillMaxSize(),
+
+                    )
                 }
             }
         }
 
-        // 5. 底部姿态球 (HSI)
+        // 5. 底部居中的姿态球 (HSI)
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -199,13 +205,31 @@ private fun FlightScreenContent(
             Surface(
                 color = Color.Black.copy(0.3f),
                 shape = RoundedCornerShape(12.dp),
-                border = ButtonDefaults.outlinedButtonBorder.copy(width = 0.5.dp, brush = Brush.linearGradient(listOf(Color.White.copy(0.15f), Color.Transparent)))
-            ) {
-                HorizontalSituationIndicatorWidget(
-                    modifier = Modifier.width(260.dp).height(100.dp).padding(4.dp)
+                border = ButtonDefaults.outlinedButtonBorder.copy(
+                    width = 0.5.dp,
+                    brush = Brush.linearGradient(listOf(Color.White.copy(0.15f), Color.Transparent))
                 )
+            ) {
+                Box(
+                    modifier = Modifier
+                        .height(100.dp)
+                        .wrapContentWidth()
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    HorizontalSituationIndicatorWidget(
+                        modifier = Modifier.fillMaxHeight()
+                    )
+                }
             }
         }
+
+        // 8. 右下角相机参数栏 (贴死边缘)
+        CameraConfigBar(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .navigationBarsPadding() // 自动适配可能的系统导航栏（如果有）
+        )
 
         // 6. 遮罩层 (当面板打开时变暗，点击空白处关闭)
         if (panelOffsetX < 510.dp) {

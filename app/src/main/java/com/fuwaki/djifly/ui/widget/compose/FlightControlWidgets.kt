@@ -1,228 +1,174 @@
 package com.fuwaki.djifly.ui.widget.compose
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
 
-/**
- * 专业起飞按钮 (带滑动二次确认，模仿 DJI Fly)
- */
+private val Green = Color(0xFF00D15A)
+private val Orange = Color(0xFFFF9900)
+private val GlassBg = Color(0x99000000)
+private val GlassBorder = Color(0x33FFFFFF)
+
 @Composable
-fun TakeOffButton(
-    modifier: Modifier = Modifier,
-    onConfirm: () -> Unit = {}
+fun TakeOffButton(modifier: Modifier = Modifier, onConfirm: () -> Unit = {}) {
+    ConfirmableButton(modifier, Icons.Default.KeyboardArrowUp, Green, onConfirm)
+}
+
+@Composable
+fun ReturnHomeButton(modifier: Modifier = Modifier, onConfirm: () -> Unit = {}) {
+    ConfirmableButton(modifier, Icons.Default.Home, Orange, onConfirm)
+}
+
+@Composable
+private fun ConfirmableButton(
+    modifier: Modifier,
+    icon: ImageVector,
+    color: Color,
+    onConfirm: () -> Unit
 ) {
-    var showDialog by remember { mutableStateOf(false) }
+    var showSlider by remember { mutableStateOf(false) }
 
     Box(modifier = modifier) {
-        FlightControlButton(
-            icon = Icons.Default.KeyboardArrowUp,
-            label = "TAKE OFF",
-            contentColor = Color(0xFF4CAF50),
-            onClick = { showDialog = true }
-        )
-
-        if (showDialog) {
-            TakeOffConfirmationDialog(
-                onConfirm = {
-                    showDialog = false
-                    onConfirm()
-                },
-                onDismiss = { showDialog = false }
-            )
-        }
-    }
-}
-
-/**
- * 专业返航按钮
- */
-@Composable
-fun ReturnHomeButton(
-    modifier: Modifier = Modifier,
-    onConfirm: () -> Unit = {}
-) {
-    // 逻辑类似，可根据需要也添加滑动确认
-    FlightControlButton(
-        modifier = modifier,
-        icon = Icons.Default.Home,
-        label = "RTH",
-        contentColor = Color(0xFFFF9800),
-        onClick = onConfirm
-    )
-}
-
-@Composable
-private fun TakeOffConfirmationDialog(
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    // 居中显示的滑动确认遮罩
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.6f))
-            .pointerInput(Unit) { /* 拦截点击 */ },
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier
-                .width(300.dp)
-                .background(Color(0xFF1A1A1A), RoundedCornerShape(16.dp))
-                .padding(24.dp)
-        ) {
-            Text(
-                "准备起飞",
-                color = Color.White,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                "请确保周围环境安全，长按并向右滑动以起飞",
-                color = Color.Gray,
-                fontSize = 13.sp,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-            )
-            Spacer(modifier = Modifier.height(32.dp))
-
-            // 滑动确认条
-            SliderConfirmationBar(onConfirm = onConfirm)
-
-            Spacer(modifier = Modifier.height(24.dp))
-            Text(
-                "取消",
-                color = Color.White.copy(alpha = 0.7f),
-                modifier = Modifier.clickable { onDismiss() },
-                fontSize = 15.sp
-            )
-        }
-    }
-}
-
-@Composable
-private fun SliderConfirmationBar(onConfirm: () -> Unit) {
-    val density = LocalDensity.current
-    val barWidth = 240.dp
-    val handleSize = 48.dp
-    val maxOffsetPx = with(density) { (barWidth - handleSize).toPx() }
-    
-    var offsetX by remember { mutableStateOf(0f) }
-    val animatedOffsetX by animateFloatAsState(targetValue = offsetX)
-
-    Box(
-        modifier = Modifier
-            .width(barWidth)
-            .height(handleSize)
-            .background(Color.Black.copy(0.3f), CircleShape)
-            .border(1.dp, Color.White.copy(0.2f), CircleShape),
-        contentAlignment = Alignment.CenterStart
-    ) {
-        // 背景文字
-        Text(
-            "向右滑动起飞",
-            modifier = Modifier.fillMaxWidth().alpha(1f - (offsetX / maxOffsetPx)),
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            color = Color.White.copy(0.4f),
-            fontSize = 14.sp
-        )
-
-        // 滑块
         Box(
             modifier = Modifier
-                .offset { IntOffset(animatedOffsetX.roundToInt(), 0) }
-                .size(handleSize)
-                .padding(2.dp)
-                .background(Color(0xFF4CAF50), CircleShape)
+                .size(50.dp)
+                .background(GlassBg, CircleShape)
+                .border(0.5.dp, GlassBorder, CircleShape)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) { showSlider = true },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, null, tint = color, modifier = Modifier.size(28.dp))
+        }
+
+        if (showSlider) {
+            // ✅ 关键：全屏遮罩 + 安全区域内边距
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(0.5f))
+                    .pointerInput(Unit) {}
+                    // ★ 避开所有挖孔/刘海/水滴区域
+                    .windowInsetsPadding(
+                        WindowInsets.displayCutout.union(WindowInsets.systemBars)
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier
+                        .background(Color(0xFF1E1E1E), RoundedCornerShape(32.dp))
+                        .border(0.5.dp, GlassBorder, RoundedCornerShape(32.dp))
+                        .padding(8.dp)
+                ) {
+                    // 关闭
+                    Box(
+                        modifier = Modifier
+                            .size(46.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(0.1f))
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) { showSlider = false },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.Close, null,
+                            tint = Color.White.copy(0.6f),
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+
+                    // 滑动条
+                    SlideBar(color) {
+                        showSlider = false
+                        onConfirm()
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SlideBar(color: Color, onConfirm: () -> Unit) {
+    val density = LocalDensity.current
+    val barW = 200.dp
+    val handle = 46.dp
+    val handlePx = with(density) { handle.toPx() }
+    val maxPx = with(density) { (barW - handle).toPx() }
+
+    var raw by remember { mutableStateOf(0f) }
+    val anim by animateFloatAsState(
+        raw, tween(if (raw == 0f) 250 else 0), label = ""
+    )
+
+    Box(
+        modifier = Modifier
+            .width(barW)
+            .height(handle)
+            .background(Color.Black, CircleShape)
+            .border(0.5.dp, GlassBorder, CircleShape),
+        contentAlignment = Alignment.CenterStart
+    ) {
+        Box(
+            Modifier
+                .width(with(density) { (anim + handlePx).toDp() })
+                .fillMaxHeight()
+                .background(color.copy(0.25f), CircleShape)
+        )
+        Box(
+            modifier = Modifier
+                .offset { IntOffset(anim.roundToInt(), 0) }
+                .size(handle)
+                .padding(3.dp)
+                .background(color, CircleShape)
                 .pointerInput(Unit) {
                     detectDragGestures(
                         onDragEnd = {
-                            if (offsetX >= maxOffsetPx * 0.9f) {
-                                onConfirm()
-                            }
-                            offsetX = 0f
+                            if (raw >= maxPx * 0.85f) onConfirm()
+                            raw = 0f
                         },
-                        onDrag = { change, dragAmount ->
+                        onDrag = { change, drag ->
                             change.consume()
-                            offsetX = (offsetX + dragAmount.x).coerceIn(0f, maxOffsetPx)
+                            raw = (raw + drag.x).coerceIn(0f, maxPx)
                         }
                     )
                 },
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Default.KeyboardArrowUp, null, tint = Color.White)
-        }
-    }
-}
-
-@Composable
-private fun FlightControlButton(
-    modifier: Modifier = Modifier,
-    icon: ImageVector,
-    label: String,
-    contentColor: Color,
-    onClick: () -> Unit
-) {
-    Column(
-        modifier = modifier.width(56.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Box(
-            modifier = Modifier
-                .size(52.dp)
-                .background(Color.Black.copy(alpha = 0.5f), CircleShape)
-                .border(1.5.dp, contentColor.copy(alpha = 0.8f), CircleShape)
-                .clickable { onClick() },
-            contentAlignment = Alignment.Center
-        ) {
             Icon(
-                imageVector = icon,
-                contentDescription = label,
-                tint = contentColor,
-                modifier = Modifier.size(32.dp)
+                Icons.Default.KeyboardArrowRight, null,
+                tint = Color.White, modifier = Modifier.size(24.dp)
             )
         }
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = label,
-            color = Color.White,
-            fontSize = 9.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 0.5.sp,
-            modifier = Modifier
-                .background(Color.Black.copy(0.3f), RoundedCornerShape(4.dp))
-                .padding(horizontal = 4.dp, vertical = 1.dp)
-        )
     }
-}
-
-// 辅助扩展
-@Composable
-private fun Modifier.clickable(onClick: () -> Unit) = this.pointerInput(Unit) {
-    detectDragGestures(onDrag = { _, _ -> }, onDragEnd = { onClick() })
 }

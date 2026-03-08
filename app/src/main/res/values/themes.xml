@@ -11,6 +11,9 @@
         <item name="android:windowFullscreen">true</item>
         <item name="android:windowNoTitle">true</item>
 
+        <!-- 适配全屏沉浸式和刘海屏/水滴屏 -->
+        <item name="android:windowLayoutInDisplayCutoutMode" tools:targetApi="o_mr1">shortEdges</item>
+
         <!-- 适配旧版控件可能直接引用的属性 -->
         <item name="windowNoTitle">true</item>
         <item name="windowActionBar">false</item>
