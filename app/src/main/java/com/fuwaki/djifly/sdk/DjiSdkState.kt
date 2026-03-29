@@ -48,7 +48,8 @@ data class ProductInfo(
     val type: ProductType = ProductType.UNKNOWN,
     val isConnected: Boolean = false,
     val firmwareVersion: String = "N/A",
-    val serialNumber: String = "N/A"
+    val serialNumber: String = "N/A",
+    val controllerModel: String = "N/A"
 )
 
 /**

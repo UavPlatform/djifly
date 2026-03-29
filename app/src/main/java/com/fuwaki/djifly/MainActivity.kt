@@ -14,6 +14,7 @@ import androidx.fragment.app.FragmentActivity
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.fuwaki.djifly.platform.registration.PlatformRegistrationManager
 import com.fuwaki.djifly.sdk.DjiSdkManager
 import com.fuwaki.djifly.ui.screen.FlightScreen
 import com.fuwaki.djifly.ui.screen.StarterScreen
@@ -22,6 +23,9 @@ import com.fuwaki.djifly.ui.theme.DjiflyTheme
 class MainActivity : FragmentActivity() {
 
     private val sdkManager = DjiSdkManager.getInstance()
+    private val registrationManager: PlatformRegistrationManager by lazy {
+        (application as MyApplication).appContainer.platformRegistrationManager
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -43,12 +47,14 @@ class MainActivity : FragmentActivity() {
                         composable("starter") {
                             StarterScreen(
                                 sdkManager = sdkManager,
+                                registrationManager = registrationManager,
                                 navController = navController
                             )
                         }
                         composable("flight") {
                             FlightScreen(
                                 sdkManager = sdkManager,
+                                registrationManager = registrationManager,
                                 navController = navController
                             )
                         }

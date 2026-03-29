@@ -1,6 +1,7 @@
 package com.fuwaki.djifly.sdk
 
 import android.content.Context
+import android.os.Build
 import android.util.Log
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.getValue
@@ -9,6 +10,7 @@ import dji.sdk.keyvalue.key.AirLinkKey
 import dji.sdk.keyvalue.key.BatteryKey
 import dji.sdk.keyvalue.key.FlightControllerKey
 import dji.sdk.keyvalue.key.ProductKey
+import dji.sdk.keyvalue.key.RemoteControllerKey
 import dji.sdk.keyvalue.value.common.ComponentIndexType
 import dji.sdk.keyvalue.value.product.ProductType
 import dji.sdk.keyvalue.value.flightcontroller.LowBatteryRTHInfo
@@ -48,6 +50,7 @@ class DjiSdkManager private constructor() {
         SDKManager.getInstance().init(context, object : SDKManagerCallback {
             override fun onInitProcess(event: DJISDKInitEvent?, totalProcess: Int) {
                 initProgress = totalProcess
+                updateSdkStatus { copy(initProgress = totalProcess) }
                 if (event == DJISDKInitEvent.INITIALIZE_COMPLETE) {
                     SDKManager.getInstance().registerApp()
                 }
@@ -138,15 +141,71 @@ class DjiSdkManager private constructor() {
     private fun fetchProductDetails() {
         ProductKey.KeyProductType.create().get({ type: ProductType? ->
             val nonNullType = type ?: ProductType.UNKNOWN
-            currentProductInfo = currentProductInfo.copy(type = nonNullType, name = nonNullType.name, isConnected = true)
+            currentProductInfo = currentProductInfo.copy(
+                type = nonNullType,
+                name = nonNullType.name,
+                isConnected = true
+            )
             updateSdkStatus {
                 copy(connectionState = SdkConnectionState.ProductConnected(nonNullType.name, nonNullType), productInfo = currentProductInfo)
             }
         }, { error -> Log.e(TAG, "fetchProductDetails failed: $error") })
+
+        ProductKey.KeyFirmwareVersion.create().get({ firmwareVersion: String? ->
+            currentProductInfo = currentProductInfo.copy(
+                firmwareVersion = firmwareVersion.orUnavailable()
+            )
+            updateSdkStatus { copy(productInfo = currentProductInfo) }
+        }, { error -> Log.e(TAG, "fetchProduct firmware failed: $error") })
+
+        FlightControllerKey.KeySerialNumber.create().get({ serialNumber: String? ->
+            val normalized = serialNumber.normalizeDeviceValue()
+            if (normalized != null) {
+                currentProductInfo = currentProductInfo.copy(serialNumber = normalized)
+                updateSdkStatus { copy(productInfo = currentProductInfo) }
+            } else {
+                fetchProductSerialFallback()
+            }
+        }, { error ->
+            Log.e(TAG, "fetch flight controller serial failed: $error")
+            fetchProductSerialFallback()
+        })
+
+        RemoteControllerKey.KeyRemoteControllerType.create().get({ remoteControllerType ->
+            currentProductInfo = currentProductInfo.copy(
+                controllerModel = remoteControllerType?.name.orUnavailable(fallback = Build.MODEL)
+            )
+            updateSdkStatus { copy(productInfo = currentProductInfo) }
+        }, { error ->
+            Log.e(TAG, "fetch remote controller type failed: $error")
+            currentProductInfo = currentProductInfo.copy(controllerModel = Build.MODEL.orUnavailable())
+            updateSdkStatus { copy(productInfo = currentProductInfo) }
+        })
+    }
+
+    private fun fetchProductSerialFallback() {
+        ProductKey.KeySerialNumber.create().get({ serialNumber: String? ->
+            currentProductInfo = currentProductInfo.copy(
+                serialNumber = serialNumber.orUnavailable()
+            )
+            updateSdkStatus { copy(productInfo = currentProductInfo) }
+        }, { error -> Log.e(TAG, "fetch product serial fallback failed: $error") })
     }
 
     private fun updateSdkStatus(update: DjiSdkStatus.() -> DjiSdkStatus) {
         _sdkStatus.value = _sdkStatus.value.update()
+    }
+
+    private fun String?.normalizeDeviceValue(): String? {
+        val value = this?.trim().orEmpty()
+        if (value.isBlank()) return null
+        if (value.equals("N/A", ignoreCase = true)) return null
+        if (value.equals("UNKNOWN", ignoreCase = true)) return null
+        return value
+    }
+
+    private fun String?.orUnavailable(fallback: String = "N/A"): String {
+        return normalizeDeviceValue() ?: fallback
     }
 
     companion object {

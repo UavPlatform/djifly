@@ -40,9 +40,6 @@ import dji.v5.ux.core.communication.OnStateChangeCallback
 
 /**
  * UXSDK Component Wrappers for Compose
- *
- * This file contains AndroidView wrappers for DJI UXSDK components,
- * allowing them to be used in Jetpack Compose layouts.
  */
 @Composable
 fun CameraControlsComposeWidget(
@@ -52,45 +49,33 @@ fun CameraControlsComposeWidget(
     isPhotoVideoSwitchVisible: Boolean = true,
     isCameraCaptureVisible: Boolean = true,
 ) {
-    // 1. 去掉 fillMaxSize()，给一个合理的控制面板宽度，比如 60dp
     Column(
         modifier = modifier
-            .width(60.dp) // 限制宽度为正常无人机 UI 面板的宽度
-            .wrapContentHeight() // 高度由内部按钮撑开
-            .clip(RoundedCornerShape(8.dp)) // (可选) 加个圆角更好看
-            .background(Color(0xCC000000)) // 半透明黑底，或者用你原来的 0xFF1A1A1A
-            .padding(vertical = 12.dp, horizontal = 4.dp), // 上下左右留点内边距
+            .width(60.dp)
+            .wrapContentHeight()
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color(0xCC000000))
+            .padding(vertical = 12.dp, horizontal = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp) // 2. 用统一的间距代替 weight
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-
-        // 拍照/录像切换按钮
         if (isPhotoVideoSwitchVisible) {
             AndroidView(
-                modifier = Modifier
-                    .fillMaxWidth() // 填满 60dp 的宽度 (减去 padding)
-                    .aspectRatio(1f), // 3. 关键：强制宽高比 1:1，保证按钮是正方形/圆形，绝不变形
+                modifier = Modifier.fillMaxWidth().aspectRatio(1f),
                 factory = { context ->
                     PhotoVideoSwitchWidget(context).apply {
-                        // 内部原生 View 填满 Compose 分配给它的正方形空间
                         layoutParams = ViewGroup.LayoutParams(
                             ViewGroup.LayoutParams.MATCH_PARENT,
                             ViewGroup.LayoutParams.MATCH_PARENT
                         )
                     }
                 },
-                update = { view ->
-                    view.updateCameraSource(cameraIndex, lensType)
-                }
+                update = { view -> view.updateCameraSource(cameraIndex, lensType) }
             )
         }
-
-        // 快门按钮
         if (isCameraCaptureVisible) {
             AndroidView(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(1f), // 同样强制 1:1，保证两个按钮一模一样大
+                modifier = Modifier.fillMaxWidth().aspectRatio(1f),
                 factory = { context ->
                     CameraCaptureWidget(context).apply {
                         layoutParams = ViewGroup.LayoutParams(
@@ -99,125 +84,51 @@ fun CameraControlsComposeWidget(
                         )
                     }
                 },
-                update = { view ->
-                    view.updateCameraSource(cameraIndex, lensType)
-                }
+                update = { view -> view.updateCameraSource(cameraIndex, lensType) }
             )
         }
     }
 }
+
 /**
  * FPV Video Stream Widget
- * Displays the primary camera feed from the drone
  */
 @Composable
 fun FpvWidget(
     modifier: Modifier = Modifier,
     cameraIndex: ComponentIndexType = ComponentIndexType.LEFT_OR_MAIN,
-    enableCenterPoint: Boolean = true,
-    enableGridLines: Boolean = true
+    showCameraName: Boolean = false, // 强制不显示 DJI_MINI_4_PRO
+    showCameraSide: Boolean = false, // 强制不显示 LEFT_OR_MAIN
+    enableCenterPoint: Boolean = false,
+    enableGridLines: Boolean = false
 ) {
     AndroidView(
         modifier = modifier,
         factory = { context ->
             FPVWidget(context).apply {
                 updateVideoSource(cameraIndex)
+                // 强制隐藏机型和位置信息
+                isCameraSourceNameVisible = showCameraName
+                isCameraSourceSideVisible = showCameraSide
                 isCenterPointEnabled = enableCenterPoint
                 isGridLinesEnabled = enableGridLines
             }
         },
         update = { widget ->
             widget.updateVideoSource(cameraIndex)
+            // 在 update 中再次强制刷新，防止 Model 异步刷新覆盖配置
+            if (widget.isCameraSourceNameVisible != showCameraName) {
+                widget.isCameraSourceNameVisible = showCameraName
+            }
+            if (widget.isCameraSourceSideVisible != showCameraSide) {
+                widget.isCameraSourceSideVisible = showCameraSide
+            }
             widget.isCenterPointEnabled = enableCenterPoint
             widget.isGridLinesEnabled = enableGridLines
         }
     )
 }
 
-/**
- * Camera Controls Widget
- */
-@Composable
-fun CameraControlsWidget(
-    modifier: Modifier = Modifier
-) {
-    AndroidView<CameraControlsWidget>(
-        modifier = modifier,
-        factory = { context ->
-            CameraControlsWidget(context)
-        }
-    )
-}
-
-/**
- * Take Off Widget
- */
-@Composable
-fun TakeOffWidget(
-    modifier: Modifier = Modifier
-) {
-    AndroidView<TakeOffWidget>(
-        modifier = modifier,
-        factory = { context ->
-            TakeOffWidget(context)
-        }
-    )
-}
-
-/**
- * Return Home Widget
- */
-@Composable
-fun ReturnHomeWidget(
-    modifier: Modifier = Modifier
-) {
-    AndroidView<ReturnHomeWidget>(
-        modifier = modifier,
-        factory = { context ->
-            ReturnHomeWidget(context)
-        }
-    )
-}
-
-/**
- * Top Bar Panel Widget
- */
-@Composable
-fun TopBarPanelWidget(
-    modifier: Modifier = Modifier,
-    onSettingClick: () -> Unit = {}
-) {
-    AndroidView<TopBarPanelWidget>(
-        modifier = modifier,
-        factory = { context ->
-            TopBarPanelWidget(context).apply {
-                settingWidget?.setOnClickListener { onSettingClick() }
-            }
-        },
-        update = { widget ->
-            widget.settingWidget?.setOnClickListener { onSettingClick() }
-        }
-    )
-}
-
-/**
- * Remaining Flight Time Widget
- */
-@Composable
-fun RemainingFlightTimeWidget(
-    modifier: Modifier = Modifier
-) {
-    AndroidView<RemainingFlightTimeWidget>(
-        modifier = modifier,
-        factory = { context ->
-            RemainingFlightTimeWidget(context)
-        }
-    )
-}
-
-/**
- * Horizontal Situation Indicator Widget
- */
 @Composable
 fun HorizontalSituationIndicatorWidget(
     modifier: Modifier = Modifier
@@ -235,62 +146,17 @@ fun HorizontalSituationIndicatorWidget(
     )
 }
 
-/**
- * Lens Control Widget
- */
 @Composable
-fun LensControlWidget(
-    modifier: Modifier = Modifier
-) {
-    AndroidView<LensControlWidget>(
-        modifier = modifier,
-        factory = { context ->
-            LensControlWidget(context)
-        }
-    )
+fun LensControlWidget(modifier: Modifier = Modifier) {
+    AndroidView<LensControlWidget>(modifier = modifier, factory = { context -> LensControlWidget(context) })
 }
 
-/**
- * Focus Mode Widget
- */
 @Composable
-fun FocusModeWidget(
-    modifier: Modifier = Modifier
-) {
-    AndroidView<FocusModeWidget>(
-        modifier = modifier,
-        factory = { context ->
-            FocusModeWidget(context)
-        }
-    )
+fun FocusModeWidget(modifier: Modifier = Modifier) {
+    AndroidView<FocusModeWidget>(modifier = modifier, factory = { context -> FocusModeWidget(context) })
 }
 
-/**
- * Focus/Exposure Switch Widget
- */
 @Composable
-fun FocusExposureSwitchWidget(
-    modifier: Modifier = Modifier
-) {
-    AndroidView<FocusExposureSwitchWidget>(
-        modifier = modifier,
-        factory = { context ->
-            FocusExposureSwitchWidget(context)
-        }
-    )
-}
-
-/**
- * Auto Exposure Lock Widget
- */
-@Composable
-fun AutoExposureLockWidget(
-    modifier: Modifier = Modifier
-) {
-    AndroidView<AutoExposureLockWidget>(
-        modifier = modifier,
-        factory = { context ->
-            AutoExposureLockWidget(context)
-        }
-    )
+fun AutoExposureLockWidget(modifier: Modifier = Modifier) {
+    AndroidView<AutoExposureLockWidget>(modifier = modifier, factory = { context -> AutoExposureLockWidget(context) })
 }

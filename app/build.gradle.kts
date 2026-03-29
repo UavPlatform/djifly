@@ -19,6 +19,10 @@ android {
     namespace = "com.fuwaki.djifly"
     compileSdk = 35
 
+    val droneBackendBaseUrl = ((project.findProperty("DRONE_BACKEND_BASE_URL") as String?) ?: "")
+        .trim()
+        .replace("\"", "\\\"")
+
     defaultConfig {
         applicationId = "com.fuwaki.djifly"
         minSdk = 24
@@ -34,6 +38,7 @@ android {
 
         // Set API key from gradle.properties
         manifestPlaceholders["API_KEY"] = project.findProperty("AIRCRAFT_API_KEY") ?: ""
+        buildConfigField("String", "DRONE_BACKEND_BASE_URL", "\"$droneBackendBaseUrl\"")
     }
 
     buildTypes {
@@ -72,6 +77,7 @@ android {
 
     packaging {
         jniLibs {
+            useLegacyPackaging = true
             pickFirsts.add("lib/arm64-v8a/libc++_shared.so")
             pickFirsts.add("lib/armeabi-v7a/libc++_shared.so")
         }
@@ -128,12 +134,19 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    implementation(libs.androidx.datastore.preferences)
+    implementation(libs.retrofit)
+    implementation(libs.retrofit.converter.gson)
+    implementation(libs.okhttp)
+    implementation(libs.okhttp.logging.interceptor)
 
     // Navigation Compose
     implementation("androidx.navigation:navigation-compose:2.7.6")
 
     // ConstraintLayout (required for UXSDK widgets)
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
+
+    implementation("com.tencent.liteav:LiteAVSDK_TRTC:13.2.0.20058")
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

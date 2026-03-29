@@ -29,6 +29,8 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.navigation.NavController
+import com.fuwaki.djifly.platform.registration.PlatformRegistrationManager
+import com.fuwaki.djifly.platform.registration.PlatformRegistrationState
 import com.fuwaki.djifly.sdk.DjiSdkManager
 import com.fuwaki.djifly.sdk.SdkConnectionState
 import com.fuwaki.djifly.ui.widget.*
@@ -36,6 +38,7 @@ import com.fuwaki.djifly.ui.widget.compose.TopStatusRow
 import com.fuwaki.djifly.ui.widget.compose.TakeOffButton
 import com.fuwaki.djifly.ui.widget.compose.ReturnHomeButton
 import com.fuwaki.djifly.ui.widget.compose.CameraConfigBar
+import com.fuwaki.djifly.ui.widget.compose.ServerConnectionChip
 import dji.sdk.keyvalue.value.common.CameraLensType
 import dji.sdk.keyvalue.value.common.ComponentIndexType
 
@@ -55,22 +58,39 @@ fun Context.findFragmentActivity(): FragmentActivity? {
 @Composable
 fun FlightScreen(
     sdkManager: DjiSdkManager,
+    registrationManager: PlatformRegistrationManager,
     navController: NavController
 ) {
     val sdkStatus by sdkManager.sdkStatus.collectAsState()
+    val registrationState by registrationManager.state.collectAsState()
 
     if (sdkStatus.connectionState is SdkConnectionState.ProductConnected) {
-        FlightScreenContent(sdkManager = sdkManager, navController = navController)
+        FlightScreenContent(
+            sdkManager = sdkManager,
+            registrationState = registrationState,
+            navController = navController
+        )
     } else {
-        ConnectionRequiredScreen(navController)
+        ConnectionRequiredScreen(
+            registrationState = registrationState,
+            navController = navController
+        )
     }
 }
 
 @Composable
-private fun ConnectionRequiredScreen(navController: NavController) {
+private fun ConnectionRequiredScreen(
+    registrationState: PlatformRegistrationState,
+    navController: NavController
+) {
     Surface(modifier = Modifier.fillMaxSize(), color = Color(0xFF0A0A0A)) {
         Box(contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                ServerConnectionChip(
+                    registrationState = registrationState,
+                    showDetail = true,
+                    modifier = Modifier.padding(bottom = 20.dp)
+                )
                 Icon(Icons.Default.Warning, null, tint = Color.LightGray, modifier = Modifier.size(48.dp))
                 Spacer(modifier = Modifier.height(16.dp))
                 Text("DISCONNECTED", color = Color.White, letterSpacing = 2.sp, fontWeight = FontWeight.Bold)
@@ -89,6 +109,7 @@ private fun ConnectionRequiredScreen(navController: NavController) {
 @Composable
 private fun FlightScreenContent(
     sdkManager: DjiSdkManager,
+    registrationState: PlatformRegistrationState,
     navController: NavController
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -132,6 +153,17 @@ private fun FlightScreenContent(
                     }
                 )
             }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                ServerConnectionChip(
+                    registrationState = registrationState,
+                    showDetail = false
+                )
+            }
         }
 
         // 3. 左侧控制按钮
@@ -159,52 +191,54 @@ private fun FlightScreenContent(
             }
         }
 
-        // 4. 右侧相机控制
+        // 4. 右侧相机控制 (调整为精确居中)
         Box(
             modifier = Modifier
                 .align(Alignment.CenterEnd)
                 .padding(end = 16.dp)
-                .fillMaxHeight(0.85f)
                 .width(90.dp)
         ) {
             Column(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.wrapContentHeight(),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                Row(
+                // 4.1 对焦模式切换
+                Box(
                     modifier = Modifier
                         .background(Color.Black.copy(0.4f), RoundedCornerShape(20.dp))
-                        .padding(horizontal = 6.dp, vertical = 2.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
                 ) {
                     FocusModeWidget(modifier = Modifier.size(26.dp))
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // 4.2 镜头/变焦控制
                 LensControlWidget(modifier = Modifier.width(44.dp).height(90.dp))
-                Spacer(modifier = Modifier.height(16.dp))
 
-                Box(modifier = Modifier.height(260.dp), contentAlignment = Alignment.Center) {
-                    CameraControlsComposeWidget(
-                        cameraIndex = ComponentIndexType.LEFT_OR_MAIN,
-                        lensType = CameraLensType.UNKNOWN,
-                        modifier = Modifier.fillMaxSize(),
+                Spacer(modifier = Modifier.height(12.dp))
 
-                    )
-                }
+                // 4.3 核心按钮区 (拍照、录像切换)
+                CameraControlsComposeWidget(
+                    cameraIndex = ComponentIndexType.LEFT_OR_MAIN,
+                    lensType = CameraLensType.UNKNOWN
+                )
+
+                // 🚀 核心优化：增加底部补偿间距，平衡上方的挂件，使拍照按钮处于屏幕中心
+                Spacer(modifier = Modifier.height(120.dp))
             }
         }
 
-        // 5. 底部居中的姿态球 (HSI)
+        // 5. 底部左侧姿态球 (HSI) - 贴死边缘
         Box(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 16.dp)
+                .align(Alignment.BottomStart)
+                .navigationBarsPadding()
         ) {
             Surface(
                 color = Color.Black.copy(0.3f),
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(topEnd = 12.dp),
                 border = ButtonDefaults.outlinedButtonBorder.copy(
                     width = 0.5.dp,
                     brush = Brush.linearGradient(listOf(Color.White.copy(0.15f), Color.Transparent))
@@ -214,7 +248,7 @@ private fun FlightScreenContent(
                     modifier = Modifier
                         .height(100.dp)
                         .wrapContentWidth()
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                        .padding(start = 6.dp, end = 10.dp, top = 6.dp, bottom = 0.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     HorizontalSituationIndicatorWidget(
@@ -228,7 +262,7 @@ private fun FlightScreenContent(
         CameraConfigBar(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .navigationBarsPadding() // 自动适配可能的系统导航栏（如果有）
+                .navigationBarsPadding()
         )
 
         // 6. 遮罩层 (当面板打开时变暗，点击空白处关闭)
