@@ -19,13 +19,14 @@ import com.fuwaki.djifly.sdk.DjiSdkManager
 import com.fuwaki.djifly.ui.screen.FlightScreen
 import com.fuwaki.djifly.ui.screen.StarterScreen
 import com.fuwaki.djifly.ui.theme.DjiflyTheme
+import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
+@AndroidEntryPoint
 class MainActivity : FragmentActivity() {
 
-    private val sdkManager = DjiSdkManager.getInstance()
-    private val registrationManager: PlatformRegistrationManager by lazy {
-        (application as MyApplication).appContainer.platformRegistrationManager
-    }
+    @Inject lateinit var sdkManager: DjiSdkManager
+    @Inject lateinit var registrationManager: PlatformRegistrationManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

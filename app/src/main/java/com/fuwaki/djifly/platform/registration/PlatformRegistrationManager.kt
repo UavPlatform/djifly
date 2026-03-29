@@ -2,6 +2,7 @@ package com.fuwaki.djifly.platform.registration
 
 import android.os.Build
 import android.util.Log
+import com.fuwaki.djifly.di.ApplicationScope
 import com.fuwaki.djifly.sdk.DjiSdkManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -13,12 +14,15 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import javax.inject.Inject
+import javax.inject.Singleton
 
-class PlatformRegistrationManager(
+@Singleton
+class PlatformRegistrationManager @Inject constructor(
     private val sdkManager: DjiSdkManager,
     private val repository: PlatformRegistrationRepository,
     private val store: PlatformRegistrationStore,
-    private val externalScope: CoroutineScope
+    @ApplicationScope private val externalScope: CoroutineScope
 ) {
 
     private val tag = "PlatformRegManager"

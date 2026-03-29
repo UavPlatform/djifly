@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.hilt.android)
     kotlin("kapt")
 }
 
@@ -115,6 +116,10 @@ android {
     }
 }
 
+kapt {
+    correctErrorTypes = true
+}
+
 dependencies {
     // DJI MSDK Dependencies
     implementation(project(":android-sdk-v5-uxsdk"))
@@ -139,6 +144,8 @@ dependencies {
     implementation(libs.retrofit.converter.gson)
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging.interceptor)
+    implementation(libs.hilt.android)
+    kapt(libs.hilt.compiler)
 
     // Navigation Compose
     implementation("androidx.navigation:navigation-compose:2.7.6")

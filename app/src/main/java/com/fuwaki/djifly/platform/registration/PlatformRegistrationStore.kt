@@ -8,15 +8,19 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import javax.inject.Inject
+import javax.inject.Singleton
 
 private val Context.platformRegistrationDataStore: DataStore<Preferences> by preferencesDataStore(
     name = "platform_registration"
 )
 
-class PlatformRegistrationStore(
-    private val appContext: Context
+@Singleton
+class PlatformRegistrationStore @Inject constructor(
+    @ApplicationContext private val appContext: Context
 ) {
 
     val latestRegistration: Flow<RegisteredDroneSnapshot?> = appContext.platformRegistrationDataStore.data.map { preferences ->

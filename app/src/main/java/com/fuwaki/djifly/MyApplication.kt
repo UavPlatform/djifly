@@ -3,14 +3,17 @@ package com.fuwaki.djifly
 import android.app.Application
 import android.content.Context
 import android.util.Log
-import com.fuwaki.djifly.platform.AppContainer
+import com.fuwaki.djifly.platform.registration.PlatformRegistrationManager
 import com.fuwaki.djifly.sdk.DjiSdkManager
+import dagger.hilt.android.HiltAndroidApp
+import javax.inject.Inject
 
+@HiltAndroidApp
 class MyApplication : Application() {
 
     private val TAG = this::class.simpleName
-    lateinit var appContainer: AppContainer
-        private set
+    @Inject lateinit var sdkManager: DjiSdkManager
+    @Inject lateinit var platformRegistrationManager: PlatformRegistrationManager
 
     override fun attachBaseContext(base: Context?) {
         super.attachBaseContext(base)
@@ -24,9 +27,7 @@ class MyApplication : Application() {
         super.onCreate()
         Log.i(TAG, "MyApplication onCreate - Initializing DJI SDK")
 
-        val sdkManager = DjiSdkManager.getInstance()
-        appContainer = AppContainer(this, sdkManager)
         sdkManager.initSdk(this)
-        appContainer.platformRegistrationManager.start()
+        platformRegistrationManager.start()
     }
 }

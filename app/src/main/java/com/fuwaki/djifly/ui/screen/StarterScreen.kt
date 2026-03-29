@@ -66,7 +66,7 @@ import java.util.Locale
 
 @Composable
 fun StarterScreen(
-    sdkManager: DjiSdkManager = DjiSdkManager.getInstance(),
+    sdkManager: DjiSdkManager,
     registrationManager: PlatformRegistrationManager,
     navController: NavController? = null
 ) {

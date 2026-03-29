@@ -28,8 +28,11 @@ import dji.v5.manager.KeyManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import javax.inject.Inject
+import javax.inject.Singleton
 
-class DjiSdkManager private constructor() {
+@Singleton
+class DjiSdkManager @Inject constructor() {
 
     private val TAG = "DjiSdkManager"
     private val _sdkStatus = MutableStateFlow(DjiSdkStatus())
@@ -206,12 +209,5 @@ class DjiSdkManager private constructor() {
 
     private fun String?.orUnavailable(fallback: String = "N/A"): String {
         return normalizeDeviceValue() ?: fallback
-    }
-
-    companion object {
-        @Volatile private var instance: DjiSdkManager? = null
-        fun getInstance() = instance ?: synchronized(this) {
-            instance ?: DjiSdkManager().also { instance = it }
-        }
     }
 }

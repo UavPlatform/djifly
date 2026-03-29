@@ -1,17 +1,19 @@
 package com.fuwaki.djifly.platform.registration
 
 import com.fuwaki.djifly.platform.network.PlatformApiService
-import com.fuwaki.djifly.platform.network.PlatformNetwork
+import com.fuwaki.djifly.platform.network.PlatformApiErrorResponse
 import com.fuwaki.djifly.platform.network.RegisterDroneRequest
-import com.fuwaki.djifly.platform.network.RegisterDroneResponse
+import com.google.gson.Gson
 import retrofit2.HttpException
 import java.io.IOException
+import javax.inject.Inject
+import javax.inject.Singleton
 
-class PlatformRegistrationRepository(
-    private val apiFactory: () -> PlatformApiService
+@Singleton
+class PlatformRegistrationRepository @Inject constructor(
+    private val apiService: PlatformApiService,
+    private val gson: Gson
 ) {
-
-    private val gson = PlatformNetwork.gson()
 
     suspend fun registerDrone(
         serialNumber: String,
@@ -25,7 +27,7 @@ class PlatformRegistrationRepository(
         )
 
         return try {
-            val response = apiFactory().registerDrone(request)
+            val response = apiService.registerDrone(request)
             if (response.isSuccessful) {
                 val body = response.body()
                 PlatformRegistrationResult.Success(
@@ -71,7 +73,7 @@ class PlatformRegistrationRepository(
     ): PlatformRegistrationResult {
         val body = errorBody
             ?.takeIf { it.isNotBlank() }
-            ?.let { gson.fromJson(it, RegisterDroneResponse::class.java) }
+            ?.let { gson.fromJson(it, PlatformApiErrorResponse::class.java) }
         val message = body?.message?.takeIf { it.isNotBlank() } ?: "平台注册失败（HTTP $code）"
 
         // 后端 add 接口不是幂等的；如果同一 SN 已存在，这里按“已登记”处理，避免每次重启都被视为失败。

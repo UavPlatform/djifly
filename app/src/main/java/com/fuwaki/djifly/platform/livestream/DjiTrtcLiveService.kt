@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Bundle
 import android.os.SystemClock
 import android.util.Log
+import dagger.hilt.android.qualifiers.ApplicationContext
 import com.tencent.trtc.TRTCCloud
 import com.tencent.trtc.TRTCCloudDef
 import com.tencent.trtc.TRTCCloudListener
@@ -13,6 +14,8 @@ import dji.v5.manager.interfaces.ICameraStreamManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import javax.inject.Inject
+import javax.inject.Singleton
 
 enum class DjiTrtcLivePhase {
     Idle,
@@ -55,8 +58,9 @@ data class DjiTrtcLiveConfig(
     val businessInfo: String? = null,
 )
 
-class DjiTrtcLiveService(
-    context: Context
+@Singleton
+class DjiTrtcLiveService @Inject constructor(
+    @ApplicationContext context: Context
 ) {
 
     private val tag = "DjiTrtcLiveService"
