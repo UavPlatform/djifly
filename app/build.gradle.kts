@@ -132,6 +132,7 @@ dependencies {
     implementation("com.dji:dji-sdk-v5-networkImp:5.17.0")
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.compose.foundation.layout)
+    implementation(libs.androidx.foundation.layout)
     compileOnly("com.dji:dji-sdk-v5-aircraft-provided:5.17.0")
 
     // Existing Compose dependencies

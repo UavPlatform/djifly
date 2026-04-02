@@ -1,5 +1,7 @@
-package com.fuwaki.djifly.platform.network
+package com.fuwaki.djifly.platform.ws.protocol
 
+import com.google.gson.Gson
+import com.google.gson.JsonElement
 import com.google.gson.annotations.SerializedName
 
 enum class PlatformWsType {
@@ -40,6 +42,29 @@ data class PlatformWsEnvelope<T>(
     val message: String? = null,
     val data: T? = null
 )
+
+data class PlatformWsInboundEnvelope(
+    val rawText: String,
+    val id: String? = null,
+    val typeRaw: String? = null,
+    val nameRaw: String? = null,
+    val type: PlatformWsType? = null,
+    val name: PlatformWsName? = null,
+    val replyTo: String? = null,
+    val deviceId: String? = null,
+    val timestamp: Long? = null,
+    val success: Boolean? = null,
+    val code: String? = null,
+    val message: String? = null,
+    val data: JsonElement? = null
+) {
+    fun <T : Any> parseData(
+        gson: Gson,
+        clazz: Class<T>
+    ): T? = data?.let { payload ->
+        runCatching { gson.fromJson(payload, clazz) }.getOrNull()
+    }
+}
 
 data class PlatformStartLivePayload(
     val roomId: String,
