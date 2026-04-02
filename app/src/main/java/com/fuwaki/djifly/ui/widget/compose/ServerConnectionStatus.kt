@@ -2,18 +2,31 @@ package com.fuwaki.djifly.ui.widget.compose
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -21,7 +34,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.fuwaki.djifly.platform.registration.PlatformRegistrationState
+import com.fuwaki.djifly.platform.ws.WsMessageDirection
+import com.fuwaki.djifly.platform.ws.WsMessageLog
 
 data class ServerConnectionUiModel(
     val status: String,
@@ -78,13 +95,15 @@ fun PlatformRegistrationState.toServerConnectionUiModel(): ServerConnectionUiMod
 @Composable
 fun ServerConnectionChip(
     registrationState: PlatformRegistrationState,
+    wsMessages: List<WsMessageLog>,
     modifier: Modifier = Modifier,
     showDetail: Boolean = true
 ) {
     val uiModel = registrationState.toServerConnectionUiModel()
+    var showHistory by remember { mutableStateOf(false) }
 
     Surface(
-        modifier = modifier,
+        modifier = modifier.clickable { showHistory = true },
         color = Color.Black.copy(alpha = 0.42f),
         shape = RoundedCornerShape(999.dp)
     ) {
@@ -117,6 +136,218 @@ fun ServerConnectionChip(
                     overflow = TextOverflow.Ellipsis
                 )
             }
+        }
+    }
+
+    if (showHistory) {
+        WebSocketMessageHistoryDialog(
+            messages = wsMessages,
+            onDismiss = { showHistory = false }
+        )
+    }
+}
+
+@Composable
+fun ServerConnectionIndicatorDot(
+    registrationState: PlatformRegistrationState,
+    wsMessages: List<WsMessageLog>,
+    modifier: Modifier = Modifier
+) {
+    val uiModel = registrationState.toServerConnectionUiModel()
+    var showHistory by remember { mutableStateOf(false) }
+
+    Box(
+        modifier = modifier.clickable { showHistory = true },
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .size(10.dp)
+                .clip(CircleShape)
+                .background(uiModel.color)
+                .border(1.5.dp, Color.Black.copy(alpha = 0.3f), CircleShape)
+        )
+    }
+
+    if (showHistory) {
+        WebSocketMessageHistoryDialog(
+            messages = wsMessages,
+            onDismiss = { showHistory = false }
+        )
+    }
+}
+
+@Composable
+fun WebSocketMessageHistoryDialog(
+    messages: List<WsMessageLog>,
+    onDismiss: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.7f))
+                .clickable(onClick = onDismiss),
+            contentAlignment = Alignment.BottomCenter
+        ) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 500.dp)
+                    .clickable { },
+                color = Color(0xFF1A1A1A),
+                shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .width(36.dp)
+                                .height(4.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(Color.White.copy(alpha = 0.3f))
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "通讯记录",
+                            color = Color.White,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "${messages.size} 条",
+                            color = Color.White.copy(alpha = 0.5f),
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    HorizontalDivider(color = Color.White.copy(alpha = 0.15f))
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    if (messages.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(120.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "暂无消息",
+                                color = Color.White.copy(alpha = 0.4f),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.heightIn(max = 380.dp)
+                        ) {
+                            items(messages.reversed()) { log ->
+                                WebSocketMessageItem(log)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun WebSocketMessageHistory(
+    messages: List<WsMessageLog>,
+    modifier: Modifier = Modifier,
+    maxItems: Int = 50
+) {
+    val displayMessages = messages.takeLast(maxItems).reversed()
+
+    Surface(
+        modifier = modifier,
+        color = Color.Black.copy(alpha = 0.6f),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(8.dp)
+        ) {
+            Text(
+                text = "WebSocket 消息",
+                color = Color.White.copy(alpha = 0.7f),
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold
+            )
+            if (displayMessages.isEmpty()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "暂无消息",
+                    color = Color.White.copy(alpha = 0.4f),
+                    style = MaterialTheme.typography.bodySmall
+                )
+            } else {
+                Spacer(modifier = Modifier.height(4.dp))
+                HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+                Spacer(modifier = Modifier.height(4.dp))
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(displayMessages) { log ->
+                        WebSocketMessageItem(log)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WebSocketMessageItem(log: WsMessageLog) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        val directionColor = when (log.direction) {
+            WsMessageDirection.SENT -> Color(0xFF4CAF50)
+            WsMessageDirection.RECEIVED -> Color(0xFF2196F3)
+        }
+        val directionText = when (log.direction) {
+            WsMessageDirection.SENT -> "↑"
+            WsMessageDirection.RECEIVED -> "↓"
+        }
+        Text(
+            text = directionText,
+            color = directionColor,
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.width(4.dp))
+        Text(
+            text = log.type,
+            color = Color.White.copy(alpha = 0.9f),
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Medium
+        )
+        if (log.name != null) {
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = "[${log.name}]",
+                color = Color.White.copy(alpha = 0.6f),
+                style = MaterialTheme.typography.bodySmall
+            )
         }
     }
 }

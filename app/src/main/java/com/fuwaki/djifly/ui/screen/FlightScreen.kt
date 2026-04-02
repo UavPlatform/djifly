@@ -31,6 +31,8 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.navigation.NavController
 import com.fuwaki.djifly.platform.registration.PlatformRegistrationManager
 import com.fuwaki.djifly.platform.registration.PlatformRegistrationState
+import com.fuwaki.djifly.platform.ws.WsCommunicationState
+import com.fuwaki.djifly.platform.ws.WsMessageLog
 import com.fuwaki.djifly.sdk.DjiSdkManager
 import com.fuwaki.djifly.sdk.SdkConnectionState
 import com.fuwaki.djifly.ui.widget.*
@@ -39,6 +41,7 @@ import com.fuwaki.djifly.ui.widget.compose.TakeOffButton
 import com.fuwaki.djifly.ui.widget.compose.ReturnHomeButton
 import com.fuwaki.djifly.ui.widget.compose.CameraConfigBar
 import com.fuwaki.djifly.ui.widget.compose.ServerConnectionChip
+import com.fuwaki.djifly.ui.widget.compose.ServerConnectionIndicatorDot
 import dji.sdk.keyvalue.value.common.CameraLensType
 import dji.sdk.keyvalue.value.common.ComponentIndexType
 
@@ -59,20 +62,24 @@ fun Context.findFragmentActivity(): FragmentActivity? {
 fun FlightScreen(
     sdkManager: DjiSdkManager,
     registrationManager: PlatformRegistrationManager,
+    wsCommunicationState: WsCommunicationState,
     navController: NavController
 ) {
     val sdkStatus by sdkManager.sdkStatus.collectAsState()
     val registrationState by registrationManager.state.collectAsState()
+    val wsMessages by wsCommunicationState.messages.collectAsState()
 
     if (sdkStatus.connectionState is SdkConnectionState.ProductConnected) {
         FlightScreenContent(
             sdkManager = sdkManager,
             registrationState = registrationState,
+            wsMessages = wsMessages,
             navController = navController
         )
     } else {
         ConnectionRequiredScreen(
             registrationState = registrationState,
+            wsMessages = wsMessages,
             navController = navController
         )
     }
@@ -81,6 +88,7 @@ fun FlightScreen(
 @Composable
 private fun ConnectionRequiredScreen(
     registrationState: PlatformRegistrationState,
+    wsMessages: List<WsMessageLog>,
     navController: NavController
 ) {
     Surface(modifier = Modifier.fillMaxSize(), color = Color(0xFF0A0A0A)) {
@@ -88,6 +96,7 @@ private fun ConnectionRequiredScreen(
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 ServerConnectionChip(
                     registrationState = registrationState,
+                    wsMessages = wsMessages,
                     showDetail = true,
                     modifier = Modifier.padding(bottom = 20.dp)
                 )
@@ -110,6 +119,7 @@ private fun ConnectionRequiredScreen(
 private fun FlightScreenContent(
     sdkManager: DjiSdkManager,
     registrationState: PlatformRegistrationState,
+    wsMessages: List<WsMessageLog>,
     navController: NavController
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -159,9 +169,9 @@ private fun FlightScreenContent(
                     .padding(horizontal = 16.dp, vertical = 6.dp),
                 contentAlignment = Alignment.CenterEnd
             ) {
-                ServerConnectionChip(
+                ServerConnectionIndicatorDot(
                     registrationState = registrationState,
-                    showDetail = false
+                    wsMessages = wsMessages
                 )
             }
         }

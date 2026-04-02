@@ -31,7 +31,6 @@ sealed interface PlatformRegistrationState {
         val retryable: Boolean
     ) : PlatformRegistrationState
 }
-
 sealed interface PlatformRegistrationResult {
     data class Success(
         val droneId: Long?,

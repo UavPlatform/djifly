@@ -23,6 +23,10 @@ android {
     val droneBackendBaseUrl = ((project.findProperty("DRONE_BACKEND_BASE_URL") as String?) ?: "")
         .trim()
         .replace("\"", "\\\"")
+    val trtcSdkAppId = ((project.findProperty("TRTC_SDK_APP_ID") as String?) ?: "")
+        .trim()
+        .toLongOrNull()
+        ?: 0L
 
     defaultConfig {
         applicationId = "com.fuwaki.djifly"
@@ -40,6 +44,7 @@ android {
         // Set API key from gradle.properties
         manifestPlaceholders["API_KEY"] = project.findProperty("AIRCRAFT_API_KEY") ?: ""
         buildConfigField("String", "DRONE_BACKEND_BASE_URL", "\"$droneBackendBaseUrl\"")
+        buildConfigField("long", "TRTC_SDK_APP_ID", "${trtcSdkAppId}L")
     }
 
     buildTypes {

@@ -15,6 +15,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.fuwaki.djifly.platform.registration.PlatformRegistrationManager
+import com.fuwaki.djifly.platform.ws.WsCommunicationState
 import com.fuwaki.djifly.sdk.DjiSdkManager
 import com.fuwaki.djifly.ui.screen.FlightScreen
 import com.fuwaki.djifly.ui.screen.StarterScreen
@@ -27,6 +28,7 @@ class MainActivity : FragmentActivity() {
 
     @Inject lateinit var sdkManager: DjiSdkManager
     @Inject lateinit var registrationManager: PlatformRegistrationManager
+    @Inject lateinit var wsCommunicationState: WsCommunicationState
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -56,6 +58,7 @@ class MainActivity : FragmentActivity() {
                             FlightScreen(
                                 sdkManager = sdkManager,
                                 registrationManager = registrationManager,
+                                wsCommunicationState = wsCommunicationState,
                                 navController = navController
                             )
                         }

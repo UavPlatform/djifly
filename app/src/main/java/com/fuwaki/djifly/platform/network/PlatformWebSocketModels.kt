@@ -161,4 +161,34 @@ object PlatformWsEnvelopeFactory {
             success = true
         )
     }
+
+    fun pong(
+        replyTo: String?,
+        deviceId: String,
+        timestamp: Long
+    ): PlatformWsEnvelope<Unit> {
+        return PlatformWsEnvelope(
+            type = PlatformWsType.EVENT,
+            name = PlatformWsName.PONG,
+            replyTo = replyTo,
+            deviceId = deviceId,
+            timestamp = timestamp,
+            success = true,
+            message = "pong"
+        )
+    }
+
+    fun connectSuccess(
+        deviceId: String,
+        timestamp: Long
+    ): PlatformWsEnvelope<Unit> {
+        return PlatformWsEnvelope(
+            type = PlatformWsType.EVENT,
+            name = PlatformWsName.CONNECT_SUCCESS,
+            deviceId = deviceId,
+            timestamp = timestamp,
+            success = true,
+            message = "连接成功"
+        )
+    }
 }

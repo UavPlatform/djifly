@@ -2,6 +2,8 @@ package com.fuwaki.djifly.platform.registration
 
 import android.os.Build
 import android.util.Log
+import com.fuwaki.djifly.platform.connection.PlatformConnectionSessionResult
+import com.fuwaki.djifly.platform.connection.PlatformConnectionSessionService
 import com.fuwaki.djifly.di.ApplicationScope
 import com.fuwaki.djifly.sdk.DjiSdkManager
 import kotlinx.coroutines.CoroutineScope
@@ -20,7 +22,8 @@ import javax.inject.Singleton
 @Singleton
 class PlatformRegistrationManager @Inject constructor(
     private val sdkManager: DjiSdkManager,
-    private val repository: PlatformRegistrationRepository,
+    private val registrationRepository: PlatformRegistrationRepository,
+    private val connectionSessionService: PlatformConnectionSessionService,
     private val store: PlatformRegistrationStore,
     @ApplicationScope private val externalScope: CoroutineScope
 ) {
@@ -29,9 +32,9 @@ class PlatformRegistrationManager @Inject constructor(
     private val _state = MutableStateFlow<PlatformRegistrationState>(PlatformRegistrationState.WaitingForAircraft)
     val state: StateFlow<PlatformRegistrationState> = _state.asStateFlow()
 
-    private val registeredSerialsThisSession = mutableSetOf<String>()
+    private val registeredSnapshotsThisSession = mutableMapOf<String, RegisteredDroneSnapshot>()
     private var observerJob: Job? = null
-    private var activeRegistrationJob: Job? = null
+    private var activeSessionJob: Job? = null
     private var activeSerialNumber: String? = null
 
     fun start() {
@@ -49,31 +52,26 @@ class PlatformRegistrationManager @Inject constructor(
                 .distinctUntilChanged()
                 .collectLatest { trigger ->
                     if (!trigger.isConnected) {
-                        activeRegistrationJob?.cancel()
-                        activeRegistrationJob = null
-                        activeSerialNumber = null
+                        stopActiveSession()
                         _state.value = PlatformRegistrationState.WaitingForAircraft
                         return@collectLatest
                     }
 
                     val serialNumber = trigger.serialNumber
                     if (serialNumber == null) {
+                        stopActiveSession()
                         _state.value = PlatformRegistrationState.WaitingForAircraft
                         return@collectLatest
                     }
 
-                    if (serialNumber in registeredSerialsThisSession) {
+                    if (activeSerialNumber == serialNumber && activeSessionJob?.isActive == true) {
                         return@collectLatest
                     }
 
-                    if (activeSerialNumber == serialNumber && activeRegistrationJob?.isActive == true) {
-                        return@collectLatest
-                    }
-
-                    activeRegistrationJob?.cancel()
+                    stopActiveSession()
                     activeSerialNumber = serialNumber
-                    activeRegistrationJob = externalScope.launch {
-                        registerWithRetry(
+                    activeSessionJob = externalScope.launch {
+                        managePlatformSession(
                             serialNumber = serialNumber,
                             controllerModel = trigger.controllerModel
                         )
@@ -95,30 +93,73 @@ class PlatformRegistrationManager @Inject constructor(
             return
         }
 
-        if (serialNumber in registeredSerialsThisSession) {
-            return
-        }
-
         val controllerModel = status.productInfo.controllerModel.normalizedValue() ?: Build.MODEL
-        activeRegistrationJob?.cancel()
+        stopActiveSession()
         activeSerialNumber = serialNumber
-        activeRegistrationJob = externalScope.launch {
-            registerWithRetry(
+        activeSessionJob = externalScope.launch {
+            managePlatformSession(
                 serialNumber = serialNumber,
                 controllerModel = controllerModel
             )
         }
     }
 
-    private suspend fun registerWithRetry(
+    private suspend fun managePlatformSession(
         serialNumber: String,
         controllerModel: String
     ) {
+        val snapshot = ensureRegistered(
+            serialNumber = serialNumber,
+            controllerModel = controllerModel
+        ) ?: return
+
+        _state.value = PlatformRegistrationState.Registering(serialNumber)
+
+        when (
+            val result = connectionSessionService.maintainRegisteredSession(
+                serialNumber = serialNumber,
+                snapshot = snapshot,
+                onConnected = {
+                    _state.value = PlatformRegistrationState.Registered(
+                        serialNumber = serialNumber,
+                        droneId = snapshot.droneId,
+                        droneName = snapshot.droneName,
+                        controllerModel = controllerModel,
+                        createdOnServer = snapshot.createdOnServer
+                    )
+                },
+                onRetryScheduled = { nextAttempt, retryAfterSeconds, lastError ->
+                    _state.value = PlatformRegistrationState.RetryScheduled(
+                        serialNumber = serialNumber,
+                        nextAttempt = nextAttempt,
+                        retryAfterSeconds = retryAfterSeconds,
+                        lastError = lastError
+                    )
+                }
+            )
+        ) {
+            PlatformConnectionSessionResult.Stopped -> Unit
+            is PlatformConnectionSessionResult.Failed -> {
+                _state.value = PlatformRegistrationState.Failed(
+                    serialNumber = serialNumber,
+                    reason = result.reason,
+                    retryable = result.retryable
+                )
+            }
+        }
+    }
+
+    private suspend fun ensureRegistered(
+        serialNumber: String,
+        controllerModel: String
+    ): RegisteredDroneSnapshot? {
+        registeredSnapshotsThisSession[serialNumber]?.let { return it }
+
         for ((index, retryDelayMillis) in RETRY_DELAYS_MS.withIndex()) {
             val attempt = index + 1
             _state.value = PlatformRegistrationState.Registering(serialNumber)
 
-            when (val result = repository.registerDrone(serialNumber, controllerModel)) {
+            when (val result = registrationRepository.registerDrone(serialNumber, controllerModel)) {
                 is PlatformRegistrationResult.Success -> {
                     val snapshot = RegisteredDroneSnapshot(
                         serialNumber = serialNumber,
@@ -129,16 +170,8 @@ class PlatformRegistrationManager @Inject constructor(
                         lastRegisteredAtMillis = System.currentTimeMillis()
                     )
                     store.save(snapshot)
-                    registeredSerialsThisSession += serialNumber
-                    _state.value = PlatformRegistrationState.Registered(
-                        serialNumber = serialNumber,
-                        droneId = result.droneId,
-                        droneName = result.droneName,
-                        controllerModel = controllerModel,
-                        createdOnServer = result.createdOnServer
-                    )
-                    activeSerialNumber = null
-                    return
+                    registeredSnapshotsThisSession[serialNumber] = snapshot
+                    return snapshot
                 }
 
                 is PlatformRegistrationResult.Failure -> {
@@ -150,8 +183,7 @@ class PlatformRegistrationManager @Inject constructor(
                             reason = result.message,
                             retryable = result.retryable
                         )
-                        activeSerialNumber = null
-                        return
+                        return null
                     }
 
                     _state.value = PlatformRegistrationState.RetryScheduled(
@@ -164,6 +196,14 @@ class PlatformRegistrationManager @Inject constructor(
                 }
             }
         }
+        return null
+    }
+
+    private fun stopActiveSession() {
+        activeSessionJob?.cancel()
+        activeSessionJob = null
+        connectionSessionService.disconnect()
+        activeSerialNumber = null
     }
 
     private fun String?.normalizedValue(): String? {
