@@ -24,6 +24,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.fuwaki.djifly.platform.registration.PlatformRegistrationState
+import com.fuwaki.djifly.platform.ws.WsCommunicationState
 import com.fuwaki.djifly.platform.ws.WsMessageDirection
 import com.fuwaki.djifly.platform.ws.WsMessageLog
 
@@ -96,7 +98,7 @@ fun PlatformRegistrationState.toServerConnectionUiModel(): ServerConnectionUiMod
 @Composable
 fun ServerConnectionChip(
     registrationState: PlatformRegistrationState,
-    wsMessages: List<WsMessageLog>,
+    wsCommunicationState: WsCommunicationState,
     modifier: Modifier = Modifier,
     showDetail: Boolean = true
 ) {
@@ -141,8 +143,9 @@ fun ServerConnectionChip(
     }
 
     if (showHistory) {
+        val messages by wsCommunicationState.messages.collectAsState()
         WebSocketMessageHistoryDialog(
-            messages = wsMessages,
+            messages = messages,
             onDismiss = { showHistory = false }
         )
     }
@@ -151,7 +154,7 @@ fun ServerConnectionChip(
 @Composable
 fun ServerConnectionIndicatorDot(
     registrationState: PlatformRegistrationState,
-    wsMessages: List<WsMessageLog>,
+    wsCommunicationState: WsCommunicationState,
     modifier: Modifier = Modifier
 ) {
     val uiModel = registrationState.toServerConnectionUiModel()
@@ -171,8 +174,9 @@ fun ServerConnectionIndicatorDot(
     }
 
     if (showHistory) {
+        val messages by wsCommunicationState.messages.collectAsState()
         WebSocketMessageHistoryDialog(
-            messages = wsMessages,
+            messages = messages,
             onDismiss = { showHistory = false }
         )
     }
@@ -257,7 +261,10 @@ fun WebSocketMessageHistoryDialog(
                         LazyColumn(
                             modifier = Modifier.heightIn(max = 380.dp)
                         ) {
-                            items(messages.reversed()) { log ->
+                            items(
+                                items = messages.asReversed(),
+                                key = { it.stableKey() }
+                            ) { log ->
                                 WebSocketMessageItem(log)
                             }
                         }
@@ -274,7 +281,7 @@ fun WebSocketMessageHistory(
     modifier: Modifier = Modifier,
     maxItems: Int = 50
 ) {
-    val displayMessages = messages.takeLast(maxItems).reversed()
+    val displayMessages = messages.takeLast(maxItems).asReversed()
 
     Surface(
         modifier = modifier,
@@ -304,13 +311,20 @@ fun WebSocketMessageHistory(
                 LazyColumn(
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    items(displayMessages) { log ->
+                    items(
+                        items = displayMessages,
+                        key = { it.stableKey() }
+                    ) { log ->
                         WebSocketMessageItem(log)
                     }
                 }
             }
         }
     }
+}
+
+private fun WsMessageLog.stableKey(): String {
+    return "$timestamp-${direction.name}-$type-${name.orEmpty()}-${content.hashCode()}"
 }
 
 @Composable

@@ -4,7 +4,6 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -54,7 +53,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.navigation.NavController
 import com.fuwaki.djifly.platform.registration.PlatformRegistrationManager
 import com.fuwaki.djifly.platform.registration.PlatformRegistrationState
 import com.fuwaki.djifly.sdk.DjiSdkManager
@@ -68,7 +66,7 @@ import java.util.Locale
 fun StarterScreen(
     sdkManager: DjiSdkManager,
     registrationManager: PlatformRegistrationManager,
-    navController: NavController? = null
+    onEnterFlight: () -> Unit = {}
 ) {
     val sdkStatus by sdkManager.sdkStatus.collectAsState()
     val registrationState by registrationManager.state.collectAsState()
@@ -155,7 +153,7 @@ fun StarterScreen(
         }
 
         FlightEntryCard(
-            navController = navController,
+            onEnterFlight = onEnterFlight,
             cloudControlAvailable = serverPanel.cloudControlAvailable,
             aircraftConnected = sdkStatus.isProductConnected
         )
@@ -320,7 +318,7 @@ private fun ServerStatusCard(
 
 @Composable
 private fun FlightEntryCard(
-    navController: NavController?,
+    onEnterFlight: () -> Unit,
     cloudControlAvailable: Boolean,
     aircraftConnected: Boolean
 ) {
@@ -341,8 +339,7 @@ private fun FlightEntryCard(
         icon = Icons.Default.PlayArrow
     ) {
         Button(
-            onClick = { navController?.navigate("flight") },
-            enabled = navController != null,
+            onClick = onEnterFlight,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(48.dp)
@@ -398,7 +395,7 @@ private fun DiagnosticsCard(
             }
         }
 
-        AnimatedVisibility(visible = expanded) {
+        if (expanded) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()

@@ -1,21 +1,42 @@
 package com.fuwaki.djifly.ui.screen
 
-import android.content.Context
-import android.content.ContextWrapper
 import android.util.Log
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -23,64 +44,60 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.ui.viewinterop.AndroidView
-import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import androidx.navigation.NavController
 import com.fuwaki.djifly.platform.registration.PlatformRegistrationManager
 import com.fuwaki.djifly.platform.registration.PlatformRegistrationState
 import com.fuwaki.djifly.platform.ws.WsCommunicationState
-import com.fuwaki.djifly.platform.ws.WsMessageLog
+import com.fuwaki.djifly.platform.ws.WsConnectionState
 import com.fuwaki.djifly.sdk.DjiSdkManager
 import com.fuwaki.djifly.sdk.SdkConnectionState
-import com.fuwaki.djifly.ui.widget.*
-import com.fuwaki.djifly.ui.widget.compose.TopStatusRow
-import com.fuwaki.djifly.ui.widget.compose.TakeOffButton
-import com.fuwaki.djifly.ui.widget.compose.ReturnHomeButton
-import com.fuwaki.djifly.ui.widget.compose.CameraConfigBar
-import com.fuwaki.djifly.ui.widget.compose.ServerConnectionChip
-import com.fuwaki.djifly.ui.widget.compose.ServerConnectionIndicatorDot
-import dji.sdk.keyvalue.value.common.CameraLensType
-import dji.sdk.keyvalue.value.common.ComponentIndexType
+import com.fuwaki.djifly.ui.widget.FpvWidget
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 
 private const val TAG = "FlightScreen"
 
-fun Context.findFragmentActivity(): FragmentActivity? {
-    var currentContext = this
-    while (currentContext is ContextWrapper) {
-        if (currentContext is FragmentActivity) {
-            return currentContext
-        }
-        currentContext = currentContext.baseContext
-    }
-    return null
-}
+private data class FlightScreenSummary(
+    val productName: String,
+    val sdkStatusLabel: String,
+    val batteryPercentage: Int,
+    val gpsSatelliteCount: Int,
+    val uplinkQuality: Int,
+    val downlinkQuality: Int,
+    val flightTimeRemainingSeconds: Int
+)
 
 @Composable
 fun FlightScreen(
     sdkManager: DjiSdkManager,
     registrationManager: PlatformRegistrationManager,
     wsCommunicationState: WsCommunicationState,
-    navController: NavController
+    onBack: () -> Unit
 ) {
-    val sdkStatus by sdkManager.sdkStatus.collectAsState()
+    val connectionStateFlow = remember(sdkManager) {
+        sdkManager.sdkStatus
+            .map { it.connectionState }
+            .distinctUntilChanged()
+    }
+    val connectionState by connectionStateFlow.collectAsState(
+        initial = sdkManager.sdkStatus.value.connectionState
+    )
     val registrationState by registrationManager.state.collectAsState()
-    val wsMessages by wsCommunicationState.messages.collectAsState()
+    val wsConnectionState by wsCommunicationState.connectionState.collectAsState()
 
-    if (sdkStatus.connectionState is SdkConnectionState.ProductConnected) {
-        FlightScreenContent(
+    if (connectionState is SdkConnectionState.ProductConnected) {
+        ImmersiveFlightScreenContent(
             sdkManager = sdkManager,
             registrationState = registrationState,
-            wsMessages = wsMessages,
-            navController = navController
+            wsConnectionState = wsConnectionState,
+            onBack = onBack
         )
     } else {
         ConnectionRequiredScreen(
             registrationState = registrationState,
-            wsMessages = wsMessages,
-            navController = navController
+            wsConnectionState = wsConnectionState,
+            onBack = onBack
         )
     }
 }
@@ -88,27 +105,68 @@ fun FlightScreen(
 @Composable
 private fun ConnectionRequiredScreen(
     registrationState: PlatformRegistrationState,
-    wsMessages: List<WsMessageLog>,
-    navController: NavController
+    wsConnectionState: WsConnectionState,
+    onBack: () -> Unit
 ) {
-    Surface(modifier = Modifier.fillMaxSize(), color = Color(0xFF0A0A0A)) {
-        Box(contentAlignment = Alignment.Center) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                ServerConnectionChip(
-                    registrationState = registrationState,
-                    wsMessages = wsMessages,
-                    showDetail = true,
-                    modifier = Modifier.padding(bottom = 20.dp)
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = Color(0xFF090909)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .padding(20.dp)
+        ) {
+            IconButton(
+                onClick = onBack,
+                modifier = Modifier.align(Alignment.TopStart)
+            ) {
+                Icon(Icons.Default.ArrowBack, contentDescription = null, tint = Color.White)
+            }
+
+            Column(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = Color(0xFFFFB300),
+                    modifier = Modifier.padding(bottom = 16.dp)
                 )
-                Icon(Icons.Default.Warning, null, tint = Color.LightGray, modifier = Modifier.size(48.dp))
-                Spacer(modifier = Modifier.height(16.dp))
-                Text("DISCONNECTED", color = Color.White, letterSpacing = 2.sp, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(32.dp))
-                OutlinedButton(
-                    onClick = { navController.navigateUp() },
-                    border = ButtonDefaults.outlinedButtonBorder.copy(width = 1.dp)
-                ) {
-                    Text("BACK TO HOME", color = Color.White)
+                Text(
+                    text = "飞控页暂不可用",
+                    color = Color.White,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "当前没有检测到飞机连接，已退化为稳定模式页面。",
+                    color = Color.White.copy(alpha = 0.72f),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Spacer(modifier = Modifier.height(20.dp))
+                StatusCard(title = "连接状态") {
+                    StatusLine(label = "飞机", value = "未连接", valueColor = Color(0xFFFFB300))
+                    StatusLine(
+                        label = "服务器注册",
+                        value = registrationState.statusLabel(),
+                        valueColor = registrationState.statusColor()
+                    )
+                    StatusLine(
+                        label = "WebSocket",
+                        value = wsConnectionState.statusLabel(),
+                        valueColor = wsConnectionState.statusColor()
+                    )
+                }
+                Spacer(modifier = Modifier.height(20.dp))
+                OutlinedButton(onClick = onBack) {
+                    Text("返回首页")
                 }
             }
         }
@@ -116,212 +174,521 @@ private fun ConnectionRequiredScreen(
 }
 
 @Composable
-private fun FlightScreenContent(
+private fun ImmersiveFlightScreenContent(
     sdkManager: DjiSdkManager,
     registrationState: PlatformRegistrationState,
-    wsMessages: List<WsMessageLog>,
-    navController: NavController
+    wsConnectionState: WsConnectionState,
+    onBack: () -> Unit
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
-    var isSettingsOpen by remember { mutableStateOf(false) }
-
-    // 侧边栏动画偏移量 (0dp 展开，510dp 完全收起并隐藏在右侧)
-    val panelOffsetX by animateDpAsState(
-        targetValue = if (isSettingsOpen) 0.dp else 510.dp,
-        animationSpec = tween(durationMillis = 300),
-        label = "settings_panel_anim"
+    val summaryFlow = remember(sdkManager) {
+        sdkManager.sdkStatus
+            .map { status ->
+                val connectedName = (status.connectionState as? SdkConnectionState.ProductConnected)?.productName
+                    ?: status.productInfo.name
+                FlightScreenSummary(
+                    productName = connectedName,
+                    sdkStatusLabel = status.sdkStatusText,
+                    batteryPercentage = status.flightData.batteryPercentage,
+                    gpsSatelliteCount = status.flightData.gpsSatelliteCount,
+                    uplinkQuality = status.flightData.uplinkQuality,
+                    downlinkQuality = status.flightData.downlinkQuality,
+                    flightTimeRemainingSeconds = status.flightData.flightTimeRemaining
+                )
+            }
+            .distinctUntilChanged()
+    }
+    val summary by summaryFlow.collectAsState(
+        initial = sdkManager.sdkStatus.value.toFlightScreenSummary()
     )
 
-    LaunchedEffect(lifecycleOwner) {
+    DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) Log.d(TAG, "Flight Screen Active")
+            if (event == Lifecycle.Event.ON_RESUME) {
+                Log.d(TAG, "Immersive Flight Screen Active")
+            }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
-        // 1. FPV 背景层
-        FpvWidget(modifier = Modifier.fillMaxSize())
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = Color.Black
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            FpvWidget(
+                modifier = Modifier.fillMaxSize(),
+                showCameraName = false,
+                showCameraSide = false,
+                enableCenterPoint = false,
+                enableGridLines = false
+            )
 
-        // 2. 顶部状态栏
-        Column(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .fillMaxWidth()
-        ) {
-            Box(
+            ViewportScrim(
                 modifier = Modifier
+                    .align(Alignment.TopCenter)
                     .fillMaxWidth()
-                    .background(Brush.verticalGradient(listOf(Color.Black.copy(0.7f), Color.Transparent)))
-                    .statusBarsPadding()
-            ) {
-                TopStatusRow(
-                    sdkManager = sdkManager,
-                    modifier = Modifier.fillMaxWidth().height(42.dp),
-                    onSettingsClick = {
-                        isSettingsOpen = true
-                    }
-                )
-            }
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 6.dp),
-                contentAlignment = Alignment.CenterEnd
-            ) {
-                ServerConnectionIndicatorDot(
-                    registrationState = registrationState,
-                    wsMessages = wsMessages
-                )
-            }
-        }
-
-        // 3. 左侧控制按钮
-        Column(
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(start = 16.dp, top = 72.dp)
-                .fillMaxHeight(0.65f),
-            verticalArrangement = Arrangement.SpaceBetween
-        ) {
-            IconButton(
-                onClick = { navController.navigateUp() },
-                modifier = Modifier.size(34.dp).background(Color.Black.copy(0.4f), CircleShape)
-            ) {
-                Icon(Icons.Default.ArrowBack, null, tint = Color.White, modifier = Modifier.size(20.dp))
-            }
-
-            Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                TakeOffButton(
-                    onConfirm = { sdkManager.performTakeOff() }
-                )
-                ReturnHomeButton(
-                    onConfirm = { sdkManager.performRTH() }
-                )
-            }
-        }
-
-        // 4. 右侧相机控制 (调整为精确居中)
-        Box(
-            modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .padding(end = 16.dp)
-                .width(90.dp)
-        ) {
-            Column(
-                modifier = Modifier.wrapContentHeight(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                // 4.1 对焦模式切换
-                Box(
-                    modifier = Modifier
-                        .background(Color.Black.copy(0.4f), RoundedCornerShape(20.dp))
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                ) {
-                    FocusModeWidget(modifier = Modifier.size(26.dp))
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // 4.2 镜头/变焦控制
-                LensControlWidget(modifier = Modifier.width(44.dp).height(90.dp))
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // 4.3 核心按钮区 (拍照、录像切换)
-                CameraControlsComposeWidget(
-                    cameraIndex = ComponentIndexType.LEFT_OR_MAIN,
-                    lensType = CameraLensType.UNKNOWN
-                )
-
-                // 🚀 核心优化：增加底部补偿间距，平衡上方的挂件，使拍照按钮处于屏幕中心
-                Spacer(modifier = Modifier.height(120.dp))
-            }
-        }
-
-        // 5. 底部左侧姿态球 (HSI) - 贴死边缘
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .navigationBarsPadding()
-        ) {
-            Surface(
-                color = Color.Black.copy(0.3f),
-                shape = RoundedCornerShape(topEnd = 12.dp),
-                border = ButtonDefaults.outlinedButtonBorder.copy(
-                    width = 0.5.dp,
-                    brush = Brush.linearGradient(listOf(Color.White.copy(0.15f), Color.Transparent))
-                )
-            ) {
-                Box(
-                    modifier = Modifier
-                        .height(100.dp)
-                        .wrapContentWidth()
-                        .padding(start = 6.dp, end = 10.dp, top = 6.dp, bottom = 0.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    HorizontalSituationIndicatorWidget(
-                        modifier = Modifier.fillMaxHeight()
+                    .height(188.dp),
+                brush = Brush.verticalGradient(
+                    listOf(
+                        Color.Black.copy(alpha = 0.86f),
+                        Color.Black.copy(alpha = 0.38f),
+                        Color.Transparent
                     )
-                }
+                )
+            )
+
+            ViewportScrim(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(220.dp),
+                brush = Brush.verticalGradient(
+                    listOf(
+                        Color.Transparent,
+                        Color.Black.copy(alpha = 0.34f),
+                        Color.Black.copy(alpha = 0.82f)
+                    )
+                )
+            )
+
+            Column(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                FlightHeader(
+                    productName = summary.productName,
+                    sdkStatusLabel = summary.sdkStatusLabel,
+                    onBack = onBack
+                )
+
+                FlightTopStatusBar(
+                    summary = summary,
+                    registrationState = registrationState,
+                    wsConnectionState = wsConnectionState
+                )
+            }
+
+            Row(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 16.dp, vertical = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.Bottom
+            ) {
+                FlightTelemetryPanel(
+                    summary = summary,
+                    registrationState = registrationState,
+                    wsConnectionState = wsConnectionState,
+                    modifier = Modifier.weight(1f)
+                )
+
+                FlightActionPanel(
+                    onTakeOff = { sdkManager.performTakeOff() },
+                    onReturnHome = { sdkManager.performRTH() }
+                )
             }
         }
+    }
+}
 
-        // 8. 右下角相机参数栏 (贴死边缘)
-        CameraConfigBar(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .navigationBarsPadding()
-        )
-
-        // 6. 遮罩层 (当面板打开时变暗，点击空白处关闭)
-        if (panelOffsetX < 510.dp) {
-            val alpha = (1f - (panelOffsetX.value / 510f)).coerceIn(0f, 1f) * 0.5f
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = alpha))
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) {
-                        isSettingsOpen = false
-                    }
+@Composable
+private fun FlightHeader(
+    productName: String,
+    sdkStatusLabel: String,
+    onBack: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconButton(
+            onClick = onBack,
+            modifier = Modifier.background(
+                color = Color.Black.copy(alpha = 0.42f),
+                shape = CircleShape
+            )
+        ) {
+            Icon(Icons.Default.ArrowBack, contentDescription = null, tint = Color.White)
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "Flight Console",
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.titleLarge
+            )
+            Text(
+                text = productName.ifBlank { "未知设备" },
+                color = Color.White.copy(alpha = 0.72f),
+                style = MaterialTheme.typography.bodySmall
             )
         }
+        StatusPill(
+            label = "SDK",
+            value = sdkStatusLabel,
+            accentColor = Color.White
+        )
+    }
+}
 
-        // 7. 大疆设置面板 (动画滑动层)
-        Box(
-            modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .width(510.dp)
-                .fillMaxHeight()
-                .offset(x = panelOffsetX)
-                .background(Color.Black.copy(alpha = 0.95f))
+@Composable
+private fun FlightTopStatusBar(
+    summary: FlightScreenSummary,
+    registrationState: PlatformRegistrationState,
+    wsConnectionState: WsConnectionState
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        StatusPill(
+            label = "BAT",
+            value = "${summary.batteryPercentage}%",
+            accentColor = batteryColor(summary.batteryPercentage)
+        )
+        StatusPill(
+            label = "GPS",
+            value = "${summary.gpsSatelliteCount}",
+            accentColor = signalQualityColor(summary.gpsSatelliteCount.coerceAtMost(100))
+        )
+        StatusPill(
+            label = "RC",
+            value = "${summary.uplinkQuality}%",
+            accentColor = signalQualityColor(summary.uplinkQuality)
+        )
+        StatusPill(
+            label = "HD",
+            value = "${summary.downlinkQuality}%",
+            accentColor = signalQualityColor(summary.downlinkQuality)
+        )
+        StatusPill(
+            label = "TIME",
+            value = summary.flightTimeRemainingSeconds.toFlightTimeLabel(),
+            accentColor = Color(0xFF29B6F6)
+        )
+        StatusPill(
+            label = "SERVER",
+            value = registrationState.statusLabel(),
+            accentColor = registrationState.statusColor()
+        )
+        StatusPill(
+            label = "WS",
+            value = wsConnectionState.statusLabel(),
+            accentColor = wsConnectionState.statusColor()
+        )
+    }
+}
+
+@Composable
+private fun StatusPill(
+    label: String,
+    value: String,
+    accentColor: Color
+) {
+    Column(
+        modifier = Modifier
+            .background(
+                color = accentColor.copy(alpha = 0.14f),
+                shape = RoundedCornerShape(12.dp)
+            )
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        Text(
+            text = label,
+            color = Color.White.copy(alpha = 0.55f),
+            style = MaterialTheme.typography.labelSmall
+        )
+        Text(
+            text = value,
+            color = accentColor,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+@Composable
+private fun FlightTelemetryPanel(
+    summary: FlightScreenSummary,
+    registrationState: PlatformRegistrationState,
+    wsConnectionState: WsConnectionState,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.heightIn(min = 144.dp),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.Black.copy(alpha = 0.48f)
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            AndroidView(
-                factory = { context ->
-                    val activity = context.findFragmentActivity()
-                        ?: throw IllegalStateException("当前 Context 无法转换为 FragmentActivity")
-
-                    // 自定义 SettingPanelWidget，拦截返回事件来触发 Compose 动画收起
-                    object : dji.v5.ux.core.widget.setting.SettingPanelWidget(activity) {
-                        override fun onBackPressed(): Boolean {
-                            // 先调用父类处理逻辑
-                            val handled = super.onBackPressed()
-                            if (!handled) {
-                                // 父类返回 false 说明没有 Fragment 处理返回事件
-                                // 此时用户想要关闭整个设置面板
-                                isSettingsOpen = false
-                                return true // 拦截返回事件
-                            }
-                            return handled
-                        }
-                    }
-                },
-                modifier = Modifier.fillMaxSize()
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Flight Overlay",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Text(
+                    text = "Stable",
+                    color = Color(0xFF4CAF50),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            OverlayMetricLine(
+                label = "飞行时间",
+                value = summary.flightTimeRemainingSeconds.toFlightTimeLabel(),
+                valueColor = Color(0xFF29B6F6)
+            )
+            OverlayMetricLine(
+                label = "服务器",
+                value = registrationState.statusLabel(),
+                valueColor = registrationState.statusColor()
+            )
+            OverlayMetricLine(
+                label = "WebSocket",
+                value = wsConnectionState.statusLabel(),
+                valueColor = wsConnectionState.statusColor()
+            )
+            OverlayMetricLine(
+                label = "链路",
+                value = "RC ${summary.uplinkQuality}% / HD ${summary.downlinkQuality}%",
+                valueColor = signalQualityColor(
+                    quality = minOf(summary.uplinkQuality, summary.downlinkQuality)
+                )
             )
         }
     }
+}
+
+@Composable
+private fun OverlayMetricLine(
+    label: String,
+    value: String,
+    valueColor: Color
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = label,
+            color = Color.White.copy(alpha = 0.62f),
+            style = MaterialTheme.typography.bodyMedium
+        )
+        Text(
+            text = value,
+            color = valueColor,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium
+        )
+    }
+}
+
+@Composable
+private fun FlightActionPanel(
+    onTakeOff: () -> Unit,
+    onReturnHome: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .width(132.dp)
+            .heightIn(min = 144.dp),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.Black.copy(alpha = 0.48f)
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = "Actions",
+                color = Color.White,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold
+            )
+            Button(
+                onClick = onTakeOff,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF16A34A).copy(alpha = 0.92f)
+                )
+            ) {
+                Text("起飞")
+            }
+            OutlinedButton(
+                onClick = onReturnHome,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = Color.White
+                )
+            ) {
+                Text("返航")
+            }
+        }
+    }
+}
+
+@Composable
+private fun ViewportScrim(
+    modifier: Modifier,
+    brush: Brush
+) {
+    Box(
+        modifier = modifier.background(brush = brush)
+    )
+}
+
+@Composable
+private fun StatusCard(
+    title: String,
+    content: @Composable () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            content()
+        }
+    }
+}
+
+@Composable
+private fun StatusLine(
+    label: String,
+    value: String,
+    valueColor: Color = MaterialTheme.colorScheme.onSurface
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = label,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodyMedium
+        )
+        Text(
+            text = value,
+            color = valueColor,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium
+        )
+    }
+}
+
+private fun PlatformRegistrationState.statusLabel(): String {
+    return when (this) {
+        PlatformRegistrationState.WaitingForAircraft -> "等待飞机"
+        is PlatformRegistrationState.Registering -> "注册中"
+        is PlatformRegistrationState.RetryScheduled -> "${retryAfterSeconds} 秒后重试"
+        is PlatformRegistrationState.Registered -> "已连接"
+        is PlatformRegistrationState.Failed -> "连接失败"
+    }
+}
+
+private fun PlatformRegistrationState.statusColor(): Color {
+    return when (this) {
+        PlatformRegistrationState.WaitingForAircraft -> Color(0xFF90A4AE)
+        is PlatformRegistrationState.Registering -> Color(0xFF1E88E5)
+        is PlatformRegistrationState.RetryScheduled -> Color(0xFFFB8C00)
+        is PlatformRegistrationState.Registered -> Color(0xFF2E7D32)
+        is PlatformRegistrationState.Failed -> Color(0xFFC62828)
+    }
+}
+
+private fun WsConnectionState.statusLabel(): String {
+    return when (this) {
+        WsConnectionState.Idle -> "空闲"
+        WsConnectionState.Connecting -> "连接中"
+        WsConnectionState.Connected -> "已连接"
+        is WsConnectionState.Disconnected -> "已断开"
+        is WsConnectionState.Error -> "异常"
+    }
+}
+
+private fun WsConnectionState.statusColor(): Color {
+    return when (this) {
+        WsConnectionState.Idle -> Color(0xFF90A4AE)
+        WsConnectionState.Connecting -> Color(0xFF1E88E5)
+        WsConnectionState.Connected -> Color(0xFF2E7D32)
+        is WsConnectionState.Disconnected -> Color(0xFFFB8C00)
+        is WsConnectionState.Error -> Color(0xFFC62828)
+    }
+}
+
+private fun Int.toFlightTimeLabel(): String {
+    val safeValue = coerceAtLeast(0)
+    val minutes = safeValue / 60
+    val seconds = safeValue % 60
+    return "%02d:%02d".format(minutes, seconds)
+}
+
+private fun batteryColor(percentage: Int): Color {
+    return when {
+        percentage > 30 -> Color(0xFF4CAF50)
+        percentage > 15 -> Color(0xFFFFC107)
+        else -> Color(0xFFF44336)
+    }
+}
+
+private fun signalQualityColor(quality: Int): Color {
+    return when {
+        quality >= 80 -> Color(0xFF4CAF50)
+        quality >= 50 -> Color(0xFFFFC107)
+        quality > 0 -> Color(0xFFFF7043)
+        else -> Color(0xFF90A4AE)
+    }
+}
+
+private fun com.fuwaki.djifly.sdk.DjiSdkStatus.toFlightScreenSummary(): FlightScreenSummary {
+    val connectedName = (connectionState as? SdkConnectionState.ProductConnected)?.productName
+        ?: productInfo.name
+    return FlightScreenSummary(
+        productName = connectedName,
+        sdkStatusLabel = sdkStatusText,
+        batteryPercentage = flightData.batteryPercentage,
+        gpsSatelliteCount = flightData.gpsSatelliteCount,
+        uplinkQuality = flightData.uplinkQuality,
+        downlinkQuality = flightData.downlinkQuality,
+        flightTimeRemainingSeconds = flightData.flightTimeRemaining
+    )
 }

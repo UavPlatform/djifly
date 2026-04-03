@@ -68,7 +68,6 @@ private fun ConfirmableButton(
         }
 
         if (showSlider) {
-            // ✅ 关键：全屏遮罩 + 安全区域内边距
             Box(
                 modifier = Modifier
                     .fillMaxSize()

@@ -132,7 +132,6 @@ dependencies {
     implementation("com.dji:dji-sdk-v5-networkImp:5.17.0")
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.compose.foundation.layout)
-    implementation(libs.androidx.foundation.layout)
     compileOnly("com.dji:dji-sdk-v5-aircraft-provided:5.17.0")
 
     // Existing Compose dependencies
@@ -152,9 +151,6 @@ dependencies {
     implementation(libs.okhttp.logging.interceptor)
     implementation(libs.hilt.android)
     kapt(libs.hilt.compiler)
-
-    // Navigation Compose
-    implementation("androidx.navigation:navigation-compose:2.7.6")
 
     // ConstraintLayout (required for UXSDK widgets)
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
