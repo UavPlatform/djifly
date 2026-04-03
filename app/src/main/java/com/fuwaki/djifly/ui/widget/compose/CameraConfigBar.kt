@@ -1,6 +1,7 @@
 package com.fuwaki.djifly.ui.widget.compose
 
 import android.view.ViewGroup
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -32,17 +33,20 @@ fun CameraConfigBar(
 ) {
     Row(
         modifier = modifier
-            .height(40.dp)
-            // 修改为只对左上角进行圆角处理，使其贴合右下角屏幕边缘时更自然
+            .height(46.dp)
             .background(
-                Color.Black.copy(alpha = 0.5f),
-                RoundedCornerShape(topStart = 8.dp)
+                color = Color(0xD90A0F14),
+                shape = RoundedCornerShape(16.dp)
             )
-            .padding(start = 12.dp, end = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+            .border(
+                width = 1.dp,
+                color = Color.White.copy(alpha = 0.08f),
+                shape = RoundedCornerShape(16.dp)
+            )
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 1. AE Lock (自动曝光锁定)
         AndroidView(
             factory = { context ->
                 AutoExposureLockWidget(context).apply {
@@ -55,19 +59,10 @@ fun CameraConfigBar(
             modifier = Modifier.size(28.dp)
         )
 
-        // 2. 存储信息
         AndroidViewWidget { CameraConfigStorageWidget(it) }
-
-        // 3. 白平衡 (WB)
         AndroidViewWidget { CameraConfigWBWidget(it) }
-
-        // 4. 曝光补偿 (EV)
         AndroidViewWidget { CameraConfigEVWidget(it) }
-
-        // 5. ISO 和 EI
         AndroidViewWidget { CameraConfigISOAndEIWidget(it) }
-
-        // 6. 快门速度 (Shutter)
         AndroidViewWidget { CameraConfigShutterWidget(it) }
     }
 }

@@ -3,6 +3,7 @@ package com.fuwaki.djifly.ui.widget.compose
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,11 +25,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,7 +36,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.fuwaki.djifly.platform.registration.PlatformRegistrationState
-import com.fuwaki.djifly.platform.ws.WsCommunicationState
 import com.fuwaki.djifly.platform.ws.WsMessageDirection
 import com.fuwaki.djifly.platform.ws.WsMessageLog
 
@@ -98,15 +94,13 @@ fun PlatformRegistrationState.toServerConnectionUiModel(): ServerConnectionUiMod
 @Composable
 fun ServerConnectionChip(
     registrationState: PlatformRegistrationState,
-    wsCommunicationState: WsCommunicationState,
     modifier: Modifier = Modifier,
     showDetail: Boolean = true
 ) {
     val uiModel = registrationState.toServerConnectionUiModel()
-    var showHistory by remember { mutableStateOf(false) }
 
     Surface(
-        modifier = modifier.clickable { showHistory = true },
+        modifier = modifier,
         color = Color.Black.copy(alpha = 0.42f),
         shape = RoundedCornerShape(999.dp)
     ) {
@@ -141,27 +135,17 @@ fun ServerConnectionChip(
             }
         }
     }
-
-    if (showHistory) {
-        val messages by wsCommunicationState.messages.collectAsState()
-        WebSocketMessageHistoryDialog(
-            messages = messages,
-            onDismiss = { showHistory = false }
-        )
-    }
 }
 
 @Composable
 fun ServerConnectionIndicatorDot(
     registrationState: PlatformRegistrationState,
-    wsCommunicationState: WsCommunicationState,
     modifier: Modifier = Modifier
 ) {
     val uiModel = registrationState.toServerConnectionUiModel()
-    var showHistory by remember { mutableStateOf(false) }
 
     Box(
-        modifier = modifier.clickable { showHistory = true },
+        modifier = modifier,
         contentAlignment = Alignment.Center
     ) {
         Box(
@@ -170,14 +154,6 @@ fun ServerConnectionIndicatorDot(
                 .clip(CircleShape)
                 .background(uiModel.color)
                 .border(1.5.dp, Color.Black.copy(alpha = 0.3f), CircleShape)
-        )
-    }
-
-    if (showHistory) {
-        val messages by wsCommunicationState.messages.collectAsState()
-        WebSocketMessageHistoryDialog(
-            messages = messages,
-            onDismiss = { showHistory = false }
         )
     }
 }
@@ -195,14 +171,22 @@ fun WebSocketMessageHistoryDialog(
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color.Black.copy(alpha = 0.7f))
-                .clickable(onClick = onDismiss),
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onDismiss
+                ),
             contentAlignment = Alignment.BottomCenter
         ) {
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(max = 500.dp)
-                    .clickable { },
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { }
+                    ),
                 color = Color(0xFF1A1A1A),
                 shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
             ) {
