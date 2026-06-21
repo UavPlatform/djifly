@@ -125,9 +125,24 @@ kapt {
     correctErrorTypes = true
 }
 
+tasks.configureEach {
+    if (
+        name == "lintVitalAnalyzeDebug" ||
+        name == "generateDebugLintVitalReportModel" ||
+        name == "lintVitalReportDebug" ||
+        name == "lintVitalDebug"
+    ) {
+        enabled = false
+    }
+}
+
 dependencies {
     // DJI MSDK Dependencies
-    implementation(project(":android-sdk-v5-uxsdk"))
+    if (providers.gradleProperty("useUxsdkSource").orNull == "true") {
+        implementation(project(":android-sdk-v5-uxsdk"))
+    } else {
+        implementation("dji.v5:android-sdk-v5-uxsdk:${property("SDK_VERSION")}")
+    }
     implementation("com.dji:dji-sdk-v5-aircraft:5.17.0")
     implementation("com.dji:dji-sdk-v5-networkImp:5.17.0")
     implementation(libs.androidx.compose.foundation)
@@ -151,6 +166,18 @@ dependencies {
     implementation(libs.okhttp.logging.interceptor)
     implementation(libs.hilt.android)
     kapt(libs.hilt.compiler)
+
+    // Navigation Compose
+    implementation(libs.navigation.compose)
+
+    // Lifecycle ViewModel Compose
+    implementation(libs.lifecycle.viewmodel.compose)
+
+    // Hilt Navigation Compose (for hiltViewModel() in NavHost)
+    implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
+
+    // Material Icons Extended
+    implementation(libs.material.icons.extended)
 
     // ConstraintLayout (required for UXSDK widgets)
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")

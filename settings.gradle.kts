@@ -17,6 +17,7 @@ pluginManagement {
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
     repositories {
+        maven { url = uri(rootDir.resolve("local-maven")) }
         google()
         mavenCentral()
         maven { url = uri("https://jitpack.io") }
@@ -30,6 +31,9 @@ dependencyResolutionManagement {
 rootProject.name = "djifly"
 include(":app")
 
-// Include UXSDK module from DJI SDK
-include(":android-sdk-v5-uxsdk")
-project(":android-sdk-v5-uxsdk").projectDir = file("/run/media/fuwaki/Workspace/Mobile-SDK-Android-V5/SampleCode-V5/android-sdk-v5-uxsdk")
+// UXSDK is large and slow to configure. Use the cached AAR by default; opt in when rebuilding it.
+if (providers.gradleProperty("useUxsdkSource").orNull == "true") {
+    include(":android-sdk-v5-uxsdk")
+    project(":android-sdk-v5-uxsdk").projectDir =
+        file("Mobile-SDK-Android-V5/SampleCode-V5/android-sdk-v5-uxsdk")
+}

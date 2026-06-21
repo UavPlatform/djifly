@@ -1,6 +1,7 @@
 package com.fuwaki.djifly.di
 
 import com.fuwaki.djifly.BuildConfig
+import com.fuwaki.djifly.data.auth.AuthInterceptor
 import com.fuwaki.djifly.platform.network.PlatformApiService
 import com.fuwaki.djifly.platform.network.PlatformEndpointResolver
 import com.google.gson.Gson
@@ -42,11 +43,14 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideOkHttpClient(): OkHttpClient {
+    fun provideOkHttpClient(
+        authInterceptor: AuthInterceptor
+    ): OkHttpClient {
         return OkHttpClient.Builder()
             .connectTimeout(10, TimeUnit.SECONDS)
             .readTimeout(15, TimeUnit.SECONDS)
             .writeTimeout(15, TimeUnit.SECONDS)
+            .addInterceptor(authInterceptor)           // Token 注入
             .addInterceptor(PlatformHeadersInterceptor())
             .addInterceptor(
                 HttpLoggingInterceptor().apply {

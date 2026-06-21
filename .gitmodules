@@ -1,0 +1,3 @@
+[submodule "Mobile-SDK-Android-V5"]
+	path = Mobile-SDK-Android-V5
+	url = https://github.com/dji-sdk/Mobile-SDK-Android-V5.git
