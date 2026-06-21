@@ -15,11 +15,7 @@ class PlatformEndpointResolver @Inject constructor() {
             throw IllegalStateException("未配置 DRONE_BACKEND_BASE_URL，无法向平台注册无人机")
         }
 
-        val normalized = if (configuredBaseUrl.endsWith('/')) {
-            configuredBaseUrl
-        } else {
-            "$configuredBaseUrl/"
-        }
+        val normalized = normalizeConfiguredBaseUrlForHttp(configuredBaseUrl)
 
         val httpUrl = normalized.toHttpUrlOrNull()
             ?: throw IllegalStateException("DRONE_BACKEND_BASE_URL 不是合法的 HTTP 地址: $configuredBaseUrl")
@@ -49,5 +45,45 @@ class PlatformEndpointResolver @Inject constructor() {
             .addQueryParameter("deviceId", deviceId)
             .build()
             .toString()
+            .toWebSocketUrl()
+    }
+
+    fun resolveChatWebSocketUrl(userId: Long): String {
+        val httpUrl = requireHttpBaseUrl().toHttpUrlOrNull()
+            ?: throw IllegalStateException("无法解析平台 HTTP 地址")
+
+        val basePath = httpUrl.encodedPath.trimEnd('/')
+        val wsPath = if (basePath.isBlank() || basePath == "/") {
+            "/ws/$userId"
+        } else {
+            "$basePath/ws/$userId"
+        }
+
+        return httpUrl.newBuilder()
+            .encodedPath(wsPath)
+            .query(null)
+            .build()
+            .toString()
+            .toWebSocketUrl()
+    }
+
+    private fun normalizeConfiguredBaseUrlForHttp(configuredBaseUrl: String): String {
+        val httpBaseUrl = when {
+            configuredBaseUrl.startsWith("ws://", ignoreCase = true) ->
+                "http://${configuredBaseUrl.substringAfter("://")}"
+            configuredBaseUrl.startsWith("wss://", ignoreCase = true) ->
+                "https://${configuredBaseUrl.substringAfter("://")}"
+            else -> configuredBaseUrl
+        }
+
+        return if (httpBaseUrl.endsWith('/')) httpBaseUrl else "$httpBaseUrl/"
+    }
+
+    private fun String.toWebSocketUrl(): String {
+        return when {
+            startsWith("https://", ignoreCase = true) -> "wss://${substringAfter("://")}"
+            startsWith("http://", ignoreCase = true) -> "ws://${substringAfter("://")}"
+            else -> this
+        }
     }
 }
