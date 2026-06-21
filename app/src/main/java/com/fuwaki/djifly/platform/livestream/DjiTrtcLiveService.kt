@@ -49,7 +49,7 @@ data class DjiTrtcLiveConfig(
     val streamType: Int = TRTCCloudDef.TRTC_VIDEO_STREAM_TYPE_BIG,
     val appScene: Int = TRTCCloudDef.TRTC_APP_SCENE_LIVE,
     val role: Int = TRTCCloudDef.TRTCRoleAnchor,
-    val rotation: Int = 0,
+    val rotation: Int = TRTCCloudDef.TRTC_VIDEO_ROTATION_270,
     val enableMicrophoneAudio: Boolean = false,
     val audioQuality: Int = TRTCCloudDef.TRTC_AUDIO_QUALITY_DEFAULT,
     val keepAliveDecoding: Boolean = true,

@@ -11,6 +11,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -28,6 +29,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
@@ -103,15 +105,15 @@ private enum class FlightBottomPanel(
     val subtitle: String
 ) {
     Camera(
-        title = "相机矩阵",
-        subtitle = "曝光、白平衡、快门与成像参数"
+        title = "相机参数",
+        subtitle = "曝光、白平衡、快门、ISO / EI 与存储"
     ),
     Link(
-        title = "链路监控",
+        title = "链路与通讯",
         subtitle = "服务器注册、WebSocket 状态与消息历史"
     ),
     Info(
-        title = "设备详情",
+        title = "机体与系统",
         subtitle = "飞机、固件、控制器与传感状态"
     )
 }
@@ -285,9 +287,13 @@ private fun ImmersiveFlightScreenContent(
         color = Color.Black
     ) {
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-            val isCompact = maxWidth < 760.dp
-            val telemetryWidth = if (isCompact) 268.dp else 312.dp
-            val drawerWidth = (maxWidth * 0.52f).coerceIn(320.dp, 440.dp)
+            val isCompact = maxWidth < 900.dp || maxHeight < 500.dp
+            val telemetryWidth = if (isCompact) 158.dp else 184.dp
+            val settingsDrawerWidth = if (isCompact) {
+                (maxWidth - 24.dp).coerceAtLeast(360.dp)
+            } else {
+                (maxWidth * 0.6f).coerceIn(420.dp, 560.dp)
+            }
 
             Box(modifier = Modifier.fillMaxSize()) {
                 FpvWidget(
@@ -302,7 +308,7 @@ private fun ImmersiveFlightScreenContent(
                     modifier = Modifier
                         .align(Alignment.TopCenter)
                         .fillMaxWidth()
-                        .height(if (isCompact) 164.dp else 188.dp),
+                        .height(if (isCompact) 136.dp else 156.dp),
                     brush = Brush.verticalGradient(
                         listOf(
                             Color.Black.copy(alpha = 0.88f),
@@ -316,7 +322,7 @@ private fun ImmersiveFlightScreenContent(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
-                        .height(if (isCompact) 232.dp else 256.dp),
+                        .height(if (isCompact) 204.dp else 228.dp),
                     brush = Brush.verticalGradient(
                         listOf(
                             Color.Transparent,
@@ -333,14 +339,6 @@ private fun ImmersiveFlightScreenContent(
                     activePanel = activePanel,
                     isCompact = isCompact,
                     onBack = onBack,
-                    onToggleCameraPanel = {
-                        isSettingsDrawerOpen = false
-                        activePanel = if (activePanel == FlightBottomPanel.Camera) {
-                            null
-                        } else {
-                            FlightBottomPanel.Camera
-                        }
-                    },
                     onToggleLinkPanel = {
                         isSettingsDrawerOpen = false
                         activePanel = if (activePanel == FlightBottomPanel.Link) {
@@ -357,82 +355,82 @@ private fun ImmersiveFlightScreenContent(
                         .align(Alignment.TopCenter)
                         .fillMaxWidth()
                         .statusBarsPadding()
-                        .padding(horizontal = if (isCompact) 12.dp else 18.dp, vertical = 12.dp)
+                        .padding(horizontal = if (isCompact) 12.dp else 18.dp, vertical = 10.dp)
                 )
 
-                FlightActionRail(
-                    onTakeOff = { sdkManager.performTakeOff() },
-                    onReturnHome = { sdkManager.performRTH() },
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(
-                            start = if (isCompact) 12.dp else 18.dp,
-                            top = if (isCompact) 112.dp else 126.dp
-                        )
-                )
+                if (!isSettingsDrawerOpen && activePanel == null) {
+                    FlightActionRail(
+                        onTakeOff = { sdkManager.performTakeOff() },
+                        onReturnHome = { sdkManager.performRTH() },
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(
+                                start = if (isCompact) 12.dp else 18.dp,
+                                top = if (isCompact) 112.dp else 126.dp
+                            )
+                    )
 
-                FlightCameraRail(
-                    activePanel = activePanel,
-                    onToggleCameraPanel = {
-                        isSettingsDrawerOpen = false
-                        activePanel = if (activePanel == FlightBottomPanel.Camera) {
-                            null
-                        } else {
-                            FlightBottomPanel.Camera
-                        }
-                    },
-                    modifier = Modifier
-                        .align(Alignment.CenterEnd)
-                        .navigationBarsPadding()
-                        .padding(
-                            end = if (isCompact) 12.dp else 18.dp,
-                            bottom = if (isCompact) 96.dp else 104.dp
-                        )
-                )
+                    FlightCameraRail(
+                        activePanel = activePanel,
+                        isCompact = isCompact,
+                        onToggleCameraPanel = {
+                            isSettingsDrawerOpen = false
+                            activePanel = if (activePanel == FlightBottomPanel.Camera) {
+                                null
+                            } else {
+                                FlightBottomPanel.Camera
+                            }
+                        },
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .navigationBarsPadding()
+                            .padding(
+                                end = if (isCompact) 12.dp else 18.dp,
+                                bottom = if (isCompact) 8.dp else 0.dp
+                            )
+                    )
 
-                FlightTelemetryPanel(
-                    summary = summary,
-                    registrationState = registrationState,
-                    wsConnectionState = wsConnectionState,
-                    activePanel = activePanel,
-                    telemetryWidth = telemetryWidth,
-                    onToggleLinkPanel = {
-                        isSettingsDrawerOpen = false
-                        activePanel = if (activePanel == FlightBottomPanel.Link) {
-                            null
-                        } else {
-                            FlightBottomPanel.Link
-                        }
-                    },
-                    onToggleInfoPanel = {
-                        isSettingsDrawerOpen = false
-                        activePanel = if (activePanel == FlightBottomPanel.Info) {
-                            null
-                        } else {
-                            FlightBottomPanel.Info
-                        }
-                    },
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .navigationBarsPadding()
-                        .padding(
-                            start = if (isCompact) 12.dp else 18.dp,
-                            bottom = if (isCompact) 14.dp else 18.dp
-                        )
-                )
+                    FlightTelemetryPanel(
+                        activePanel = activePanel,
+                        telemetryWidth = telemetryWidth,
+                        onToggleLinkPanel = {
+                            isSettingsDrawerOpen = false
+                            activePanel = if (activePanel == FlightBottomPanel.Link) {
+                                null
+                            } else {
+                                FlightBottomPanel.Link
+                            }
+                        },
+                        onToggleInfoPanel = {
+                            isSettingsDrawerOpen = false
+                            activePanel = if (activePanel == FlightBottomPanel.Info) {
+                                null
+                            } else {
+                                FlightBottomPanel.Info
+                            }
+                        },
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .navigationBarsPadding()
+                            .padding(
+                                start = if (isCompact) 12.dp else 18.dp,
+                                bottom = if (isCompact) 14.dp else 18.dp
+                            )
+                    )
 
-                FlightHsiPanel(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .navigationBarsPadding()
-                        .padding(bottom = if (isCompact) 14.dp else 18.dp)
-                )
+                    FlightHsiPanel(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .navigationBarsPadding()
+                            .padding(bottom = if (isCompact) 16.dp else 20.dp)
+                    )
+                }
 
                 if (activePanel != null) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.34f))
+                            .background(Color.Black.copy(alpha = 0.46f))
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null
@@ -458,7 +456,8 @@ private fun ImmersiveFlightScreenContent(
 
                 if (isSettingsDrawerOpen) {
                     FlightSettingsDrawer(
-                        drawerWidth = drawerWidth,
+                        drawerWidth = settingsDrawerWidth,
+                        isCompact = isCompact,
                         onClose = { isSettingsDrawerOpen = false }
                     )
                 }
@@ -475,14 +474,23 @@ private fun FlightTopOverlay(
     activePanel: FlightBottomPanel?,
     isCompact: Boolean,
     onBack: () -> Unit,
-    onToggleCameraPanel: () -> Unit,
     onToggleLinkPanel: () -> Unit,
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val topLinkLabel = when {
+        registrationState is PlatformRegistrationState.Registered &&
+            wsConnectionState == WsConnectionState.Connected -> "在线"
+        registrationState is PlatformRegistrationState.Failed ||
+            wsConnectionState is WsConnectionState.Error -> "异常"
+        registrationState is PlatformRegistrationState.Registering ||
+            wsConnectionState == WsConnectionState.Connecting -> "连接中"
+        else -> "待机"
+    }
+
     Column(
         modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -492,8 +500,10 @@ private fun FlightTopOverlay(
                 icon = Icons.Default.ArrowBack,
                 onClick = onBack
             )
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
+            Spacer(modifier = Modifier.width(10.dp))
+            Column(
+                modifier = Modifier.weight(if (isCompact) 0.92f else 1f)
+            ) {
                 Text(
                     text = "Flight Deck",
                     color = Color.White,
@@ -507,6 +517,10 @@ private fun FlightTopOverlay(
                             append(" · ")
                             append(summary.controllerModel)
                         }
+                        if (summary.sdkStatusLabel.isNotBlank()) {
+                            append(" · SDK ")
+                            append(summary.sdkStatusLabel)
+                        }
                     },
                     color = OverlayTextSecondary,
                     style = MaterialTheme.typography.bodySmall,
@@ -514,16 +528,11 @@ private fun FlightTopOverlay(
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            CompactTextBadge(
-                label = "SDK ${summary.sdkStatusLabel}",
-                accentColor = Color.White
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            PanelLauncherChip(
-                label = "CAM",
-                active = activePanel == FlightBottomPanel.Camera,
-                onClick = onToggleCameraPanel,
-                icon = null
+            Spacer(modifier = Modifier.width(10.dp))
+            EmbeddedSystemStatusStrip(
+                modifier = Modifier
+                    .width(if (isCompact) 196.dp else 248.dp)
+                    .height(if (isCompact) 36.dp else 40.dp)
             )
             Spacer(modifier = Modifier.width(8.dp))
             Surface(
@@ -544,18 +553,27 @@ private fun FlightTopOverlay(
                 )
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     ServerConnectionIndicatorDot(registrationState = registrationState)
                     Text(
-                        text = if (isCompact) wsConnectionState.statusLabel() else "LINK",
+                        text = "NET $topLinkLabel",
                         color = Color.White,
                         style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
+            }
+            if (!summary.isVisionSystemHealthy) {
+                Spacer(modifier = Modifier.width(8.dp))
+                CompactTextBadge(
+                    label = "VISION CHECK",
+                    accentColor = Color(0xFFF59E0B)
+                )
             }
             Spacer(modifier = Modifier.width(8.dp))
             CircularGlassIconButton(
@@ -564,57 +582,94 @@ private fun FlightTopOverlay(
             )
         }
 
+        FlightStatusRibbon(
+            summary = summary,
+            isCompact = isCompact,
+            modifier = Modifier
+        )
+    }
+}
+
+@Composable
+private fun FlightStatusRibbon(
+    summary: FlightScreenSummary,
+    isCompact: Boolean,
+    modifier: Modifier = Modifier
+) {
+    GlassSurface(
+        modifier = modifier,
+        shape = RoundedCornerShape(18.dp)
+    ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically
+            modifier = Modifier
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            EmbeddedSystemStatusStrip(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(if (isCompact) 38.dp else 40.dp)
+            RibbonMetricSegment(
+                label = if (isCompact) "BAT" else "BATTERY",
+                value = "${summary.batteryPercentage}%",
+                accentColor = batteryColor(summary.batteryPercentage)
             )
-            Row(
-                modifier = Modifier.horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                CompactMetricChip(
-                    label = "BAT",
-                    value = "${summary.batteryPercentage}%",
-                    accentColor = batteryColor(summary.batteryPercentage)
+            RibbonDivider()
+            RibbonMetricSegment(
+                label = "GPS",
+                value = "${summary.gpsSatelliteCount}",
+                accentColor = signalQualityColor(summary.gpsSatelliteCount.coerceAtMost(100))
+            )
+            RibbonDivider()
+            RibbonMetricSegment(
+                label = "LINK",
+                value = "${summary.uplinkQuality} / ${summary.downlinkQuality}",
+                accentColor = signalQualityColor(
+                    quality = minOf(summary.uplinkQuality, summary.downlinkQuality)
                 )
-                CompactMetricChip(
-                    label = "GPS",
-                    value = "${summary.gpsSatelliteCount}",
-                    accentColor = signalQualityColor(summary.gpsSatelliteCount.coerceAtMost(100))
-                )
-                CompactMetricChip(
-                    label = "RC",
-                    value = "${summary.uplinkQuality}%",
-                    accentColor = signalQualityColor(summary.uplinkQuality)
-                )
-                CompactMetricChip(
-                    label = "HD",
-                    value = "${summary.downlinkQuality}%",
-                    accentColor = signalQualityColor(summary.downlinkQuality)
-                )
-                CompactMetricChip(
-                    label = "TIME",
-                    value = summary.flightTimeRemainingSeconds.toFlightTimeLabel(),
-                    accentColor = AccentBlue
-                )
-                CompactMetricChip(
-                    label = "VISION",
-                    value = if (summary.isVisionSystemHealthy) "OK" else "WARN",
-                    accentColor = if (summary.isVisionSystemHealthy) {
-                        Color(0xFF22C55E)
-                    } else {
-                        Color(0xFFF59E0B)
-                    }
-                )
-            }
+            )
+            RibbonDivider()
+            RibbonMetricSegment(
+                label = "TIME",
+                value = summary.flightTimeRemainingSeconds.toFlightTimeLabel(),
+                accentColor = AccentBlue
+            )
         }
     }
+}
+
+@Composable
+private fun RibbonMetricSegment(
+    label: String,
+    value: String,
+    accentColor: Color
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        Text(
+            text = label,
+            color = OverlayTextTertiary,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Medium
+        )
+        Text(
+            text = value,
+            color = accentColor,
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun RibbonDivider() {
+    Box(
+        modifier = Modifier
+            .width(1.dp)
+            .height(20.dp)
+            .background(OverlayBorderColor)
+    )
 }
 
 @Composable
@@ -623,14 +678,16 @@ private fun FlightActionRail(
     onReturnHome: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val railWidth = 68.dp
+
     GlassSurface(
-        modifier = modifier,
-        shape = RoundedCornerShape(22.dp)
+        modifier = modifier.width(railWidth),
+        shape = RoundedCornerShape(24.dp)
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 12.dp),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 10.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
                 text = "FLIGHT",
@@ -647,47 +704,33 @@ private fun FlightActionRail(
 @Composable
 private fun FlightCameraRail(
     activePanel: FlightBottomPanel?,
+    isCompact: Boolean,
     onToggleCameraPanel: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val controlWidth = if (isCompact) 76.dp else 82.dp
+    val railWidth = if (isCompact) 92.dp else 98.dp
+
     GlassSurface(
-        modifier = modifier,
-        shape = RoundedCornerShape(24.dp)
+        modifier = modifier.width(railWidth),
+        shape = RoundedCornerShape(26.dp)
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 12.dp),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 10.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text(
-                text = "CAMERA",
-                color = OverlayTextTertiary,
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.SemiBold
-            )
             PanelLauncherChip(
                 label = "参数",
                 active = activePanel == FlightBottomPanel.Camera,
                 onClick = onToggleCameraPanel,
-                icon = null
+                icon = null,
+                modifier = Modifier.widthIn(max = controlWidth)
             )
-            GlassInset(
-                modifier = Modifier.size(44.dp),
-                shape = RoundedCornerShape(16.dp)
-            ) {
-                FocusModeWidget(modifier = Modifier.fillMaxSize())
-            }
-            GlassInset(
-                modifier = Modifier
-                    .width(56.dp)
-                    .height(108.dp),
-                shape = RoundedCornerShape(18.dp)
-            ) {
-                LensControlWidget(modifier = Modifier.fillMaxSize())
-            }
             CameraControlsComposeWidget(
                 cameraIndex = ComponentIndexType.LEFT_OR_MAIN,
-                lensType = CameraLensType.UNKNOWN
+                lensType = CameraLensType.UNKNOWN,
+                controlWidth = controlWidth
             )
         }
     }
@@ -695,9 +738,6 @@ private fun FlightCameraRail(
 
 @Composable
 private fun FlightTelemetryPanel(
-    summary: FlightScreenSummary,
-    registrationState: PlatformRegistrationState,
-    wsConnectionState: WsConnectionState,
     activePanel: FlightBottomPanel?,
     telemetryWidth: androidx.compose.ui.unit.Dp,
     onToggleLinkPanel: () -> Unit,
@@ -708,102 +748,26 @@ private fun FlightTelemetryPanel(
         modifier = modifier.width(telemetryWidth),
         shape = RoundedCornerShape(22.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                        text = "Mission Brief",
-                        color = Color.White,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = summary.serialNumber.takeLast(8).ifBlank { "SERIAL" },
-                        color = OverlayTextTertiary,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-                CompactTextBadge(
-                    label = if (summary.isVisionSystemHealthy) "CLEAR" else "CHECK",
-                    accentColor = if (summary.isVisionSystemHealthy) {
-                        Color(0xFF22C55E)
-                    } else {
-                        Color(0xFFF59E0B)
-                    }
-                )
-            }
-
-            ServerConnectionChip(
-                registrationState = registrationState,
-                modifier = Modifier.fillMaxWidth(),
-                showDetail = true
+            PanelLauncherChip(
+                label = "链路",
+                active = activePanel == FlightBottomPanel.Link,
+                onClick = onToggleLinkPanel,
+                icon = null,
+                modifier = Modifier.weight(1f)
             )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                InfoMetricCell(
-                    label = "WebSocket",
-                    value = wsConnectionState.statusLabel(),
-                    accentColor = wsConnectionState.statusColor(),
-                    modifier = Modifier.weight(1f)
-                )
-                InfoMetricCell(
-                    label = "链路",
-                    value = "RC ${summary.uplinkQuality}% / HD ${summary.downlinkQuality}%",
-                    accentColor = signalQualityColor(
-                        quality = minOf(summary.uplinkQuality, summary.downlinkQuality)
-                    ),
-                    modifier = Modifier.weight(1f)
-                )
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                InfoMetricCell(
-                    label = "剩余时间",
-                    value = summary.flightTimeRemainingSeconds.toFlightTimeLabel(),
-                    accentColor = AccentBlue,
-                    modifier = Modifier.weight(1f)
-                )
-                InfoMetricCell(
-                    label = "控制器",
-                    value = summary.controllerModel,
-                    accentColor = Color.White,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                PanelLauncherChip(
-                    label = "链路历史",
-                    active = activePanel == FlightBottomPanel.Link,
-                    onClick = onToggleLinkPanel,
-                    icon = null,
-                    modifier = Modifier.weight(1f)
-                )
-                PanelLauncherChip(
-                    label = "设备详情",
-                    active = activePanel == FlightBottomPanel.Info,
-                    onClick = onToggleInfoPanel,
-                    icon = null,
-                    modifier = Modifier.weight(1f)
-                )
-            }
+            PanelLauncherChip(
+                label = "设备",
+                active = activePanel == FlightBottomPanel.Info,
+                onClick = onToggleInfoPanel,
+                icon = null,
+                modifier = Modifier.weight(1f)
+            )
         }
     }
 }
@@ -817,9 +781,9 @@ private fun FlightHsiPanel(
         shape = RoundedCornerShape(22.dp)
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(
                 text = "姿态 / 航向",
@@ -828,7 +792,7 @@ private fun FlightHsiPanel(
                 fontWeight = FontWeight.SemiBold
             )
             Box(
-                modifier = Modifier.height(74.dp),
+                modifier = Modifier.height(72.dp),
                 contentAlignment = Alignment.Center
             ) {
                 HorizontalSituationIndicatorWidget(
@@ -852,11 +816,13 @@ private fun FlightBottomDrawer(
     modifier: Modifier = Modifier
 ) {
     GlassSurface(
-        modifier = modifier,
+        modifier = modifier.fillMaxHeight(if (isCompact) 0.84f else 0.72f),
         shape = RoundedCornerShape(26.dp)
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Row(
@@ -901,21 +867,29 @@ private fun FlightBottomDrawer(
                 }
             }
 
-            when (activePanel) {
-                FlightBottomPanel.Camera -> CameraPanelContent()
-                FlightBottomPanel.Link -> LinkPanelContent(
-                    registrationState = registrationState,
-                    wsConnectionState = wsConnectionState,
-                    wsMessages = wsMessages,
-                    summary = summary,
-                    isCompact = isCompact
-                )
-                FlightBottomPanel.Info -> InfoPanelContent(
-                    summary = summary,
-                    registrationState = registrationState,
-                    wsConnectionState = wsConnectionState,
-                    isCompact = isCompact
-                )
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                when (activePanel) {
+                    FlightBottomPanel.Camera -> CameraPanelContent()
+                    FlightBottomPanel.Link -> LinkPanelContent(
+                        registrationState = registrationState,
+                        wsConnectionState = wsConnectionState,
+                        wsMessages = wsMessages,
+                        summary = summary,
+                        isCompact = isCompact
+                    )
+                    FlightBottomPanel.Info -> InfoPanelContent(
+                        summary = summary,
+                        registrationState = registrationState,
+                        wsConnectionState = wsConnectionState,
+                        isCompact = isCompact
+                    )
+                }
             }
         }
     }
@@ -925,20 +899,45 @@ private fun FlightBottomDrawer(
 private fun CameraPanelContent() {
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         Text(
-            text = "把快门、白平衡、ISO / EI 和存储状态收进底板，主画面保持干净，拍摄时再快速拉起。",
+            text = "曝光 / 白平衡 / ISO / EI / 快门 / 存储",
             color = OverlayTextSecondary,
-            style = MaterialTheme.typography.bodySmall
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Medium
         )
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.Center
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            CameraConfigBar()
+            CameraAssistCard(
+                title = "对焦模式",
+                modifier = Modifier.weight(1f)
+            ) {
+                FocusModeWidget(modifier = Modifier.fillMaxSize())
+            }
+            CameraAssistCard(
+                title = "镜头控制",
+                modifier = Modifier.weight(1f)
+            ) {
+                LensControlWidget(modifier = Modifier.fillMaxSize())
+            }
+        }
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = Color.White.copy(alpha = 0.04f),
+            border = BorderStroke(1.dp, OverlayBorderColor)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 12.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                CameraConfigBar()
+            }
         }
     }
 }
@@ -951,41 +950,50 @@ private fun LinkPanelContent(
     summary: FlightScreenSummary,
     isCompact: Boolean
 ) {
-    if (isCompact) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            LinkSummaryCard(
-                registrationState = registrationState,
-                wsConnectionState = wsConnectionState,
-                summary = summary,
-                modifier = Modifier.fillMaxWidth()
-            )
-            WebSocketMessageHistory(
-                messages = wsMessages,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 140.dp, max = 180.dp)
-            )
-        }
-    } else {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            LinkSummaryCard(
-                registrationState = registrationState,
-                wsConnectionState = wsConnectionState,
-                summary = summary,
-                modifier = Modifier.width(300.dp)
-            )
-            WebSocketMessageHistory(
-                messages = wsMessages,
-                modifier = Modifier
-                    .weight(1f)
-                    .heightIn(min = 160.dp, max = 188.dp)
-            )
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val useStackedLayout = maxWidth < 720.dp
+        if (useStackedLayout) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                LinkSummaryCard(
+                    registrationState = registrationState,
+                    wsConnectionState = wsConnectionState,
+                    summary = summary,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                WebSocketMessageHistory(
+                    messages = wsMessages,
+                    header = "最近通讯记录",
+                    emptyMessage = wsConnectionState.logEmptyStateLabel(),
+                    maxItems = 100,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 200.dp, max = 280.dp)
+                )
+            }
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                LinkSummaryCard(
+                    registrationState = registrationState,
+                    wsConnectionState = wsConnectionState,
+                    summary = summary,
+                    modifier = Modifier.width(300.dp)
+                )
+                WebSocketMessageHistory(
+                    messages = wsMessages,
+                    header = "最近通讯记录",
+                    emptyMessage = wsConnectionState.logEmptyStateLabel(),
+                    maxItems = 100,
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 240.dp, max = 320.dp)
+                )
+            }
         }
     }
 }
@@ -1027,10 +1035,45 @@ private fun LinkSummaryCard(
                 modifier = Modifier.fillMaxWidth()
             )
             InfoMetricCell(
-                label = "消息数量",
-                value = "最近 100 条内保留",
-                accentColor = Color.White,
+                label = "链路详情",
+                value = wsConnectionState.logEmptyStateLabel(),
+                accentColor = wsConnectionState.statusColor(),
                 modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+}
+
+@Composable
+private fun CameraAssistCard(
+    title: String,
+    modifier: Modifier = Modifier,
+    content: @Composable BoxScope.() -> Unit
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(18.dp),
+        color = Color.White.copy(alpha = 0.04f),
+        border = BorderStroke(1.dp, OverlayBorderColor)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = title,
+                color = OverlayTextSecondary,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            GlassInset(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(76.dp),
+                shape = RoundedCornerShape(16.dp),
+                content = content
             )
         }
     }
@@ -1179,13 +1222,14 @@ private fun InfoPanelContent(
 @Composable
 private fun FlightSettingsDrawer(
     drawerWidth: androidx.compose.ui.unit.Dp,
+    isCompact: Boolean,
     onClose: () -> Unit
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.42f))
+                .background(Color.Black.copy(alpha = 0.56f))
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
@@ -1193,13 +1237,15 @@ private fun FlightSettingsDrawer(
                 )
         )
 
-        GlassSurface(
+        Surface(
             modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .fillMaxHeight()
+                .align(if (isCompact) Alignment.Center else Alignment.CenterEnd)
+                .fillMaxHeight(if (isCompact) 0.94f else 1f)
                 .width(drawerWidth)
                 .padding(12.dp),
-            shape = RoundedCornerShape(28.dp)
+            shape = RoundedCornerShape(if (isCompact) 24.dp else 28.dp),
+            color = Color(0xF20B1016),
+            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
                 Row(
@@ -1447,13 +1493,13 @@ private fun InfoMetricCell(
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Medium
             )
-            Text(
-                text = value,
-                color = accentColor,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+        Text(
+            text = value,
+            color = accentColor,
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
             )
         }
     }
@@ -1592,6 +1638,16 @@ private fun WsConnectionState.statusColor(): Color {
         WsConnectionState.Connected -> Color(0xFF2E7D32)
         is WsConnectionState.Disconnected -> Color(0xFFFB8C00)
         is WsConnectionState.Error -> Color(0xFFC62828)
+    }
+}
+
+private fun WsConnectionState.logEmptyStateLabel(): String {
+    return when (this) {
+        WsConnectionState.Idle -> "等待建立连接后开始记录消息"
+        WsConnectionState.Connecting -> "连接建立中，日志将在握手完成后刷新"
+        WsConnectionState.Connected -> "当前已连接，等待首条消息"
+        is WsConnectionState.Disconnected -> reason
+        is WsConnectionState.Error -> message
     }
 }
 

@@ -38,6 +38,9 @@ import androidx.compose.ui.window.DialogProperties
 import com.fuwaki.djifly.platform.registration.PlatformRegistrationState
 import com.fuwaki.djifly.platform.ws.WsMessageDirection
 import com.fuwaki.djifly.platform.ws.WsMessageLog
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 data class ServerConnectionUiModel(
     val status: String,
@@ -263,35 +266,48 @@ fun WebSocketMessageHistoryDialog(
 fun WebSocketMessageHistory(
     messages: List<WsMessageLog>,
     modifier: Modifier = Modifier,
-    maxItems: Int = 50
+    maxItems: Int = 50,
+    header: String = "WebSocket 日志",
+    emptyMessage: String = "暂无消息"
 ) {
     val displayMessages = messages.takeLast(maxItems).asReversed()
 
     Surface(
         modifier = modifier,
         color = Color.Black.copy(alpha = 0.6f),
-        shape = RoundedCornerShape(8.dp)
+        shape = RoundedCornerShape(18.dp)
     ) {
         Column(
-            modifier = Modifier.padding(8.dp)
+            modifier = Modifier.padding(12.dp)
         ) {
-            Text(
-                text = "WebSocket 消息",
-                color = Color.White.copy(alpha = 0.7f),
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Bold
-            )
-            if (displayMessages.isEmpty()) {
-                Spacer(modifier = Modifier.height(4.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(
-                    text = "暂无消息",
-                    color = Color.White.copy(alpha = 0.4f),
+                    text = header,
+                    color = Color.White.copy(alpha = 0.82f),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "${displayMessages.size} 条",
+                    color = Color.White.copy(alpha = 0.46f),
+                    style = MaterialTheme.typography.labelSmall
+                )
+            }
+            if (displayMessages.isEmpty()) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = emptyMessage,
+                    color = Color.White.copy(alpha = 0.56f),
                     style = MaterialTheme.typography.bodySmall
                 )
             } else {
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(8.dp))
                 HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 LazyColumn(
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -313,11 +329,10 @@ private fun WsMessageLog.stableKey(): String {
 
 @Composable
 private fun WebSocketMessageItem(log: WsMessageLog) {
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 2.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(vertical = 5.dp)
     ) {
         val directionColor = when (log.direction) {
             WsMessageDirection.SENT -> Color(0xFF4CAF50)
@@ -327,26 +342,49 @@ private fun WebSocketMessageItem(log: WsMessageLog) {
             WsMessageDirection.SENT -> "↑"
             WsMessageDirection.RECEIVED -> "↓"
         }
-        Text(
-            text = directionText,
-            color = directionColor,
-            style = MaterialTheme.typography.bodySmall,
-            fontWeight = FontWeight.Bold
-        )
-        Spacer(modifier = Modifier.width(4.dp))
-        Text(
-            text = log.type,
-            color = Color.White.copy(alpha = 0.9f),
-            style = MaterialTheme.typography.bodySmall,
-            fontWeight = FontWeight.Medium
-        )
-        if (log.name != null) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = directionText,
+                color = directionColor,
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Bold
+            )
             Spacer(modifier = Modifier.width(4.dp))
             Text(
-                text = "[${log.name}]",
-                color = Color.White.copy(alpha = 0.6f),
-                style = MaterialTheme.typography.bodySmall
+                text = log.type,
+                color = Color.White.copy(alpha = 0.92f),
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Medium
+            )
+            if (log.name != null) {
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = "[${log.name}]",
+                    color = Color.White.copy(alpha = 0.56f),
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+            Spacer(modifier = Modifier.weight(1f))
+            Text(
+                text = log.timestamp.toHistoryTimeLabel(),
+                color = Color.White.copy(alpha = 0.4f),
+                style = MaterialTheme.typography.labelSmall
             )
         }
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = log.content.ifBlank { "空消息体" },
+            color = Color.White.copy(alpha = 0.66f),
+            style = MaterialTheme.typography.bodySmall,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
     }
+}
+
+private fun Long.toHistoryTimeLabel(): String {
+    return SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(this))
 }

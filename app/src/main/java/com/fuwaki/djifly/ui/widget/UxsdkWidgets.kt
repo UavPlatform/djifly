@@ -2,6 +2,7 @@ package com.fuwaki.djifly.ui.widget
 
 import android.view.View
 import android.view.ViewGroup
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -17,6 +18,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import dji.sdk.keyvalue.value.common.CameraLensType
@@ -48,16 +51,21 @@ fun CameraControlsComposeWidget(
     modifier: Modifier = Modifier,
     isPhotoVideoSwitchVisible: Boolean = true,
     isCameraCaptureVisible: Boolean = true,
+    controlWidth: Dp = 84.dp,
+    shape: Shape = RoundedCornerShape(26.dp),
+    containerColor: Color = Color(0xD9111820),
+    borderColor: Color = Color.White.copy(alpha = 0.08f)
 ) {
     Column(
         modifier = modifier
-            .width(60.dp)
+            .width(controlWidth)
             .wrapContentHeight()
-            .clip(RoundedCornerShape(8.dp))
-            .background(Color(0xCC000000))
-            .padding(vertical = 12.dp, horizontal = 4.dp),
+            .clip(shape)
+            .background(containerColor)
+            .border(width = 1.dp, color = borderColor, shape = shape)
+            .padding(vertical = 10.dp, horizontal = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         if (isPhotoVideoSwitchVisible) {
             AndroidView(
