@@ -28,10 +28,31 @@ class MessageViewModel @Inject constructor(
     private val _loading = MutableStateFlow(false)
     val loading: StateFlow<Boolean> = _loading.asStateFlow()
 
+    // 未读数（1B-8 收敛包，t49 契约）：sessionId → 未读条数，只读端点，已读由进入会话显式推进
+    private val _unreadCountMap = MutableStateFlow<Map<Long, Int>>(emptyMap())
+    val unreadCountMap: StateFlow<Map<Long, Int>> = _unreadCountMap.asStateFlow()
+
+    val totalUnread: Int
+        get() = _unreadCountMap.value.values.sum()
+
     init {
         loadSessions()
+        refreshUnread()
         chatRealtimeClient.ensureConnected()
         observeRealtimeMessages()
+    }
+
+    /** 拉取未读数（只读，不推进已读位点） */
+    fun refreshUnread() {
+        viewModelScope.launch {
+            apiCall(errorHandler) { api.getUnreadCount() }
+                .onSuccess { map ->
+                    _unreadCountMap.value = map
+                        ?.mapKeys { (key, _) -> key.toLongOrNull() ?: 0L }
+                        ?.filterKeys { it > 0L }
+                        ?: emptyMap()
+                }
+        }
     }
 
     fun loadSessions() {
@@ -61,6 +82,7 @@ class MessageViewModel @Inject constructor(
         viewModelScope.launch {
             chatRealtimeClient.incomingMessages.collect {
                 loadSessions()
+                refreshUnread()   // 新消息到达 → 红点即时刷新（t49：补推保留未读语义）
             }
         }
     }

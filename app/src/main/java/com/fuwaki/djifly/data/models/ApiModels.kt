@@ -70,6 +70,7 @@ data class TaskVo(
     val totalAmount: BigDecimal? = null,
     val totalDistance: BigDecimal? = null,
     val orderStatus: String? = null, // 后端返回枚举名: PENDING/PAID/COMPLETED 等
+    val actionHint: String? = null,  // 操作提示（1B-9a 状态矩阵，后端统一计算，客户端直接渲染）
     val createTime: String = "",
     val updateTime: String? = null,
     val waypoints: List<WaypointVo> = emptyList()
@@ -113,12 +114,13 @@ enum class TaskStatus(val label: String) {
 data class SessionVO(
     val id: Long = 0,
     val name: String = "",
-    val type: Int = 0,              // 0=单聊, 1=群聊
+    val type: Int = 0,              // 0=单聊, 1=群聊, 2=系统通知
     val userIds: List<Long> = emptyList(),
     val otherUserName: String? = null,
     val lastMessage: String? = null,
     val createTime: Long = 0L,      // 后端返回时间戳
-    val lastMessageTime: Long? = null
+    val lastMessageTime: Long? = null,
+    val unreadCount: Int = 0        // 会话未读数（权威来源为 /chat/Message/unread/count，1B-8 收敛包）
 )
 
 /**
@@ -133,7 +135,8 @@ data class MessageVO(
     val fromUserId: Long = 0,
     val toUserId: Long? = null,
     val status: Int = 0,            // 0=正常, 2=已撤回
-    val createTime: Long = 0L       // 后端返回时间戳
+    val createTime: Long = 0L,      // 后端返回时间戳
+    val payloadName: String? = null // 结构化载荷事件名（t23：ORDER_PAID 等，1B-8 收敛包）
 ) {
     // 从 WebSocket ChatEnvelope 构建
     companion object {
@@ -174,7 +177,8 @@ data class ChatEnvelope(
             content = payload["text"]?.toString().orEmpty(),
             fromUserId = fromUserId,
             toUserId = toUserId,
-            createTime = timestamp
+            createTime = timestamp,
+            payloadName = payload["name"]?.toString()
         )
     }
 }

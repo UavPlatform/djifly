@@ -43,6 +43,10 @@ class ChatViewModel @Inject constructor(
 
     init {
         loadMessages()
+        // t49 显式已读契约：进入会话即推进该会话 lastReadTime=now（限流 30 次/60s）
+        viewModelScope.launch {
+            runCatching { api.markSessionRead(sessionId) }
+        }
         chatRealtimeClient.ensureConnected()
         observeRealtimeMessages()
     }
