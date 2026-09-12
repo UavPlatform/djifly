@@ -61,6 +61,26 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.fuwaki.djifly.platform.attachment.DeliverableItemPhase
+import com.fuwaki.djifly.platform.attachment.DeliverableItemUi
+import com.fuwaki.djifly.platform.livestream.LiveStopCoordinator
+import com.fuwaki.djifly.ui.viewmodel.ActionState
+import com.fuwaki.djifly.ui.viewmodel.TaskViewModel
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.fragment.app.FragmentActivity
@@ -148,8 +168,93 @@ fun FlightScreen(
     sdkManager: DjiSdkManager,
     registrationManager: PlatformRegistrationManager,
     wsCommunicationState: WsCommunicationState,
-    onBack: () -> Unit
+    liveStopCoordinator: LiveStopCoordinator,
+    taskNum: String? = null,
+    onBack: () -> Unit,
+    taskViewModel: TaskViewModel = hiltViewModel()
 ) {
+    // 退出飞行页（含进程级返回/页面销毁）时受控停止推流并回执 LIVE_STOPPED（t12/FLY 高-3）
+    DisposableEffect(Unit) {
+        onDispose {
+            liveStopCoordinator.stopStreamingAndNotify()
+        }
+    }
+
+    // 1B-8：飞行链路任务上下文（自由飞行 taskNum 为空 → FreeFlight，行为不变）
+    val taskDetail by taskViewModel.taskDetail.collectAsState()
+    val detailLoading by taskViewModel.detailLoading.collectAsState()
+    val actionState by taskViewModel.actionState.collectAsState()
+    val taskContext = FlightTaskContext.resolve(taskNum, taskDetail, detailLoading)
+
+    LaunchedEffect(taskNum) {
+        taskViewModel.clearDeliverables()
+        if (!taskNum.isNullOrBlank()) {
+            taskViewModel.loadTaskDetail(taskNum)
+        }
+    }
+
+    // 任务完成交互：仅在用户点击「标记完成」后才开始消费 actionState（避免陈旧状态干扰）
+    var taskCompleted by remember(taskNum) { mutableStateOf(false) }
+    var awaitingCompleteResult by remember { mutableStateOf(false) }
+    var showCompleteNoteDialog by remember { mutableStateOf(false) }
+    val toastContext = LocalContext.current
+
+    // 交付物选择器（1B-9b）：系统照片选择器，无需存储权限
+    val deliverables = taskViewModel.deliverables.collectAsState()
+
+    fun registerPickedDeliverable(uri: android.net.Uri) {
+        val resolver = toastContext.contentResolver
+        val size = runCatching {
+            resolver.query(uri, arrayOf(android.provider.OpenableColumns.SIZE), null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst() && !cursor.isNull(0)) cursor.getLong(0) else -1L
+            } ?: -1L
+        }.getOrDefault(-1L)
+        val displayName = runCatching {
+            resolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) cursor.getString(0) else null
+            } ?: uri.lastPathSegment
+        }.getOrNull() ?: "deliverable"
+        val contentType = runCatching { resolver.getType(uri) }.getOrNull() ?: "application/octet-stream"
+        taskViewModel.addDeliverable(
+            fileName = displayName,
+            contentType = contentType,
+            sizeBytes = size,
+            openStream = { runCatching { resolver.openInputStream(uri) }.getOrNull() }
+        )
+    }
+
+    val pickImageLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) registerPickedDeliverable(uri)
+    }
+    val pickVideoLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) registerPickedDeliverable(uri)
+    }
+
+    // 上传串行进行中/结束 → 视结果决定完成任务或提示重试
+    var awaitingUploadThenComplete by remember { mutableStateOf(false) }
+    var pendingCompleteNote by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(deliverables.value) {
+        if (!awaitingUploadThenComplete) return@LaunchedEffect
+        val items = deliverables.value
+        if (items.any { it.phase == DeliverableItemPhase.UPLOADING || it.phase == DeliverableItemPhase.PENDING }) {
+            return@LaunchedEffect
+        }
+        if (items.none { it.phase == DeliverableItemPhase.FAILED }) {
+            awaitingUploadThenComplete = false
+            awaitingCompleteResult = true
+            taskViewModel.completeTask(taskNum.orEmpty(), pendingCompleteNote)
+        } else {
+            awaitingUploadThenComplete = false
+            Toast.makeText(toastContext, "存在上传失败的成果，请重试或移除后重新完成任务", Toast.LENGTH_LONG).show()
+            showCompleteNoteDialog = true
+        }
+    }
+
     val connectionStateFlow = remember(sdkManager) {
         sdkManager.sdkStatus
             .map { it.connectionState }
@@ -163,18 +268,63 @@ fun FlightScreen(
     val wsMessages by wsCommunicationState.messages.collectAsState()
 
     if (connectionState is SdkConnectionState.ProductConnected) {
-        ImmersiveFlightScreenContent(
-            sdkManager = sdkManager,
-            registrationState = registrationState,
-            wsConnectionState = wsConnectionState,
-            wsMessages = wsMessages,
-            onBack = onBack
-        )
+        Box(modifier = Modifier.fillMaxSize()) {
+            ImmersiveFlightScreenContent(
+                sdkManager = sdkManager,
+                registrationState = registrationState,
+                wsConnectionState = wsConnectionState,
+                wsMessages = wsMessages,
+                onBack = onBack
+            )
+            // 顶部任务状态栏（1B-8）：携任务进入时展示当前任务与「标记完成」快捷入口
+            if (taskContext is FlightTaskContext.Ready && !taskCompleted) {
+                FlightTaskStatusBar(
+                    context = taskContext,
+                    onMarkComplete = { showCompleteNoteDialog = true },
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .statusBarsPadding()
+                        .padding(top = 4.dp)
+                )
+            }
+        }
     } else {
         ConnectionRequiredScreen(
             registrationState = registrationState,
             wsConnectionState = wsConnectionState,
             onBack = onBack
+        )
+    }
+
+    if (showCompleteNoteDialog && taskContext is FlightTaskContext.Ready) {
+        FlightCompleteNoteDialog(
+            deliverables = deliverables.value,
+            isUploading = awaitingUploadThenComplete,
+            onPickImage = {
+                pickImageLauncher.launch(
+                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                )
+            },
+            onPickVideo = {
+                pickVideoLauncher.launch(
+                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)
+                )
+            },
+            onRemove = taskViewModel::removeDeliverable,
+            onRetry = taskViewModel::retryDeliverable,
+            onDismiss = { showCompleteNoteDialog = false },
+            onConfirm = { note ->
+                showCompleteNoteDialog = false
+                pendingCompleteNote = note
+                if (taskViewModel.hasBlockingDeliverables()) {
+                    // 有成果：先串行上传，全部成功后自动完成任务（失败则重新打开对话框重试）
+                    awaitingUploadThenComplete = true
+                    taskViewModel.uploadAllDeliverables(taskContext.taskNum)
+                } else {
+                    awaitingCompleteResult = true
+                    taskViewModel.completeTask(taskContext.taskNum, note)
+                }
+            }
         )
     }
 }
@@ -1690,5 +1840,178 @@ private fun DjiSdkStatus.toFlightScreenSummary(): FlightScreenSummary {
         downlinkQuality = flightData.downlinkQuality,
         flightTimeRemainingSeconds = flightData.flightTimeRemaining,
         isVisionSystemHealthy = flightData.isVisionSystemHealthy
+    )
+}
+/**
+ * 飞行控制台顶部任务状态栏（1B-8）：任务名 + 操作提示（t32 actionHint）+ 标记完成入口。
+ */
+@Composable
+private fun FlightTaskStatusBar(
+    context: FlightTaskContext.Ready,
+    onMarkComplete: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
+        color = Color.Black.copy(alpha = 0.62f)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Column(modifier = Modifier.widthIn(max = 260.dp)) {
+                Text(
+                    text = "任务：" + context.taskName,
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                val hint = context.actionHint ?: ("赏金 " + context.rewardText)
+                Text(
+                    text = hint,
+                    color = Color.White.copy(alpha = 0.78f),
+                    fontSize = 10.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Button(
+                onClick = onMarkComplete,
+                enabled = context.orderStatus != "COMPLETED",
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = AccentBlue),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text("标记完成", fontSize = 11.sp, color = Color.White)
+            }
+        }
+    }
+}
+
+/**
+ * 完成说明与交付成果对话框（1B-8 note + 1B-9b 成果上传，t32/t43 契约）。
+ */
+@Composable
+private fun FlightCompleteNoteDialog(
+    deliverables: List<DeliverableItemUi>,
+    isUploading: Boolean,
+    onPickImage: () -> Unit,
+    onPickVideo: () -> Unit,
+    onRemove: (String) -> Unit,
+    onRetry: (String) -> Unit,
+    onDismiss: () -> Unit,
+    onConfirm: (String?) -> Unit
+) {
+    var note by remember { mutableStateOf("") }
+    val hasBlocking = deliverables.any {
+        it.phase == DeliverableItemPhase.PENDING ||
+            it.phase == DeliverableItemPhase.UPLOADING ||
+            it.phase == DeliverableItemPhase.FAILED
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("标记任务完成", color = Color.White) },
+        text = {
+            Column {
+                Text(
+                    "确认当前任务已交付？可附交付成果与完成说明（均可选）。",
+                    color = Color.White.copy(alpha = 0.8f)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = onPickImage, modifier = Modifier.weight(1f)) {
+                        Text("选择照片", fontSize = 12.sp, color = Color.White)
+                    }
+                    OutlinedButton(onClick = onPickVideo, modifier = Modifier.weight(1f)) {
+                        Text("选择视频", fontSize = 12.sp, color = Color.White)
+                    }
+                }
+
+                deliverables.forEach { entry ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = (entry.item.fileName ?: "交付成果") + " · " + when (entry.phase) {
+                                    DeliverableItemPhase.PENDING -> "待上传"
+                                    DeliverableItemPhase.UPLOADING -> "上传中…"
+                                    DeliverableItemPhase.UPLOADED -> "已上传"
+                                    DeliverableItemPhase.FAILED -> "失败"
+                                },
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            entry.message?.let { message ->
+                                Text(
+                                    text = message,
+                                    color = Color(0xFFFFB74D),
+                                    fontSize = 10.sp
+                                )
+                            }
+                        }
+                        when (entry.phase) {
+                            DeliverableItemPhase.UPLOADING -> {}
+                            DeliverableItemPhase.FAILED -> {
+                                TextButton(onClick = { onRetry(entry.item.id) }) {
+                                    Text("重试", fontSize = 11.sp, color = AccentBlue)
+                                }
+                                TextButton(onClick = { onRemove(entry.item.id) }) {
+                                    Text("移除", fontSize = 11.sp, color = Color.White.copy(alpha = 0.6f))
+                                }
+                            }
+                            else -> {
+                                TextButton(onClick = { onRemove(entry.item.id) }) {
+                                    Text("移除", fontSize = 11.sp, color = Color.White.copy(alpha = 0.6f))
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = note,
+                    onValueChange = { if (it.length <= 500) note = it },
+                    placeholder = {
+                        Text("完成说明（可选，≤500 字）", color = Color.White.copy(alpha = 0.5f))
+                    },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
+                    )
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = deliverables.none { it.phase == DeliverableItemPhase.UPLOADING } && !isUploading,
+                onClick = { onConfirm(note.trim().ifBlank { null }) }
+            ) {
+                Text(
+                    if (hasBlocking) "上传并完成任务" else "确认完成",
+                    color = AccentBlue
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("取消", color = Color.White.copy(alpha = 0.6f))
+            }
+        },
+        containerColor = Color(0xFF1E293B),
+        titleContentColor = Color.White,
+        textContentColor = Color.White
     )
 }
