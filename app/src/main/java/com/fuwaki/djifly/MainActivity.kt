@@ -33,6 +33,7 @@ import com.fuwaki.djifly.data.auth.AuthState
 import com.fuwaki.djifly.data.error.GlobalErrorHandler
 import com.fuwaki.djifly.ui.effect.GlobalErrorEffect
 import com.fuwaki.djifly.ui.viewmodel.AuthViewModel
+import com.fuwaki.djifly.platform.livestream.LiveStopCoordinator
 import com.fuwaki.djifly.platform.registration.PlatformRegistrationManager
 import com.fuwaki.djifly.platform.ws.WsCommunicationState
 import com.fuwaki.djifly.sdk.DjiSdkManager
@@ -68,6 +69,7 @@ class MainActivity : FragmentActivity() {
     @Inject lateinit var registrationManager: PlatformRegistrationManager
     @Inject lateinit var wsCommunicationState: WsCommunicationState
     @Inject lateinit var errorHandler: GlobalErrorHandler
+    @Inject lateinit var liveStopCoordinator: LiveStopCoordinator
 
     private val authViewModel: AuthViewModel by viewModels()
 
@@ -268,7 +270,7 @@ class MainActivity : FragmentActivity() {
                                 taskNum = taskNum,
                                 viewModel = taskVm,
                                 onBack = { navController.popBackStack() },
-                                onStartFlight = { navController.navigate(Routes.STARTER) },
+                                onStartFlight = { navController.navigate(Routes.starter(taskNum)) },
                                 onContactUser = { sessionId, otherUserName ->
                                     navController.navigate(Routes.chat(sessionId, otherUserName))
                                 }
@@ -310,12 +312,22 @@ class MainActivity : FragmentActivity() {
                         // ════════════════════════════════════════
                         // 飞行准备
                         // ════════════════════════════════════════
-                        composable(Routes.STARTER) {
+                        composable(
+                            route = Routes.STARTER_PATTERN,
+                            arguments = listOf(
+                                navArgument("taskNum") {
+                                    type = NavType.StringType
+                                    nullable = true
+                                    defaultValue = null
+                                }
+                            )
+                        ) { backStackEntry ->
                             StarterScreen(
                                 sdkManager = sdkManager,
                                 registrationManager = registrationManager,
-                                onEnterFlight = {
-                                    navController.navigate(Routes.FLIGHT)
+                                taskNum = backStackEntry.arguments?.getString("taskNum"),
+                                onEnterFlight = { taskNum ->
+                                    navController.navigate(Routes.flight(taskNum))
                                 }
                             )
                         }
@@ -323,13 +335,24 @@ class MainActivity : FragmentActivity() {
                         // ════════════════════════════════════════
                         // 飞行控制台（横屏沉浸式）
                         // ════════════════════════════════════════
-                        composable(Routes.FLIGHT) {
+                        composable(
+                            route = Routes.FLIGHT_PATTERN,
+                            arguments = listOf(
+                                navArgument("taskNum") {
+                                    type = NavType.StringType
+                                    nullable = true
+                                    defaultValue = null
+                                }
+                            )
+                        ) { backStackEntry ->
                             // 切换到横屏
                             requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
                             FlightScreen(
                                 sdkManager = sdkManager,
                                 registrationManager = registrationManager,
                                 wsCommunicationState = wsCommunicationState,
+                                liveStopCoordinator = liveStopCoordinator,
+                                taskNum = backStackEntry.arguments?.getString("taskNum"),
                                 onBack = {
                                     // 返回时恢复竖屏
                                     requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT

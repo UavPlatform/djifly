@@ -30,10 +30,23 @@ object Routes {
     const val CHAT = "chat/{sessionId}?otherUserName={otherUserName}"
     const val PROFILE = "profile"
     const val DRONE_MANAGE = "drone_manage"
+
+    // 1B-8：starter/flight 支持可选 taskNum（自由飞行不带参，行为不受影响）
     const val STARTER = "starter"
     const val FLIGHT = "flight"
+    const val STARTER_PATTERN = "starter?taskNum={taskNum}"
+    const val FLIGHT_PATTERN = "flight?taskNum={taskNum}"
 
     fun taskDetail(taskNum: String) = "task_detail/$taskNum"
+
+    /** 携任务进入飞行准备页（taskNum 空则退化为自由飞行路由） */
+    fun starter(taskNum: String?): String =
+        if (taskNum.isNullOrBlank()) STARTER else "starter?taskNum=${Uri.encode(taskNum)}"
+
+    /** 携任务进入飞行控制台（taskNum 空则退化为自由飞行路由） */
+    fun flight(taskNum: String?): String =
+        if (taskNum.isNullOrBlank()) FLIGHT else "flight?taskNum=${Uri.encode(taskNum)}"
+
     fun chat(sessionId: Long, otherUserName: String? = null): String {
         val encodedName = Uri.encode(otherUserName.orEmpty())
         return "chat/$sessionId?otherUserName=$encodedName"
