@@ -23,6 +23,7 @@ enum class PlatformWsName {
     START_LIVE,
     LIVE_STARTED,
     LIVE_STOPPED,
+    STOP_LIVE,
     PING,
     PONG,
     UAV_STATUS,
@@ -134,6 +135,30 @@ object PlatformWsEnvelopeFactory {
             timestamp = timestamp,
             success = true,
             code = "OK",
+            message = message
+        )
+    }
+
+    /**
+     * STOP_LIVE 同步回执（t12 协议）：{"type":"response","replyTo":"<requestId>","success":...}
+     * success=true 表示设备已（或本就未在）推流，后端进入终态；success=false 表示设备拒绝停止（409 LIVE_STOP_REJECTED）。
+     */
+    fun stopLiveAck(
+        replyTo: String,
+        deviceId: String,
+        success: Boolean,
+        code: String,
+        message: String,
+        timestamp: Long
+    ): PlatformWsEnvelope<Unit> {
+        return PlatformWsEnvelope(
+            type = PlatformWsType.RESPONSE,
+            name = PlatformWsName.STOP_LIVE,
+            replyTo = replyTo,
+            deviceId = deviceId,
+            timestamp = timestamp,
+            success = success,
+            code = code,
             message = message
         )
     }

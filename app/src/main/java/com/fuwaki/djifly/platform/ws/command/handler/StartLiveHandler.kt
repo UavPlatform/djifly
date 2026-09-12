@@ -98,6 +98,19 @@ class StartLiveHandler(
                     )
                 )
             }
+
+            is WsCommandCallbackResult.Stopped -> {
+                // START_LIVE 不会产生停止语义，防御性拒绝
+                sender.send(
+                    PlatformWsEnvelopeFactory.startLiveRejected(
+                        replyTo = requestId,
+                        deviceId = deviceId,
+                        code = "LIVE_START_FAILED",
+                        message = "START_LIVE 收到非法回调结果",
+                        timestamp = System.currentTimeMillis()
+                    )
+                )
+            }
         }
     }
 }

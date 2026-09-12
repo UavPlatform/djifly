@@ -5,7 +5,9 @@ import com.fuwaki.djifly.platform.ws.command.WsMessageRouter
 import com.fuwaki.djifly.platform.ws.protocol.PlatformWsEnvelopeFactory
 import com.fuwaki.djifly.platform.ws.report.PlatformWsReportingJobs
 import com.fuwaki.djifly.platform.ws.report.PlatformWsReportService
+import com.fuwaki.djifly.platform.ws.report.WsEventPublisher
 import com.fuwaki.djifly.platform.ws.transport.PlatformWsClient
+import com.fuwaki.djifly.platform.ws.transport.WsMessageSender
 import kotlinx.coroutines.coroutineScope
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -14,7 +16,8 @@ import javax.inject.Singleton
 class PlatformWsSessionService @Inject constructor(
     private val wsClient: PlatformWsClient,
     private val messageRouter: WsMessageRouter,
-    private val reportService: PlatformWsReportService
+    private val reportService: PlatformWsReportService,
+    private val eventPublisher: WsEventPublisher
 ) {
 
     suspend fun connectAndRun(
@@ -23,11 +26,15 @@ class PlatformWsSessionService @Inject constructor(
         onConnected: () -> Unit
     ): PlatformWsRunResult = coroutineScope {
         var reportingJobs: PlatformWsReportingJobs? = null
+        var sessionSender: WsMessageSender? = null
 
         try {
             wsClient.run(
                 deviceId = serialNumber,
                 onOpen = { sender ->
+                    // 挂载主动事件通道（如退出飞行页停止推流后回执 LIVE_STOPPED）
+                    sessionSender = sender
+                    eventPublisher.attach(sender, serialNumber)
                     sender.send(
                         PlatformWsEnvelopeFactory.connectSuccess(
                             deviceId = serialNumber,
@@ -52,6 +59,8 @@ class PlatformWsSessionService @Inject constructor(
             )
         } finally {
             reportingJobs?.cancel()
+            // 只卸载本次会话挂载的 sender，避免旧会话误清新会话
+            sessionSender?.let { eventPublisher.detach(it) }
         }
     }
 

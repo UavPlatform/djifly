@@ -70,6 +70,10 @@ class DjiTrtcLiveService @Inject constructor(
 
     val status: StateFlow<DjiTrtcLiveStatus> = _status.asStateFlow()
 
+    /** 是否存在未清理的推流会话（Starting/Streaming/Error 但未退房都算），供受控停止判断 */
+    val isSessionActive: Boolean
+        get() = trtcCloud != null || currentConfig != null
+
     @Volatile
     private var trtcCloud: TRTCCloud? = null
 
