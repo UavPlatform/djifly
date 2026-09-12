@@ -6,6 +6,8 @@ import com.fuwaki.djifly.data.auth.TokenStore
 import com.fuwaki.djifly.data.error.GlobalErrorHandler
 import com.fuwaki.djifly.data.error.apiCall
 import com.fuwaki.djifly.data.models.TaskVo
+import com.fuwaki.djifly.data.stats.RiderStatsRepository
+import com.fuwaki.djifly.data.stats.RiderStatsUiState
 import com.fuwaki.djifly.platform.network.PlatformApiService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,18 +19,19 @@ import javax.inject.Inject
 
 data class HomeUiState(
     val userName: String? = null,
-    val todayOrders: Int = 0,
-    val todayEarnings: String = "¥0",
-    val rating: Double = 5.0,
-    val completionRate: String = "0%",
+    val stats: RiderStatsUiState = RiderStatsUiState(),
     val activeTasks: List<TaskVo> = emptyList(),
     val recommendedTasks: List<TaskVo> = emptyList(),
     val isLoading: Boolean = true
 )
 
+/**
+ * 首页数据（1B-6：统计接 /rider/stats 真实数据，移除本地拼凑估算与 rating 硬编码，FLY 中-7）。
+ */
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val api: PlatformApiService,
+    private val statsRepository: RiderStatsRepository,
     private val tokenStore: TokenStore,
     val errorHandler: GlobalErrorHandler
 ) : ViewModel() {
@@ -66,26 +69,12 @@ class HomeViewModel @Inject constructor(
                         ?: emptyList()
                 }
 
-            // 加载全部任务用于统计
-            var allMyTasks = emptyList<TaskVo>()
-            apiCall(errorHandler) { api.getMyTasks() }
-                .onSuccess { data ->
-                    allMyTasks = data?.tasks ?: emptyList()
-                }
-
-            val completedCount = allMyTasks.count { it.taskStatus == "COMPLETED" }
-            val totalCount = allMyTasks.size
-            val completionRate = if (totalCount > 0) "${completedCount * 100 / totalCount}%" else "0%"
-            val todayEarnings = allMyTasks
-                .filter { it.taskStatus == "COMPLETED" }
-                .sumOf { it.totalAmount?.toDouble() ?: 0.0 }
+            // 统计接 /rider/stats 真实数据（今日接单/总完成/总收益），口径与后端一致
+            val stats = statsRepository.loadStats()
 
             _uiState.value = HomeUiState(
                 userName = userName,
-                todayOrders = allMyTasks.count { it.taskStatus == "IN_PROGRESS" },
-                todayEarnings = "¥%.0f".format(todayEarnings),
-                rating = 5.0,
-                completionRate = completionRate,
+                stats = stats ?: RiderStatsUiState(),
                 activeTasks = activeTasks,
                 recommendedTasks = recommendedTasks,
                 isLoading = false
