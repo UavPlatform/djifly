@@ -1,5 +1,6 @@
 package com.fuwaki.djifly.ui.screen
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -11,6 +12,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -21,6 +23,7 @@ import com.fuwaki.djifly.ui.components.*
 import com.fuwaki.djifly.ui.theme.*
 import com.fuwaki.djifly.ui.viewmodel.ActionState
 import com.fuwaki.djifly.ui.viewmodel.ContactState
+import com.fuwaki.djifly.platform.live.RiderLiveRequestState
 import com.fuwaki.djifly.ui.viewmodel.TaskViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -30,12 +33,26 @@ fun TaskDetailScreen(
     viewModel: TaskViewModel,
     onBack: () -> Unit,
     onStartFlight: () -> Unit = {},
+    onStartLiveStream: () -> Unit = {},
     onContactUser: (Long, String) -> Unit = { _, _ -> }
 ) {
     val taskDetail by viewModel.taskDetail.collectAsState()
     val loading by viewModel.detailLoading.collectAsState()
     val actionState by viewModel.actionState.collectAsState()
     val contactState by viewModel.contactState.collectAsState()
+    val liveRequestState by viewModel.liveRequestState.collectAsState()
+    val toastContext = LocalContext.current
+
+    // 飞手主动开播结果提示（1B-4b：文案来自 RiderLiveRequestMapper 错误语义映射）
+    LaunchedEffect(liveRequestState) {
+        when (val state = liveRequestState) {
+            is RiderLiveRequestState.Success ->
+                Toast.makeText(toastContext, state.userMessage, Toast.LENGTH_SHORT).show()
+            is RiderLiveRequestState.Error ->
+                Toast.makeText(toastContext, state.userMessage, Toast.LENGTH_LONG).show()
+            else -> {}
+        }
+    }
 
     // Dialog states
     var showAcceptDialog by remember { mutableStateOf(false) }
@@ -102,7 +119,8 @@ fun TaskDetailScreen(
                     onAccept = { showAcceptDialog = true },
                     onCancel = { showCancelDialog = true },
                     onComplete = { showCompleteDialog = true },
-                    onStartFlight = onStartFlight
+                    onStartFlight = onStartFlight,
+                    onStartLiveStream = onStartLiveStream
                 )
             }
         }
@@ -336,7 +354,8 @@ private fun DetailBottomBar(
     onAccept: () -> Unit,
     onCancel: () -> Unit,
     onComplete: () -> Unit,
-    onStartFlight: () -> Unit = {}
+    onStartFlight: () -> Unit = {},
+    onStartLiveStream: () -> Unit = {}
 ) {
     Surface(
         color = SurfaceCard,
@@ -437,6 +456,16 @@ private fun DetailBottomBar(
                             ) {
                                 Text("开始飞行", color = Color.White)
                             }
+                        }
+                        OutlinedButton(
+                            onClick = onStartLiveStream,
+                            enabled = !isLoading,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(40.dp)
+                        ) {
+                            Text("开始直播", color = AccentBlue)
                         }
                         OutlinedButton(
                             onClick = onComplete,

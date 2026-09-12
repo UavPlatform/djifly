@@ -52,12 +52,15 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.ui.unit.dp
 import com.fuwaki.djifly.platform.registration.PlatformRegistrationManager
 import com.fuwaki.djifly.platform.registration.PlatformRegistrationState
 import com.fuwaki.djifly.sdk.DjiSdkManager
 import com.fuwaki.djifly.sdk.DjiSdkStatus
 import com.fuwaki.djifly.sdk.SdkConnectionState
+import com.fuwaki.djifly.platform.live.RiderLiveRequestState
+import com.fuwaki.djifly.ui.viewmodel.TaskViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -66,13 +69,26 @@ import java.util.Locale
 fun StarterScreen(
     sdkManager: DjiSdkManager,
     registrationManager: PlatformRegistrationManager,
-    onEnterFlight: () -> Unit = {}
+    taskNum: String? = null,
+    onEnterFlight: (String?) -> Unit = {},
+    taskViewModel: TaskViewModel = hiltViewModel()
 ) {
     val sdkStatus by sdkManager.sdkStatus.collectAsState()
     val registrationState by registrationManager.state.collectAsState()
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
     val isWideLayout = configuration.screenWidthDp >= 900
+
+    // 1B-8：任务上下文（自由飞行 taskNum 为空 → FreeFlight，不加载任务）
+    val taskDetail by taskViewModel.taskDetail.collectAsState()
+    val detailLoading by taskViewModel.detailLoading.collectAsState()
+    val taskContext = FlightTaskContext.resolve(taskNum, taskDetail, detailLoading)
+
+    LaunchedEffect(taskNum) {
+        if (!taskNum.isNullOrBlank()) {
+            taskViewModel.loadTaskDetail(taskNum)
+        }
+    }
 
     val serverPanel = buildServerPanelState(registrationState)
     val overview = buildOverviewState(
@@ -97,6 +113,13 @@ fun StarterScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         OverviewCard(overview = overview)
+
+        // 任务上下文卡（1B-8：任务名/航点/赏金/操作提示；自由飞行不显示）
+        when (val ctx = taskContext) {
+            is FlightTaskContext.Ready -> TaskContextCard(ctx)
+            is FlightTaskContext.Loading -> TaskContextLoadingCard()
+            FlightTaskContext.FreeFlight -> {}
+        }
 
         if (isWideLayout) {
             Row(
@@ -153,7 +176,11 @@ fun StarterScreen(
         }
 
         FlightEntryCard(
-            onEnterFlight = onEnterFlight,
+            onEnterFlight = {
+                // 携任务进入（1B-8）：FreeFlight 时传 null 保持自由飞行语义
+                onEnterFlight((taskContext as? FlightTaskContext.Ready)?.taskNum)
+            },
+            onStartLiveStream = { taskViewModel.requestRiderLiveStream() },
             cloudControlAvailable = serverPanel.cloudControlAvailable,
             aircraftConnected = sdkStatus.isProductConnected
         )
@@ -319,6 +346,7 @@ private fun ServerStatusCard(
 @Composable
 private fun FlightEntryCard(
     onEnterFlight: () -> Unit,
+    onStartLiveStream: () -> Unit = {},
     cloudControlAvailable: Boolean,
     aircraftConnected: Boolean
 ) {
@@ -353,6 +381,18 @@ private fun FlightEntryCard(
                 text = "进入飞行控制台",
                 fontWeight = FontWeight.Bold
             )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // 飞手主动开播（1B-4b）：对本人绑定的在线设备下发开播，走 START_LIVE 推流链路
+        OutlinedButton(
+            onClick = onStartLiveStream,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(40.dp)
+        ) {
+            Text("开始直播")
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -757,3 +797,84 @@ private data class StartupDiagnosticStep(
     val stateLabel: String,
     val detail: String
 )
+
+/**
+ * 任务上下文卡（1B-8）：任务名/状态/赏金/航点预览/操作提示（t32 actionHint 服务端统一计算）。
+ */
+@Composable
+private fun TaskContextCard(context: FlightTaskContext.Ready) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        shape = RoundedCornerShape(14.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = "当前任务",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = context.taskName,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+                context.orderStatus?.let { status ->
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = status,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+            Text(
+                text = "赏金 ${context.rewardText}" +
+                    (context.totalDistanceText?.let { " · 距离 $it" } ?: ""),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = "航点参考：${context.waypointPreview}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            context.actionHint?.let { hint ->
+                Text(
+                    text = "提示：$hint",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TaskContextLoadingCard() {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        shape = RoundedCornerShape(14.dp)
+    ) {
+        Text(
+            text = "任务上下文加载中…",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 12.dp)
+        )
+    }
+}
