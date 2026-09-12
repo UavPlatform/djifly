@@ -1,6 +1,7 @@
 package com.fuwaki.djifly.platform.ws.transport
 
 import android.util.Log
+import com.fuwaki.djifly.data.auth.TokenStore
 import com.fuwaki.djifly.di.ApplicationScope
 import com.fuwaki.djifly.platform.network.PlatformEndpointResolver
 import com.fuwaki.djifly.platform.ws.WsCommunicationState
@@ -28,6 +29,7 @@ class PlatformWsClient @Inject constructor(
     private val okHttpClient: OkHttpClient,
     private val codec: PlatformWsMessageCodec,
     private val communicationState: WsCommunicationState,
+    private val tokenStore: TokenStore,
     @ApplicationScope private val externalScope: CoroutineScope
 ) {
 
@@ -55,8 +57,16 @@ class PlatformWsClient @Inject constructor(
         val closedReason = CompletableDeferred<String>()
         val senderRef = AtomicReference<WsMessageSender?>(null)
 
+        // t3 新握手协议：/ws/drone 需 JWT + 飞手角色 + 设备绑定，无鉴权直接 403 拒绝。
+        // token 走 Authorization 头（原生客户端首选），每次建连取最新值（refresh 后自然生效）。
+        val accessToken = runCatching { tokenStore.getAccessToken() }.getOrNull()
         val request = Request.Builder()
             .url(webSocketUrl)
+            .apply {
+                if (accessToken != null) {
+                    header("Authorization", "Bearer $accessToken")
+                }
+            }
             .build()
 
         val webSocket = okHttpClient.newWebSocket(request, object : WebSocketListener() {
@@ -118,7 +128,14 @@ class PlatformWsClient @Inject constructor(
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                val message = t.message ?: "unknown error"
+                val httpCode = response?.code
+                val message = buildString {
+                    append(t.message ?: "unknown error")
+                    if (httpCode != null) {
+                        // 401/403 = 握手鉴权被拒（token 失效/未绑定/角色不符），便于飞手侧诊断
+                        append(" (HTTP $httpCode)")
+                    }
+                }
                 if (!handshake.isCompleted) {
                     handshake.complete(WebSocketHandshakeResult.Failed("WebSocket 连接失败：$message"))
                 }

@@ -1,6 +1,7 @@
 package com.fuwaki.djifly.platform.connection
 
 import com.fuwaki.djifly.platform.registration.RegisteredDroneSnapshot
+import com.fuwaki.djifly.platform.ws.WsReconnectBackoff
 import com.fuwaki.djifly.platform.ws.session.PlatformWsSessionService
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
@@ -13,6 +14,9 @@ class PlatformConnectionSessionService @Inject constructor(
     private val connectionRepository: PlatformConnectionRepository,
     private val wsSessionService: PlatformWsSessionService
 ) {
+
+    // 重连节奏抽到 WsReconnectBackoff，与聊天通道（ChatSessionSupervisor）共用同一节奏
+    private val backoff = WsReconnectBackoff()
 
     suspend fun maintainRegisteredSession(
         serialNumber: String,
@@ -46,7 +50,7 @@ class PlatformConnectionSessionService @Inject constructor(
                         reconnectAttempt = 1
                     }
 
-                    val retryDelayMillis = reconnectDelayForAttempt(reconnectAttempt)
+                    val retryDelayMillis = backoff.delayMillisForAttempt(reconnectAttempt)
                     onRetryScheduled(
                         reconnectAttempt + 1,
                         retryDelayMillis / 1000,
@@ -65,7 +69,7 @@ class PlatformConnectionSessionService @Inject constructor(
                         )
                     }
 
-                    val retryDelayMillis = reconnectDelayForAttempt(reconnectAttempt)
+                    val retryDelayMillis = backoff.delayMillisForAttempt(reconnectAttempt)
                     onRetryScheduled(
                         reconnectAttempt + 1,
                         retryDelayMillis / 1000,
@@ -82,14 +86,5 @@ class PlatformConnectionSessionService @Inject constructor(
 
     fun disconnect() {
         wsSessionService.disconnect()
-    }
-
-    private fun reconnectDelayForAttempt(attempt: Int): Long {
-        val index = (attempt - 1).coerceIn(0, RETRY_DELAYS_MS.lastIndex)
-        return RETRY_DELAYS_MS[index]
-    }
-
-    private companion object {
-        val RETRY_DELAYS_MS = listOf(3_000L, 10_000L, 30_000L)
     }
 }

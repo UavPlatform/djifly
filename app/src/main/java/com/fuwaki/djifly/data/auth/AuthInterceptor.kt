@@ -20,7 +20,9 @@ class AuthInterceptor @Inject constructor(
     override fun intercept(chain: Interceptor.Chain): Response {
         val original = chain.request()
 
-        // 登录/注册/刷新/无人机注册/WebSocket 请求 不注入 Token
+        // 登录/注册/刷新 不注入 Token。
+        // 注意：/api/ws/request 自 t3 起后端已要求 JWT（不再 @SkipJwt），需正常注入；
+        // WS 握手鉴权由 PlatformWsClient / ChatRealtimeClient 在握手请求上显式携带。
         val path = original.url.encodedPath
         val skipAuth = SKIP_AUTH_PATHS.any { path.contains(it) }
         if (skipAuth) {
@@ -53,8 +55,7 @@ class AuthInterceptor @Inject constructor(
             "/user/register",
             "/rider/register",
             "/user/refresh",
-            "/appUav/add",
-            "/api/ws/request"
+            "/appUav/add"
         )
     }
 }

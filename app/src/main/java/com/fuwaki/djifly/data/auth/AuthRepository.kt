@@ -31,7 +31,8 @@ sealed class AuthState {
 class AuthRepository @Inject constructor(
     private val api: PlatformApiService,
     private val tokenStore: TokenStore
-) {
+) : AccessTokenProvider {
+
     /**
      * 可观察的认证状态
      */
@@ -46,6 +47,11 @@ class AuthRepository @Inject constructor(
             AuthState.Unauthenticated
         }
     }
+
+    /**
+     * 当前 access token（AccessTokenProvider）
+     */
+    override suspend fun currentAccessToken(): String? = tokenStore.getAccessToken()
 
     /**
      * 登录
@@ -110,9 +116,9 @@ class AuthRepository @Inject constructor(
     }
 
     /**
-     * 刷新 Token
+     * 刷新 Token（AccessTokenProvider）
      */
-    suspend fun refreshToken(): Boolean {
+    override suspend fun refreshToken(): Boolean {
         return try {
             val refreshToken = tokenStore.getRefreshToken() ?: return false
             val response = api.refreshToken(refreshToken)
