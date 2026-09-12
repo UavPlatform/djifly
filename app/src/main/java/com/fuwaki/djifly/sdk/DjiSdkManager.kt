@@ -12,6 +12,8 @@ import dji.sdk.keyvalue.key.FlightControllerKey
 import dji.sdk.keyvalue.key.ProductKey
 import dji.sdk.keyvalue.key.RemoteControllerKey
 import dji.sdk.keyvalue.value.common.ComponentIndexType
+import dji.sdk.keyvalue.value.common.LocationCoordinate2D
+import dji.sdk.keyvalue.value.common.Velocity3D
 import dji.sdk.keyvalue.value.product.ProductType
 import dji.sdk.keyvalue.value.flightcontroller.LowBatteryRTHInfo
 import dji.v5.common.error.IDJIError
@@ -45,8 +47,7 @@ class DjiSdkManager @Inject constructor() {
         private set
 
     private val perceptionListener = PerceptionInformationListener { info ->
-        currentFlightData = currentFlightData.copy(isVisionSystemHealthy = info.isVisionPositioningEnabled)
-        updateSdkStatus { copy(flightData = currentFlightData) }
+        updateFlightData { data -> data.copy(isVisionSystemHealthy = info.isVisionPositioningEnabled) }
     }
 
     fun initSdk(context: Context) {
@@ -87,34 +88,47 @@ class DjiSdkManager @Inject constructor() {
 
     private fun startListeningToFlightData() {
         BatteryKey.KeyChargeRemainingInPercent.create(ComponentIndexType.LEFT_OR_MAIN).listen(this) { percent: Int? ->
-            percent?.let { 
-                currentFlightData = currentFlightData.copy(batteryPercentage = it)
-                updateSdkStatus { copy(flightData = currentFlightData) }
+            percent?.let {
+                updateFlightData { data -> data.copy(batteryPercentage = it) }
             }
         }
         FlightControllerKey.KeyGPSSatelliteCount.create().listen(this) { count: Int? ->
             count?.let {
-                currentFlightData = currentFlightData.copy(gpsSatelliteCount = it)
-                updateSdkStatus { copy(flightData = currentFlightData) }
+                updateFlightData { data -> data.copy(gpsSatelliteCount = it) }
             }
         }
         AirLinkKey.KeyUpLinkQualityRaw.create().listen(this) { quality: Int? ->
             quality?.let {
-                currentFlightData = currentFlightData.copy(uplinkQuality = it)
-                updateSdkStatus { copy(flightData = currentFlightData) }
+                updateFlightData { data -> data.copy(uplinkQuality = it) }
             }
         }
         AirLinkKey.KeyDownLinkQualityRaw.create().listen(this) { quality: Int? ->
             quality?.let {
-                currentFlightData = currentFlightData.copy(downlinkQuality = it)
-                updateSdkStatus { copy(flightData = currentFlightData) }
+                updateFlightData { data -> data.copy(downlinkQuality = it) }
             }
         }
         // 监听剩余飞行时间
         FlightControllerKey.KeyLowBatteryRTHInfo.create().listen(this) { info: LowBatteryRTHInfo? ->
             info?.let {
-                currentFlightData = currentFlightData.copy(flightTimeRemaining = it.remainingFlightTime)
-                updateSdkStatus { copy(flightData = currentFlightData) }
+                updateFlightData { data -> data.copy(flightTimeRemaining = it.remainingFlightTime) }
+            }
+        }
+        // 监听飞行器经纬度（LocationCoordinate2D，度）
+        FlightControllerKey.KeyAircraftLocation.create().listen(this) { location: LocationCoordinate2D? ->
+            updateFlightData { data ->
+                FlightTelemetry.applyLocation(data, location?.latitude, location?.longitude)
+            }
+        }
+        // 监听相对起飞点高度（米）
+        FlightControllerKey.KeyAltitude.create().listen(this) { altitude: Double? ->
+            updateFlightData { data ->
+                FlightTelemetry.applyAltitude(data, altitude)
+            }
+        }
+        // 监听三维速度，上报水平合速度（米/秒）
+        FlightControllerKey.KeyAircraftVelocity.create().listen(this) { velocity: Velocity3D? ->
+            updateFlightData { data ->
+                FlightTelemetry.applyVelocity(data, velocity?.x, velocity?.y)
             }
         }
         PerceptionManager.getInstance().addPerceptionInformationListener(perceptionListener)
@@ -123,6 +137,33 @@ class DjiSdkManager @Inject constructor() {
     private fun stopListeningToFlightData() {
         KeyManager.getInstance().cancelListen(this)
         PerceptionManager.getInstance().removePerceptionInformationListener(perceptionListener)
+    }
+
+    /**
+     * 统一的飞行数据更新入口：先更新 [currentFlightData]，再同步到 [sdkStatus]。
+     */
+    private fun updateFlightData(update: (FlightDataState) -> FlightDataState) {
+        currentFlightData = update(currentFlightData)
+        updateSdkStatus { copy(flightData = currentFlightData) }
+    }
+
+    /**
+     * 注入模拟遥测（真机不可用期间验证 UAV_STATUS 上报协议与数据流，
+     * 见打磨路线图 1A-4 风险表；单测覆盖见 app/src/test 的 FlightTelemetryTest 与
+     * UavStatusPayloadFactoryTest——两者经由同一份 FlightTelemetry.applySimulated 逻辑）。
+     *
+     * 注意：会覆盖 Key 监听写入的真实遥测值，仅限调试/测试场景调用。
+     * 高度单位米，速度单位米/秒，经纬度单位度（WGS84）。
+     */
+    fun injectSimulatedTelemetry(
+        latitude: Double,
+        longitude: Double,
+        altitude: Double,
+        speed: Double
+    ) {
+        updateFlightData { data ->
+            FlightTelemetry.applySimulated(data, latitude, longitude, altitude, speed)
+        }
     }
 
     fun performTakeOff() {

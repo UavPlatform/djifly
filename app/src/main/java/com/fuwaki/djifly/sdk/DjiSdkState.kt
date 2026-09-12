@@ -28,6 +28,10 @@ data class MsdkInfo(
 
 /**
  * 实时飞行数据状态 (由 DjiSdkManager 更新)
+ *
+ * 遥测字段（latitude/longitude/altitude/speed）为可空：null 表示尚未从飞行器获取到数据
+ * （区别于真实的 0 值，例如地面待飞时 altitude=0、悬停时 speed=0）。
+ * 上报层（UavStatusPayloadFactory）在 null 时回退 0.0 以保持既有上报契约。
  */
 data class FlightDataState(
     val batteryPercentage: Int = 0,
@@ -37,7 +41,11 @@ data class FlightDataState(
     val downlinkQuality: Int = 0, // 图传信号
     val isVisionSystemHealthy: Boolean = true,
     val isRtkHealthy: Boolean = false,
-    val flightTimeRemaining: Int = 0 // 剩余飞行时间（秒）
+    val flightTimeRemaining: Int = 0, // 剩余飞行时间（秒）
+    val latitude: Double? = null,     // 纬度（度），来源 KeyAircraftLocation
+    val longitude: Double? = null,    // 经度（度），来源 KeyAircraftLocation
+    val altitude: Double? = null,     // 相对起飞点高度（米），来源 KeyAltitude
+    val speed: Double? = null         // 水平速度（米/秒），来源 KeyAircraftVelocity
 )
 
 /**

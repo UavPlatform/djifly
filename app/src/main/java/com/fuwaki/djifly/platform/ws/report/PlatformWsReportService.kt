@@ -1,7 +1,6 @@
 package com.fuwaki.djifly.platform.ws.report
 
 import com.fuwaki.djifly.platform.registration.RegisteredDroneSnapshot
-import com.fuwaki.djifly.platform.ws.protocol.PlatformUavStatusPayload
 import com.fuwaki.djifly.platform.ws.protocol.PlatformWsEnvelopeFactory
 import com.fuwaki.djifly.platform.ws.transport.WsMessageSender
 import com.fuwaki.djifly.sdk.DjiSdkManager
@@ -55,20 +54,13 @@ class PlatformWsReportService @Inject constructor(
                 val sdkStatus = sdkManager.sdkStatus.value
                 val now = System.currentTimeMillis()
 
-                val payload = PlatformUavStatusPayload(
+                // 坐标/高度/速度来自 DjiSdkManager 对坐标类 Key 的监听（未获取时回退 0.0），
+                // 构造逻辑集中在 UavStatusPayloadFactory 便于单测覆盖。
+                val payload = UavStatusPayloadFactory.create(
                     deviceId = deviceId,
-                    uavId = snapshot.droneId,
-                    uavName = snapshot.droneName,
-                    longitude = 0.0,
-                    latitude = 0.0,
-                    altitude = 0.0,
-                    speed = 0.0,
-                    battery = sdkStatus.flightData.batteryPercentage.coerceIn(0, 100),
-                    flightStatus = if (sdkStatus.isProductConnected && sdkStatus.flightData.flightTimeRemaining > 0) {
-                        1
-                    } else {
-                        0
-                    },
+                    snapshot = snapshot,
+                    flightData = sdkStatus.flightData,
+                    isProductConnected = sdkStatus.isProductConnected,
                     operation = pendingOperation.getAndSet(null),
                     timestamp = now
                 )
