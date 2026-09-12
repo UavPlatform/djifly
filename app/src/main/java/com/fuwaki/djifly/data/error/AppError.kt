@@ -18,8 +18,11 @@ sealed class AppError(val message: String) {
     /** 网络不通 / 超时 */
     class Network(message: String) : AppError(message)
 
-    /** 后端返回的业务错误（success=false） */
-    class Business(message: String) : AppError(message)
+    /** 后端返回的业务错误（success=false 或 4xx 带 ApiErrorCode，如 TASK_NOT_PAID） */
+    class Business(val errorCode: String?, message: String) : AppError(message) {
+        /** 兼容既有无错误码构造点 */
+        constructor(message: String) : this(null, message)
+    }
 
     /** HTTP 非 200 状态码 */
     class Http(val code: Int, message: String) : AppError(message)
@@ -30,32 +33,20 @@ sealed class AppError(val message: String) {
 
 /**
  * 从 Retrofit Response 中提取错误信息，返回 AppError
+ *
+ * 1B-2c 泛化解析：errorBody 统一经 ApiErrorBodyParser 提取 errorCode/message——
+ * 既有链路只透传 message，业务错误码（如 TASK_NOT_PAID）被丢弃；现在带 errorCode
+ * 的 4xx 业务错误返回 [AppError.Business]（携带 errorCode 供 UI 分类），其余行为不变。
  */
 fun <T> Response<T>.toAppError(): AppError {
     val code = code()
+    // errorBody 只能读一次，统一在此读出后交给解析器
+    val parsed = runCatching { errorBody()?.string() }.getOrNull()
+        .let { com.fuwaki.djifly.platform.network.ApiErrorBodyParser.parse(it) }
+    val bodyMessage = parsed?.message
     return when {
-        code == 429 -> {
-            val bodyMessage = try {
-                val errorBody = errorBody()?.string()
-                if (errorBody != null) {
-                    val gson = com.google.gson.Gson()
-                    val map = gson.fromJson(errorBody, Map::class.java)
-                    map["message"] as? String
-                } else null
-            } catch (_: Exception) { null }
-            AppError.RateLimited(bodyMessage ?: "请求过于频繁，请稍后重试")
-        }
+        code == 429 -> AppError.RateLimited(bodyMessage ?: "请求过于频繁，请稍后重试")
         code == 401 -> {
-            // 尝试从 body 中读取后端返回的 message
-            val bodyMessage = try {
-                val errorBody = errorBody()?.string()
-                if (errorBody != null) {
-                    val gson = com.google.gson.Gson()
-                    val map = gson.fromJson(errorBody, Map::class.java)
-                    map["message"] as? String
-                } else null
-            } catch (_: Exception) { null }
-
             val msg = bodyMessage ?: "未授权"
             if (msg.contains("无人机") || msg.contains("drone", ignoreCase = true)) {
                 AppError.DroneRequired(msg)
@@ -65,17 +56,10 @@ fun <T> Response<T>.toAppError(): AppError {
         }
         code in 500..599 -> AppError.Http(code, "服务器错误 ($code)")
         code == 0 -> AppError.Network("网络连接失败，请检查网络")
-        else -> {
-            val bodyMessage = try {
-                val errorBody = errorBody()?.string()
-                if (errorBody != null) {
-                    val gson = com.google.gson.Gson()
-                    val map = gson.fromJson(errorBody, Map::class.java)
-                    map["message"] as? String
-                } else null
-            } catch (_: Exception) { null }
-            AppError.Http(code, bodyMessage ?: "请求失败 ($code)")
-        }
+        parsed?.errorCode != null ->
+            // 带 ApiErrorCode 的业务错误（如 TASK_NOT_PAID）：透传后端文案并携带错误码
+            AppError.Business(parsed.errorCode, bodyMessage ?: "请求失败 ($code)")
+        else -> AppError.Http(code, bodyMessage ?: "请求失败 ($code)")
     }
 }
 
@@ -106,6 +90,7 @@ fun <T> com.fuwaki.djifly.data.models.ApiResult<T>.toAppError(): AppError {
             }
         }
         in 500..599 -> AppError.Http(code, msg)
-        else -> AppError.Business(msg)
+        // 2xx 信封 success=false 同样透传 errorCode（1B-2c）
+        else -> AppError.Business(errorCode, msg)
     }
 }
