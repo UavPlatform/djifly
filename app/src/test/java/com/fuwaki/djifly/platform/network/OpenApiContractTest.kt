@@ -13,7 +13,7 @@ import java.io.File
 import java.security.MessageDigest
 
 /**
- * OpenAPI 契约门禁（ADR-0004 消费端接入）：
+ * OpenAPI 契约门禁：
  *
  * 1. vendored 规格的 sha256 == openapi/drone-backend.openapi.sha256 == ApiPaths.GENERATED_FROM_SHA256；
  * 2. CALLED_ENDPOINTS 登记表里的每个端点都能在契约里按“占位符结构归一化”找到；

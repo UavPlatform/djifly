@@ -2,7 +2,7 @@
 /**
  * 把后端仓导出的 OpenAPI 结构契约（SSOT）vendor 到 djifly 仓，并记录 sha256 供对账。
  *
- * 依据：docs/adr/0004-OpenAPI契约流水线与消费端接入.md
+ * 依据：backend/spec/openapi/drone-backend.openapi.json（结构 SSOT）的 vendored 副本
  *   - 后端仓 spec/openapi/drone-backend.openapi.json 是唯一结构事实源；
  *   - 跨仓不做自动同步，改为「vendor 规格 + sha256 对账」；
  *   - 每端固定一种生成器 + 生成物入库，禁止手改。
