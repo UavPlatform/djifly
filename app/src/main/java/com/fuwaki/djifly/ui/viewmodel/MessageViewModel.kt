@@ -4,7 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fuwaki.djifly.data.error.GlobalErrorHandler
 import com.fuwaki.djifly.data.error.apiCall
-import com.fuwaki.djifly.data.models.CreateSessionRequest
+import com.fuwaki.djifly.platform.network.generated.ApiSessionDTO
 import com.fuwaki.djifly.data.models.SessionVO
 import com.fuwaki.djifly.platform.chat.ChatRealtimeClient
 import com.fuwaki.djifly.platform.network.PlatformApiService
@@ -69,7 +69,7 @@ class MessageViewModel @Inject constructor(
 
     fun createSession(name: String, userIds: List<Long>, onSuccess: (Long) -> Unit) {
         viewModelScope.launch {
-            val request = CreateSessionRequest(name = name, type = 0, userIds = userIds)
+            val request = ApiSessionDTO(name = name, type = 0, userIds = userIds)
             apiCall(errorHandler) { api.createSession(request) }
                 .onSuccess { session ->
                     onSuccess(session.id)

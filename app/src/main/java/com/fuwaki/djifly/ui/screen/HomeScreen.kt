@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.fuwaki.djifly.data.models.TaskType
 import com.fuwaki.djifly.data.models.TaskVo
+import com.fuwaki.djifly.data.stats.RiderStatsUiState
 import com.fuwaki.djifly.ui.theme.AccentBlue
 import com.fuwaki.djifly.ui.theme.AccentBlueDark
 import com.fuwaki.djifly.ui.theme.Divider
@@ -100,12 +101,7 @@ fun HomeScreen(
 
         // ── Today's overview card ──
         item {
-            TodayOverviewCard(
-                todayOrders = uiState.todayOrders,
-                todayEarnings = uiState.todayEarnings,
-                rating = uiState.rating,
-                completionRate = uiState.completionRate
-            )
+            TodayOverviewCard(stats = uiState.stats)
         }
 
         // ── Active tasks section ──
@@ -145,7 +141,8 @@ fun HomeScreen(
         item {
             Spacer(modifier = Modifier.height(20.dp))
             SectionHeader(
-                title = "🌟 新任务推荐",
+                title = "新任务推荐",
+                icon = Icons.Default.Star,
                 actionText = "查看更多",
                 onActionClick = onNavigateToTaskSquare
             )
@@ -236,12 +233,7 @@ private fun LocationHeader(
 }
 
 @Composable
-private fun TodayOverviewCard(
-    todayOrders: Int,
-    todayEarnings: String,
-    rating: Double,
-    completionRate: String
-) {
+private fun TodayOverviewCard(stats: RiderStatsUiState) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -259,14 +251,23 @@ private fun TodayOverviewCard(
                 )
                 .padding(16.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                OverviewStatItem(label = "今日接单", value = "$todayOrders")
-                OverviewStatItem(label = "今日收益", value = todayEarnings)
-                OverviewStatItem(label = "评分", value = "%.1f".format(rating))
-                OverviewStatItem(label = "完成率", value = completionRate)
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    OverviewStatItem(label = "今日接单", value = stats.todayOrdersText)
+                    OverviewStatItem(label = "总完成", value = stats.totalCompletedText)
+                    OverviewStatItem(label = "总收益", value = stats.totalEarningsText)
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                // 收益口径说明（1B-6）：数值来自 /rider/stats，提现能力后续上线
+                Text(
+                    text = stats.earningsNote,
+                    color = Color.White.copy(alpha = 0.72f),
+                    fontSize = 10.sp,
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                )
             }
         }
     }
@@ -295,6 +296,7 @@ private fun OverviewStatItem(label: String, value: String) {
 @Composable
 private fun SectionHeader(
     title: String,
+    icon: ImageVector? = null,
     actionText: String? = null,
     onActionClick: (() -> Unit)? = null
 ) {
@@ -304,6 +306,15 @@ private fun SectionHeader(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        if (icon != null) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = AccentBlue,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+        }
         Text(
             text = title,
             color = TextPrimary,

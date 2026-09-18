@@ -1,10 +1,10 @@
 package com.fuwaki.djifly.data.auth
 
 import android.util.Log
-import com.fuwaki.djifly.data.models.LoginRequest
-import com.fuwaki.djifly.data.models.RegisterRequest
 import com.fuwaki.djifly.data.models.UserInfo
 import com.fuwaki.djifly.platform.network.PlatformApiService
+import com.fuwaki.djifly.platform.network.generated.ApiRiderRegisterDto
+import com.fuwaki.djifly.platform.network.generated.ApiUserLoginDto
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import javax.inject.Inject
@@ -58,7 +58,7 @@ class AuthRepository @Inject constructor(
      */
     suspend fun login(userName: String, password: String): Result<UserInfo> {
         return try {
-            val response = api.login(LoginRequest(userName, password))
+            val response = api.login(ApiUserLoginDto(userName = userName, password = password))
             Log.d(TAG, "Login response: code=${response.code()}, isSuccessful=${response.isSuccessful}")
             Log.d(TAG, "Login body: success=${response.body()?.success}, message=${response.body()?.message}, data=${response.body()?.data}")
             if (response.isSuccessful && response.body()?.success == true) {
@@ -94,7 +94,7 @@ class AuthRepository @Inject constructor(
      */
     suspend fun register(userName: String, password: String, djiId: String? = null): Result<UserInfo> {
         return try {
-            val response = api.register(RegisterRequest(userName, password, djiId))
+            val response = api.register(ApiRiderRegisterDto(userName = userName, password = password, djiId = djiId))
             if (response.isSuccessful && response.body()?.success == true) {
                 val data = response.body()!!.data!!
                 val userInfo = parseJwtPayload(data.token)

@@ -76,6 +76,14 @@ android {
         freeCompilerArgs += listOf("-Xjvm-default=all")
     }
 
+    // 契约门禁测试（OpenApiContractTest）需要定位仓根下的 openapi/drone-backend.openapi.json；
+    // 显式把 rootProject（djifly/）传给测试 JVM，不依赖测试进程的工作目录。
+    testOptions {
+        unitTests.all {
+            it.systemProperty("djifly.repoRoot", rootProject.projectDir.absolutePath)
+        }
+    }
+
     buildFeatures {
         compose = true
         buildConfig = true

@@ -4,6 +4,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -133,14 +136,28 @@ fun TaskCard(
 
             // Info row
             Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Filled.LocationOn,
+                    contentDescription = null,
+                    tint = TextTertiary,
+                    modifier = Modifier.size(14.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = "📍 ${waypointCount}个航点",
+                    text = "${waypointCount}个航点",
                     color = TextTertiary,
                     fontSize = 12.sp
                 )
                 Spacer(modifier = Modifier.width(16.dp))
+                Icon(
+                    imageVector = Icons.Filled.AccessTime,
+                    contentDescription = null,
+                    tint = TextTertiary,
+                    modifier = Modifier.size(14.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = "🕐 ${task.createTime}",
+                    text = task.createTime,
                     color = TextTertiary,
                     fontSize = 12.sp
                 )

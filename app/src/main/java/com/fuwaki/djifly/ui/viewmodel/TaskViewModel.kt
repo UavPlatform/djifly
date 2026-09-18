@@ -5,7 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.fuwaki.djifly.data.error.AppError
 import com.fuwaki.djifly.data.error.GlobalErrorHandler
 import com.fuwaki.djifly.data.error.apiCall
-import com.fuwaki.djifly.data.models.CreateSessionRequest
+import com.fuwaki.djifly.platform.network.generated.ApiSessionDTO
 import com.fuwaki.djifly.data.models.TaskType
 import com.fuwaki.djifly.data.models.TaskVo
 import com.fuwaki.djifly.data.stats.RiderStatsRepository
@@ -339,7 +339,7 @@ class TaskViewModel @Inject constructor(
 
             _contactState.value = ContactState.Loading
             val sessionName = task.taskName.ifBlank { "任务沟通" }
-            val request = CreateSessionRequest(
+            val request = ApiSessionDTO(
                 name = sessionName,
                 type = 0,
                 userIds = listOf(task.userId)

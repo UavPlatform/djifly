@@ -7,7 +7,7 @@ import com.fuwaki.djifly.data.auth.TokenStore
 import com.fuwaki.djifly.data.error.GlobalErrorHandler
 import com.fuwaki.djifly.data.error.apiCall
 import com.fuwaki.djifly.data.models.MessageVO
-import com.fuwaki.djifly.data.models.SendMessageRequest
+import com.fuwaki.djifly.platform.network.generated.ApiMessageDTO
 import com.fuwaki.djifly.platform.chat.ChatRealtimeClient
 import com.fuwaki.djifly.platform.network.PlatformApiService
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -82,7 +82,7 @@ class ChatViewModel @Inject constructor(
             )
             appendOrReplaceMessage(pending)
 
-            val request = SendMessageRequest(sessionId = sessionId, content = text)
+            val request = ApiMessageDTO(sessionId = sessionId, content = text)
             apiCall(errorHandler) { api.sendMessage(request) }
                 .onSuccess {
                     loadMessages()

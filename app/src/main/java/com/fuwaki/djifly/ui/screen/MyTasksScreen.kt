@@ -4,11 +4,17 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Assignment
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material3.*
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -82,7 +88,11 @@ fun MyTasksScreen(
                 title = { Text("我的任务", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Text("←", color = TextPrimary, fontSize = 20.sp)
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "返回",
+                            tint = TextPrimary
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -105,7 +115,7 @@ fun MyTasksScreen(
                 indicator = { tabPositions ->
                     if (selectedTab < tabPositions.size) {
                         TabRowDefaults.SecondaryIndicator(
-                            modifier = Modifier,
+                            modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
                             color = AccentBlue,
                             height = 3.dp
                         )
@@ -144,17 +154,10 @@ fun MyTasksScreen(
                 selectedTab == 0 -> {
                     // Active tasks
                     if (activeTasks.isEmpty()) {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "暂无进行中的任务",
-                                color = TextTertiary,
-                                fontSize = 15.sp,
-                                textAlign = TextAlign.Center
-                            )
-                        }
+                        EmptyMyTaskState(
+                            icon = Icons.AutoMirrored.Filled.Assignment,
+                            text = "暂无进行中的任务"
+                        )
                     } else {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
@@ -180,17 +183,10 @@ fun MyTasksScreen(
                 selectedTab == 1 -> {
                     // Completed tasks
                     if (completedTasks.isEmpty()) {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "暂无已完成的任务",
-                                color = TextTertiary,
-                                fontSize = 15.sp,
-                                textAlign = TextAlign.Center
-                            )
-                        }
+                        EmptyMyTaskState(
+                            icon = Icons.Filled.TaskAlt,
+                            text = "暂无已完成的任务"
+                        )
                     } else {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
@@ -235,6 +231,33 @@ fun MyTasksScreen(
             },
             onDismiss = { showCompleteDialog = null }
         )
+    }
+}
+
+@Composable
+private fun EmptyMyTaskState(
+    icon: ImageVector,
+    text: String
+) {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = TextTertiary,
+                modifier = Modifier.size(48.dp)
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = text,
+                color = TextTertiary,
+                fontSize = 15.sp,
+                textAlign = TextAlign.Center
+            )
+        }
     }
 }
 

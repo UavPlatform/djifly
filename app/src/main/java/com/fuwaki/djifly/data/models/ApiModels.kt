@@ -18,17 +18,6 @@ data class ApiResult<T>(
 // 认证相关
 // ═══════════════════════════════════════════════════════
 
-data class LoginRequest(
-    val userName: String,
-    val password: String
-)
-
-data class RegisterRequest(
-    val userName: String,
-    val password: String,
-    val djiId: String? = null
-)
-
 data class LoginResponse(
     val token: String,
     val refreshToken: String
@@ -182,17 +171,6 @@ data class ChatEnvelope(
         )
     }
 }
-
-data class CreateSessionRequest(
-    val name: String,
-    val type: Int,
-    val userIds: List<Long>
-)
-
-data class SendMessageRequest(
-    val sessionId: Long,
-    val content: String
-)
 
 // ═══════════════════════════════════════════════════════
 // 无人机相关

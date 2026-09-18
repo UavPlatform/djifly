@@ -15,7 +15,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChatBubbleOutline
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -36,6 +40,8 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.fuwaki.djifly.data.models.SessionVO
 import com.fuwaki.djifly.ui.theme.AccentBlue
+import com.fuwaki.djifly.ui.theme.Divider
+import com.fuwaki.djifly.ui.theme.StatusRed
 import com.fuwaki.djifly.ui.theme.SurfaceDark
 import com.fuwaki.djifly.ui.theme.TextPrimary
 import com.fuwaki.djifly.ui.theme.TextSecondary
@@ -50,6 +56,12 @@ fun MessageScreen(
 ) {
     val sessions by viewModel.sessions.collectAsState()
     val loading by viewModel.loading.collectAsState()
+    val unreadCountMap by viewModel.unreadCountMap.collectAsState()
+
+    // 返回消息页时刷新未读（从聊天页 pop 回来会重组本页，红点即时回落）
+    LaunchedEffect(Unit) {
+        viewModel.refreshUnread()
+    }
 
     Column(
         modifier = Modifier
@@ -72,15 +84,26 @@ fun MessageScreen(
 
     val pullToRefreshState = rememberPullToRefreshState()
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .nestedScroll(pullToRefreshState.nestedScrollConnection)
+    ) {
         if (sessions.isEmpty() && !loading) {
             EmptyMessageState()
         } else {
             LazyColumn(modifier = Modifier.fillMaxSize()) {
                 items(sessions, key = { it.id }) { session ->
+                    val sessionUnread = unreadCountMap[session.id] ?: session.unreadCount
                     SessionItem(
                         session = session,
+                        unreadCount = sessionUnread,
                         onClick = { onNavigateToChat(session.id, session.otherUserName ?: session.name) }
+                    )
+                    HorizontalDivider(
+                        modifier = Modifier.padding(start = 76.dp),
+                        thickness = 0.5.dp,
+                        color = Divider
                     )
                 }
             }
@@ -104,6 +127,7 @@ fun MessageScreen(
 @Composable
 private fun SessionItem(
     session: SessionVO,
+    unreadCount: Int = 0,
     onClick: () -> Unit
 ) {
     Row(
@@ -123,7 +147,7 @@ private fun SessionItem(
         ) {
             Text(
                 text = (session.otherUserName ?: session.name).firstOrNull()?.toString() ?: "?",
-                color = TextPrimary,
+                color = androidx.compose.ui.graphics.Color.White,
                 fontWeight = FontWeight.Bold,
                 fontSize = 18.sp
             )
@@ -131,7 +155,7 @@ private fun SessionItem(
 
         Spacer(modifier = Modifier.width(12.dp))
 
-        // Name + last message
+        // Name + last message + 未读红点（1B-8 收敛包）
         Column(
             modifier = Modifier.weight(1f)
         ) {
@@ -161,6 +185,24 @@ private fun SessionItem(
             color = TextTertiary,
             fontSize = 12.sp
         )
+
+        // 未读红点（1B-8 收敛包，t49：进入会话后由客户端显式推进清零）
+        if (unreadCount > 0) {
+            Spacer(modifier = Modifier.width(8.dp))
+            androidx.compose.foundation.layout.Box(
+                modifier = Modifier
+                    .size(20.dp)
+                    .background(StatusRed, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = if (unreadCount > 99) "99+" else unreadCount.toString(),
+                    color = androidx.compose.ui.graphics.Color.White,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
     }
 }
 
@@ -171,6 +213,13 @@ private fun EmptyMessageState() {
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(
+                imageVector = Icons.Filled.ChatBubbleOutline,
+                contentDescription = null,
+                tint = TextTertiary,
+                modifier = Modifier.size(48.dp)
+            )
+            Spacer(modifier = Modifier.height(12.dp))
             Text(
                 text = "暂无消息",
                 color = TextTertiary,

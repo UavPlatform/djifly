@@ -1,18 +1,18 @@
 package com.fuwaki.djifly.ui.screen
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Assignment
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -104,17 +104,7 @@ fun TaskSquareScreen(
                     }
                 }
                 filteredTasks.isEmpty() -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "暂无可用任务，稍后再来看看",
-                            color = TextTertiary,
-                            fontSize = 15.sp,
-                            textAlign = TextAlign.Center
-                        )
-                    }
+                    EmptyTaskSquareState()
                 }
                 else -> {
                     LazyColumn(
@@ -176,24 +166,54 @@ private fun FilterChipRow(
     ) {
         chips.forEach { chip ->
             val isSelected = selectedType == chip.type
-            val bgColor = if (isSelected) AccentBlue else SurfaceCard
-            val textColor = if (isSelected) Color.White else TextSecondary
-
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(bgColor)
-                    .clickable { onTypeSelected(chip.type) }
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = chip.label,
-                    color = textColor,
-                    fontSize = 13.sp,
-                    fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal
+            FilterChip(
+                selected = isSelected,
+                onClick = { onTypeSelected(chip.type) },
+                label = {
+                    Text(
+                        text = chip.label,
+                        fontSize = 13.sp,
+                        fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal
+                    )
+                },
+                shape = RoundedCornerShape(20.dp),
+                colors = FilterChipDefaults.filterChipColors(
+                    containerColor = SurfaceCard,
+                    selectedContainerColor = AccentBlue,
+                    labelColor = TextSecondary,
+                    selectedLabelColor = Color.White
+                ),
+                border = FilterChipDefaults.filterChipBorder(
+                    enabled = true,
+                    selected = isSelected,
+                    borderColor = Divider,
+                    selectedBorderColor = AccentBlue
                 )
-            }
+            )
+        }
+    }
+}
+
+@Composable
+private fun EmptyTaskSquareState() {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.Assignment,
+                contentDescription = null,
+                tint = TextTertiary,
+                modifier = Modifier.size(48.dp)
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = "暂无可用任务，稍后再来看看",
+                color = TextTertiary,
+                fontSize = 15.sp,
+                textAlign = TextAlign.Center
+            )
         }
     }
 }

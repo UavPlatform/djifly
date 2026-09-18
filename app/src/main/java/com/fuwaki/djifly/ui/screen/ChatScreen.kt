@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -88,7 +87,6 @@ fun ChatScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(SurfaceDark)
-            .imePadding()
     ) {
         // Top bar
         TopAppBar(
@@ -133,11 +131,17 @@ fun ChatScreen(
                         TimeDivider(timestamp = message.createTime)
                     }
 
-                    MessageBubble(
-                        message = message,
-                        isOwn = message.fromUserId == currentUserId
-                    )
+                    if (SystemMessageMetaMapper.isSystemMessage(message)) {
+                        // 系统消息卡片（1B-8 收敛包：NOTICE/ORDER 结构化载荷；重连补拉的离线系统消息同构）
+                        SystemMessageCard(message = message)
+                    } else {
+                        MessageBubble(
+                            message = message,
+                            isOwn = message.fromUserId == currentUserId
+                        )
+                    }
                 }
+
                 // Bottom spacer
                 item { Spacer(modifier = Modifier.height(8.dp)) }
             }

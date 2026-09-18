@@ -1,5 +1,6 @@
 package com.fuwaki.djifly.data.auth
 
+import com.fuwaki.djifly.platform.network.generated.ApiPaths
 import dagger.Lazy
 import kotlinx.coroutines.runBlocking
 import okhttp3.Authenticator
@@ -74,7 +75,8 @@ class TokenAuthenticator @Inject constructor(
     }
 
     companion object {
-        private const val REFRESH_PATH_SEGMENT = "/user/refresh"
+        /** 刷新接口（契约路径 /user/refresh）自身的 401 不再触发刷新，防自循环。 */
+        private val REFRESH_PATH_SEGMENT = "/" + ApiPaths.USER_REFRESH
         private const val BEARER_PREFIX = "Bearer "
         private const val MAX_RETRIES = 2
     }

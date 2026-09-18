@@ -19,7 +19,15 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Assignment
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Flight
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.SupportAgent
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -39,11 +47,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.fuwaki.djifly.data.stats.RiderStatsUiState
 import com.fuwaki.djifly.ui.theme.AccentBlue
 import com.fuwaki.djifly.ui.theme.Divider
 import com.fuwaki.djifly.ui.theme.StatusGreen
@@ -63,6 +73,7 @@ fun ProfileScreen(
 ) {
     val userName by viewModel.userName.collectAsState()
     val userId by viewModel.userId.collectAsState()
+    val stats by viewModel.stats.collectAsState()
     val context = LocalContext.current
     var showLogoutDialog by remember { mutableStateOf(false) }
 
@@ -80,8 +91,8 @@ fun ProfileScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Stats card
-        StatsCard()
+        // Stats card（1B-6：/rider/stats 真实数据）
+        StatsCard(stats = stats)
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -95,7 +106,7 @@ fun ProfileScreen(
         ) {
             Column {
                 MenuItemRow(
-                    icon = "💰",
+                    icon = Icons.Filled.AccountBalanceWallet,
                     title = "我的钱包",
                     onClick = {
                         Toast.makeText(context, "即将上线", Toast.LENGTH_SHORT).show()
@@ -103,7 +114,7 @@ fun ProfileScreen(
                 )
                 MenuDivider()
                 MenuItemRow(
-                    icon = "📊",
+                    icon = Icons.Filled.BarChart,
                     title = "数据中心",
                     onClick = {
                         Toast.makeText(context, "即将上线", Toast.LENGTH_SHORT).show()
@@ -111,13 +122,13 @@ fun ProfileScreen(
                 )
                 MenuDivider()
                 MenuItemRow(
-                    icon = "✈️",
+                    icon = Icons.Filled.Flight,
                     title = "我的无人机",
                     onClick = onNavigateToDroneManage
                 )
                 MenuDivider()
                 MenuItemRow(
-                    icon = "📋",
+                    icon = Icons.AutoMirrored.Filled.Assignment,
                     title = "接单设置",
                     onClick = {
                         Toast.makeText(context, "即将上线", Toast.LENGTH_SHORT).show()
@@ -125,7 +136,7 @@ fun ProfileScreen(
                 )
                 MenuDivider()
                 MenuItemRow(
-                    icon = "⭐",
+                    icon = Icons.Filled.Star,
                     title = "评价管理",
                     onClick = {
                         Toast.makeText(context, "即将上线", Toast.LENGTH_SHORT).show()
@@ -133,7 +144,7 @@ fun ProfileScreen(
                 )
                 MenuDivider()
                 MenuItemRow(
-                    icon = "📍",
+                    icon = Icons.Filled.History,
                     title = "历史任务",
                     onClick = {
                         Toast.makeText(context, "即将上线", Toast.LENGTH_SHORT).show()
@@ -141,7 +152,7 @@ fun ProfileScreen(
                 )
                 MenuDivider()
                 MenuItemRow(
-                    icon = "⚙️",
+                    icon = Icons.Filled.Settings,
                     title = "设置",
                     onClick = {
                         Toast.makeText(context, "即将上线", Toast.LENGTH_SHORT).show()
@@ -149,7 +160,7 @@ fun ProfileScreen(
                 )
                 MenuDivider()
                 MenuItemRow(
-                    icon = "📞",
+                    icon = Icons.Filled.SupportAgent,
                     title = "联系客服",
                     onClick = {
                         Toast.makeText(context, "即将上线", Toast.LENGTH_SHORT).show()
@@ -288,7 +299,7 @@ private fun ProfileHeader(
 }
 
 @Composable
-private fun StatsCard() {
+private fun StatsCard(stats: RiderStatsUiState) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -296,15 +307,28 @@ private fun StatsCard() {
         colors = CardDefaults.cardColors(containerColor = SurfaceCard),
         shape = RoundedCornerShape(12.dp)
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 16.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly
+                .padding(vertical = 16.dp)
         ) {
-            StatItem(label = "今日接单", value = "0")
-            StatItem(label = "评分", value = "5.0")
-            StatItem(label = "完成", value = "0")
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                StatItem(label = "今日接单", value = stats.todayOrdersText)
+                StatItem(label = "总完成", value = stats.totalCompletedText)
+                StatItem(label = "总收益", value = stats.totalEarningsText)
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            // 收益口径说明（1B-6）：数值来自 /rider/stats，提现能力后续上线
+            Text(
+                text = stats.earningsNote,
+                color = Divider,
+                fontSize = 10.sp,
+                modifier = Modifier.align(Alignment.CenterHorizontally)
+            )
         }
     }
 }
@@ -329,7 +353,7 @@ private fun StatItem(label: String, value: String) {
 
 @Composable
 private fun MenuItemRow(
-    icon: String,
+    icon: ImageVector,
     title: String,
     onClick: () -> Unit
 ) {
@@ -340,9 +364,11 @@ private fun MenuItemRow(
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = icon,
-            fontSize = 20.sp
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = AccentBlue,
+            modifier = Modifier.size(22.dp)
         )
         Spacer(modifier = Modifier.width(12.dp))
         Text(

@@ -2,6 +2,7 @@ package com.fuwaki.djifly.data.stats
 
 import com.fuwaki.djifly.data.error.GlobalErrorHandler
 import com.fuwaki.djifly.data.error.apiCall
+import com.fuwaki.djifly.data.models.RiderStats
 import com.fuwaki.djifly.platform.network.PlatformApiService
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -24,7 +25,16 @@ class RiderStatsRepository @Inject constructor(
         var mapped: RiderStatsUiState? = null
         apiCall(errorHandler) { api.getRiderStats() }
             .onSuccess { stats ->
-                mapped = RiderStatsPresentation.toUiState(stats)
+                // 契约模型（ApiRiderStatsVO）→ 领域模型（RiderStats）：只读取本端使用的字段。
+                mapped = RiderStatsPresentation.toUiState(
+                    stats?.let {
+                        RiderStats(
+                            todayOrders = it.todayOrders ?: 0L,
+                            totalCompleted = it.totalCompleted ?: 0L,
+                            totalEarnings = it.totalEarnings
+                        )
+                    }
+                )
             }
         return mapped
     }
