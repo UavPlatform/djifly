@@ -1,8 +1,6 @@
 package com.fuwaki.djifly.platform.network
 
-import com.fuwaki.djifly.platform.network.generated.ApiMessageDTO
 import com.fuwaki.djifly.platform.network.generated.ApiPaths
-import com.fuwaki.djifly.platform.network.generated.ApiSessionDTO
 import com.fuwaki.djifly.platform.network.generated.ApiTaskVo
 import com.fuwaki.djifly.platform.network.generated.ApiUavVo
 import com.google.gson.Gson
@@ -31,24 +29,14 @@ class OpenApiContractTest {
         listOf("post", "user/login"),
         listOf("post", "rider/register"),
         listOf("post", "user/refresh"),
-        listOf("get", "rider/square"),
-        listOf("post", "rider/accept"),
         listOf("get", "rider/my-tasks"),
         listOf("get", "rider/my-tasks/history"),
         listOf("post", "rider/cancel"),
         listOf("post", "rider/complete"),
         listOf("get", "rider/task/detail"),
-        listOf("get", "chat/session/list"),
-        listOf("post", "chat/session/create"),
-        listOf("get", "chat/Message/messages/{sessionId}"),
-        listOf("post", "chat/Message/send"),
-        listOf("get", "chat/Message/sync"),
-        listOf("get", "rider/stats"),
         listOf("post", "live/rider/req"),
         listOf("post", "tasks/{taskNum}/attachments/upload-url"),
         listOf("get", "tasks/{taskNum}/attachments"),
-        listOf("get", "chat/Message/unread/count"),
-        listOf("post", "chat/Message/read"),
         listOf("get", "rider/drone/list"),
         listOf("post", "rider/drone/bind"),
         listOf("delete", "rider/drone/unbind"),
@@ -100,7 +88,7 @@ class OpenApiContractTest {
             val item = paths[specPath] as? Map<*, *>
             assertTrue("契约 " + specPath + " 缺少 " + method.uppercase() + " 方法", item?.containsKey(method) == true)
         }
-        assertEquals("端点登记表应覆盖本端全部 26 条调用（新增调用点需同步登记）", 26, calledEndpoints.size)
+        assertEquals("端点登记表应覆盖本端全部 16 条调用（新增调用点需同步登记）", 16, calledEndpoints.size)
     }
 
     // ═══════════════════════════════════════════════════════
@@ -150,28 +138,14 @@ class OpenApiContractTest {
         assertEquals(7L, uav.id)
         assertEquals("SN-1", uav.uavName)
 
-        // required 字段（name/type/userIds）在 Kotlin 侧必须是非空类型：下面这行是编译期断言。
-        val session = gson.fromJson(
-            "{\"name\":\"task-1\",\"type\":0,\"userIds\":[1,2]}",
-            ApiSessionDTO::class.java
+        // 撮合子状态字段（TASK-DJIFLY-002 执飞门禁的契约来源）
+        val task = gson.fromJson(
+            "{\"taskNum\":\"T-1\",\"taskStatus\":\"IN_PROGRESS\",\"matchStatus\":\"CONFIRMED\"}",
+            ApiTaskVo::class.java
         )
-        val requiredName: String = session.name
-        val requiredType: Int = session.type
-        assertEquals("task-1", requiredName)
-        assertEquals(0, requiredType)
-        assertEquals(listOf(1L, 2L), session.userIds)
-
-        val message = gson.fromJson(
-            "{\"sessionId\":9,\"content\":\"hi\"}",
-            ApiMessageDTO::class.java
-        )
-        val requiredContent: String = message.content
-        assertEquals("hi", requiredContent)
-        assertEquals(9L, message.sessionId)
-
-        val task = gson.fromJson("{\"taskNum\":\"T-1\",\"taskStatus\":\"IDLE\"}", ApiTaskVo::class.java)
         assertEquals("T-1", task.taskNum)
-        assertEquals("IDLE", task.taskStatus)
+        assertEquals("IN_PROGRESS", task.taskStatus)
+        assertEquals("CONFIRMED", task.matchStatus)
     }
 
     // ═══════════════════════════════════════════════════════

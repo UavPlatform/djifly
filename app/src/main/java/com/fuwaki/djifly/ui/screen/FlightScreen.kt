@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -76,6 +77,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.fuwaki.djifly.data.models.FlightEntryGate
 import com.fuwaki.djifly.platform.attachment.DeliverableItemPhase
 import com.fuwaki.djifly.platform.attachment.DeliverableItemUi
 import com.fuwaki.djifly.platform.livestream.LiveStopCoordinator
@@ -186,6 +188,18 @@ fun FlightScreen(
     val actionState by taskViewModel.actionState.collectAsState()
     val taskContext = FlightTaskContext.resolve(taskNum, taskDetail, detailLoading)
 
+    // 执飞门禁（TASK-DJIFLY-002）：本页是入口校验的兜底——即使绕过起飞检查页直达，
+    // 非 CONFIRMED/等价状态的任务也会被拦截并给出明确提示（后端 startExecution 双确认门禁为最终兜底）。
+    // 任务详情未就绪（加载中/加载失败）同样按未校验处理，不放行。
+    val gateVerifying = taskContext is FlightTaskContext.Loading
+    val flightGateReason = remember(taskContext, taskDetail) {
+        when (taskContext) {
+            is FlightTaskContext.Ready -> taskDetail?.let { FlightEntryGate.denyReason(it) }
+            FlightTaskContext.Loading -> "正在校验任务状态，校验通过后才能进入飞行控制台"
+            FlightTaskContext.FreeFlight -> null
+        }
+    }
+
     LaunchedEffect(taskNum) {
         taskViewModel.clearDeliverables()
         if (!taskNum.isNullOrBlank()) {
@@ -267,6 +281,15 @@ fun FlightScreen(
     val wsConnectionState by wsCommunicationState.connectionState.collectAsState()
     val wsMessages by wsCommunicationState.messages.collectAsState()
 
+    if (flightGateReason != null) {
+        FlightGateBlockedScreen(
+            verifying = gateVerifying,
+            reason = flightGateReason,
+            onBack = onBack
+        )
+        return
+    }
+
     if (connectionState is SdkConnectionState.ProductConnected) {
         Box(modifier = Modifier.fillMaxSize()) {
             ImmersiveFlightScreenContent(
@@ -326,6 +349,75 @@ fun FlightScreen(
                 }
             }
         )
+    }
+}
+
+/**
+ * 执飞门禁拦截页（TASK-DJIFLY-002）：任务非 CONFIRMED/等价状态时拒绝进入飞行控制台。
+ * 文案即 [FlightEntryGate.denyReason] 给出的明确原因；[verifying] 表示任务状态仍在校验中。
+ */
+@Composable
+private fun FlightGateBlockedScreen(
+    reason: String,
+    onBack: () -> Unit,
+    verifying: Boolean = false
+) {
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = Color(0xFF090909)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .padding(20.dp)
+        ) {
+            IconButton(
+                onClick = onBack,
+                modifier = Modifier.align(Alignment.TopStart)
+            ) {
+                Icon(Icons.Default.ArrowBack, contentDescription = null, tint = Color.White)
+            }
+
+            Column(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                if (verifying) {
+                    CircularProgressIndicator(
+                        color = AccentBlue,
+                        strokeWidth = 2.dp,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = Color(0xFFFFB300),
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
+                }
+                Text(
+                    text = if (verifying) "正在校验任务状态" else "无法开始执飞",
+                    color = Color.White,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = reason,
+                    color = Color.White.copy(alpha = 0.72f),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Spacer(modifier = Modifier.height(20.dp))
+                OutlinedButton(onClick = onBack) {
+                    Text("返回")
+                }
+            }
+        }
     }
 }
 

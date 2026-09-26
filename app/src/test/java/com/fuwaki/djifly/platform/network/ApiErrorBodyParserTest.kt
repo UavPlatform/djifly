@@ -12,7 +12,7 @@ class ApiErrorBodyParserTest {
 
     @Test
     fun parses_task_not_paid_error_code_and_message() {
-        // t22 后端契约：/rider/accept 未支付任务 → 400 + TASK_NOT_PAID
+        // 后端契约：订单未支付类错误 → 400 + TASK_NOT_PAID（错误体结构与 t22 一致）
         val body = """{"success":false,"code":400,"errorCode":"TASK_NOT_PAID","message":"任务尚未支付，支付后将进入接单大厅"}"""
 
         val parsed = ApiErrorBodyParser.parse(body)

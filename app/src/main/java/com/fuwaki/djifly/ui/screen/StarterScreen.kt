@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
@@ -28,6 +29,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -35,6 +37,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -54,6 +57,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.ui.unit.dp
+import com.fuwaki.djifly.data.models.FlightEntryGate
 import com.fuwaki.djifly.platform.registration.PlatformRegistrationManager
 import com.fuwaki.djifly.platform.registration.PlatformRegistrationState
 import com.fuwaki.djifly.sdk.DjiSdkManager
@@ -83,6 +87,17 @@ fun StarterScreen(
     val taskDetail by taskViewModel.taskDetail.collectAsState()
     val detailLoading by taskViewModel.detailLoading.collectAsState()
     val taskContext = FlightTaskContext.resolve(taskNum, taskDetail, detailLoading)
+
+    // 执飞门禁（TASK-DJIFLY-002）：携任务进入时先校验撮合状态，非 CONFIRMED/等价状态拒绝进入飞行控制台。
+    // 任务详情未就绪（加载中/加载失败）同样不放行——未校验 ≠ 已确认，失败时可退出重进重新校验。
+    val gateVerifying = taskContext is FlightTaskContext.Loading
+    val flightGateReason = remember(taskContext, taskDetail) {
+        when (taskContext) {
+            is FlightTaskContext.Ready -> taskDetail?.let { FlightEntryGate.denyReason(it) }
+            FlightTaskContext.Loading -> "正在校验任务状态，校验通过后才能进入飞行控制台"
+            FlightTaskContext.FreeFlight -> null
+        }
+    }
 
     LaunchedEffect(taskNum) {
         if (!taskNum.isNullOrBlank()) {
@@ -117,7 +132,11 @@ fun StarterScreen(
         // 任务上下文卡（1B-8：任务名/航点/赏金/操作提示；自由飞行不显示）
         when (val ctx = taskContext) {
             is FlightTaskContext.Ready -> TaskContextCard(ctx)
-            is FlightTaskContext.Loading -> TaskContextLoadingCard()
+            is FlightTaskContext.Loading -> TaskContextLoadingCard(
+                onRetry = {
+                    taskNum?.takeIf { it.isNotBlank() }?.let { taskViewModel.loadTaskDetail(it) }
+                }
+            )
             FlightTaskContext.FreeFlight -> {}
         }
 
@@ -176,6 +195,8 @@ fun StarterScreen(
         }
 
         FlightEntryCard(
+            gateReason = flightGateReason,
+            gateVerifying = gateVerifying,
             onEnterFlight = {
                 // 携任务进入（1B-8）：FreeFlight 时传 null 保持自由飞行语义
                 onEnterFlight((taskContext as? FlightTaskContext.Ready)?.taskNum)
@@ -345,18 +366,22 @@ private fun ServerStatusCard(
 
 @Composable
 private fun FlightEntryCard(
+    gateReason: String? = null,
+    gateVerifying: Boolean = false,
     onEnterFlight: () -> Unit,
     onStartLiveStream: () -> Unit = {},
     cloudControlAvailable: Boolean,
     aircraftConnected: Boolean
 ) {
     val hint = when {
+        gateReason != null -> gateReason
         !aircraftConnected -> "可进入飞控页，但当前未检测到飞机连接。"
         !cloudControlAvailable -> "可进入飞控页，但云端控制当前不可用。"
         else -> "飞机和服务器均已连接，云端控制可用。"
     }
 
     val hintColor = when {
+        gateReason != null -> Color(0xFFFB8C00)
         !aircraftConnected -> Color(0xFFFB8C00)
         !cloudControlAvailable -> Color(0xFFC62828)
         else -> Color(0xFF2E7D32)
@@ -368,17 +393,31 @@ private fun FlightEntryCard(
     ) {
         Button(
             onClick = onEnterFlight,
+            enabled = gateReason == null,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(48.dp)
         ) {
-            Icon(
-                imageVector = Icons.Default.PlayArrow,
-                contentDescription = null
-            )
-            Spacer(modifier = Modifier.width(8.dp))
+            if (gateVerifying) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp),
+                    color = Color.White,
+                    strokeWidth = 2.dp
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+            } else {
+                Icon(
+                    imageVector = Icons.Default.PlayArrow,
+                    contentDescription = null
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+            }
             Text(
-                text = "进入飞行控制台",
+                text = when {
+                    gateVerifying -> "正在校验任务状态…"
+                    gateReason != null -> "任务未确认，无法进入"
+                    else -> "进入飞行控制台"
+                },
                 fontWeight = FontWeight.Bold
             )
         }
@@ -863,18 +902,26 @@ private fun TaskContextCard(context: FlightTaskContext.Ready) {
 }
 
 @Composable
-private fun TaskContextLoadingCard() {
+private fun TaskContextLoadingCard(onRetry: () -> Unit = {}) {
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         shape = RoundedCornerShape(14.dp)
     ) {
-        Text(
-            text = "任务上下文加载中…",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 12.dp)
-        )
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "任务上下文加载中…",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            // 校验未完成前不放行执飞入口；加载失败（无网络等）时可在此重新校验
+            TextButton(onClick = onRetry) {
+                Text("重新校验任务状态", style = MaterialTheme.typography.labelMedium)
+            }
+        }
     }
 }

@@ -1,11 +1,13 @@
 package com.fuwaki.djifly.ui.screen
 
+import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,50 +19,40 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Assignment
-import androidx.compose.material.icons.filled.ChatBubble
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.TrendingUp
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.fuwaki.djifly.data.models.MatchStatus
 import com.fuwaki.djifly.data.models.TaskType
 import com.fuwaki.djifly.data.models.TaskVo
-import com.fuwaki.djifly.data.stats.RiderStatsUiState
 import com.fuwaki.djifly.ui.theme.AccentBlue
-import com.fuwaki.djifly.ui.theme.AccentBlueDark
 import com.fuwaki.djifly.ui.theme.Divider
 import com.fuwaki.djifly.ui.theme.StatusAmber
 import com.fuwaki.djifly.ui.theme.StatusGreen
 import com.fuwaki.djifly.ui.theme.SurfaceCard
-import com.fuwaki.djifly.ui.theme.SurfaceCardLight
 import com.fuwaki.djifly.ui.theme.SurfaceDark
 import com.fuwaki.djifly.ui.theme.TextPrimary
 import com.fuwaki.djifly.ui.theme.TextSecondary
@@ -68,102 +60,47 @@ import com.fuwaki.djifly.ui.theme.TextTertiary
 import com.fuwaki.djifly.ui.viewmodel.HomeViewModel
 
 /**
- * Pilot home dashboard.
+ * 待执飞任务首页（REQ-DJIFLY-001 场景 1/3）。
  *
- * Shows location header, today's overview stats, active tasks,
- * quick-action grid, and recommended new tasks.
+ * 只展示当前飞手**已双方确认**（matchStatus=CONFIRMED，或已 IN_PROGRESS/PENDING_ACCEPTANCE）的任务，
+ * 无任务时空状态引导前往 `app/` 接单——不提供任务大厅/抢单入口（ADR-0002）。
  */
 @Composable
 fun HomeScreen(
     onNavigateToTaskDetail: (String) -> Unit,
-    onNavigateToStarter: () -> Unit,
-    onNavigateToTaskSquare: () -> Unit = {},
-    onNavigateToHistory: () -> Unit = {},
-    onNavigateToMessages: () -> Unit = {},
+    onNavigateToStarter: (String?) -> Unit = {},
+    onNavigateToMyTasks: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
+
+    LaunchedEffect(Unit) {
+        viewModel.loadHomeData()
+    }
 
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .background(SurfaceDark)
             .statusBarsPadding(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 16.dp)
+        contentPadding = PaddingValues(bottom = 16.dp)
     ) {
-        // ── Location header ──
+        // ── Header ──
         item {
-            LocationHeader(
-                cityName = null, // will show "定位中..."
-                onNotificationClick = onNavigateToMessages
-            )
+            HomeHeader(userName = uiState.userName)
         }
 
-        // ── Today's overview card ──
-        item {
-            TodayOverviewCard(stats = uiState.stats)
-        }
-
-        // ── Active tasks section ──
+        // ── 待执飞任务 ──
         item {
             SectionHeader(
-                title = "进行中任务",
-                actionText = "查看全部",
-                onActionClick = onNavigateToTaskSquare
+                title = "待执飞任务",
+                subtitle = "仅展示双方已确认的任务"
             )
         }
 
-        if (uiState.activeTasks.isEmpty() && !uiState.isLoading) {
-            item {
-                EmptyStateHint(text = "暂无进行中任务")
-            }
-        } else {
-            items(uiState.activeTasks, key = { it.id }) { task ->
-                TaskCard(
-                    task = task,
-                    onClick = { onNavigateToTaskDetail(task.taskNum) }
-                )
-            }
-        }
-
-        // ── Quick actions grid ──
-        item {
-            Spacer(modifier = Modifier.height(20.dp))
-            QuickActionsGrid(
-                onTaskSquareClick = onNavigateToTaskSquare,
-                onFlightClick = onNavigateToStarter,
-                onHistoryClick = onNavigateToHistory,
-                onMessagesClick = onNavigateToMessages
-            )
-        }
-
-        // ── New tasks recommendation ──
-        item {
-            Spacer(modifier = Modifier.height(20.dp))
-            SectionHeader(
-                title = "新任务推荐",
-                icon = Icons.Default.Star,
-                actionText = "查看更多",
-                onActionClick = onNavigateToTaskSquare
-            )
-        }
-
-        if (uiState.recommendedTasks.isEmpty() && !uiState.isLoading) {
-            item {
-                EmptyStateHint(text = "暂无新任务推荐")
-            }
-        } else {
-            items(uiState.recommendedTasks, key = { it.id }) { task ->
-                TaskCard(
-                    task = task,
-                    onClick = { onNavigateToTaskDetail(task.taskNum) }
-                )
-            }
-        }
-
-        // ── Loading indicator ──
-        if (uiState.isLoading) {
-            item {
+        when {
+            uiState.isLoading -> item {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -177,6 +114,33 @@ fun HomeScreen(
                     )
                 }
             }
+            uiState.pendingTasks.isEmpty() -> item {
+                // 场景 3：无任务时引导前往 app 接单（跨应用深链不在本任务范围，见 REQ-DJIFLY-001）
+                EmptyPendingTasks(
+                    onGoToApp = {
+                        Toast.makeText(
+                            context,
+                            "接单在 app：请打开业务 App（app/）发单接单；双方确认后回到本应用执飞。",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                )
+            }
+            else -> items(uiState.pendingTasks, key = { it.id }) { task ->
+                PendingTaskCard(
+                    task = task,
+                    onClick = { onNavigateToTaskDetail(task.taskNum) }
+                )
+            }
+        }
+
+        // ── 快捷入口（无任务上下文的飞行准备 + 任务记录） ──
+        item {
+            Spacer(modifier = Modifier.height(20.dp))
+            QuickActions(
+                onStarterClick = { onNavigateToStarter(null) },
+                onHistoryClick = onNavigateToMyTasks
+            )
         }
     }
 }
@@ -186,10 +150,7 @@ fun HomeScreen(
 // ═══════════════════════════════════════════════════════
 
 @Composable
-private fun LocationHeader(
-    cityName: String?,
-    onNotificationClick: () -> Unit
-) {
+private fun HomeHeader(userName: String?) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -204,141 +165,44 @@ private fun LocationHeader(
         )
         Spacer(modifier = Modifier.width(6.dp))
         Text(
-            text = cityName ?: "定位中...",
+            text = if (userName.isNullOrBlank()) "飞行执行" else "$userName · 飞行执行",
             color = TextPrimary,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
-        Spacer(modifier = Modifier.weight(1f))
-        IconButton(onClick = onNotificationClick) {
-            Box {
-                Icon(
-                    imageVector = Icons.Default.Notifications,
-                    contentDescription = "通知",
-                    tint = TextSecondary
-                )
-                // Notification badge dot
-                Box(
-                    modifier = Modifier
-                        .size(8.dp)
-                        .align(Alignment.TopEnd)
-                        .clip(CircleShape)
-                        .background(StatusAmber)
-                )
-            }
-        }
     }
 }
 
 @Composable
-private fun TodayOverviewCard(stats: RiderStatsUiState) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        shape = RoundedCornerShape(16.dp),
-        color = Color.Transparent
-    ) {
-        Box(
-            modifier = Modifier
-                .background(
-                    brush = Brush.horizontalGradient(
-                        colors = listOf(AccentBlue, AccentBlueDark)
-                    ),
-                    shape = RoundedCornerShape(16.dp)
-                )
-                .padding(16.dp)
-        ) {
-            Column {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    OverviewStatItem(label = "今日接单", value = stats.todayOrdersText)
-                    OverviewStatItem(label = "总完成", value = stats.totalCompletedText)
-                    OverviewStatItem(label = "总收益", value = stats.totalEarningsText)
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                // 收益口径说明（1B-6）：数值来自 /rider/stats，提现能力后续上线
-                Text(
-                    text = stats.earningsNote,
-                    color = Color.White.copy(alpha = 0.72f),
-                    fontSize = 10.sp,
-                    modifier = Modifier.align(Alignment.CenterHorizontally)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun OverviewStatItem(label: String, value: String) {
+private fun SectionHeader(title: String, subtitle: String? = null) {
     Column(
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            text = value,
-            color = Color.White,
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Bold
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = label,
-            color = Color.White.copy(alpha = 0.8f),
-            style = MaterialTheme.typography.bodySmall
-        )
-    }
-}
-
-@Composable
-private fun SectionHeader(
-    title: String,
-    icon: ImageVector? = null,
-    actionText: String? = null,
-    onActionClick: (() -> Unit)? = null
-) {
-    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
-        if (icon != null) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = AccentBlue,
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-        }
         Text(
             text = title,
             color = TextPrimary,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold
         )
-        Spacer(modifier = Modifier.weight(1f))
-        if (actionText != null && onActionClick != null) {
+        if (subtitle != null) {
+            Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = actionText,
+                text = subtitle,
                 color = TextTertiary,
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.clickable { onActionClick() }
+                style = MaterialTheme.typography.bodySmall
             )
         }
     }
 }
 
 @Composable
-private fun TaskCard(
-    task: TaskVo,
-    onClick: () -> Unit
-) {
+private fun PendingTaskCard(task: TaskVo, onClick: () -> Unit) {
     val taskType = TaskType.fromValue(task.taskType)
+    val matchStatus = MatchStatus.fromValue(task.matchStatus)
 
     Surface(
         modifier = Modifier
@@ -349,63 +213,76 @@ private fun TaskCard(
         color = SurfaceCard,
         border = BorderStroke(1.dp, Divider)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Task type badge
-            Surface(
-                shape = RoundedCornerShape(6.dp),
-                color = when (taskType) {
-                    TaskType.AERIAL_PHOTO -> AccentBlue.copy(alpha = 0.15f)
-                    TaskType.SURVEY -> StatusGreen.copy(alpha = 0.15f)
-                    TaskType.TRANSPORT -> StatusAmber.copy(alpha = 0.15f)
-                    TaskType.MONITORING -> Color(0xFF8B5CF6).copy(alpha = 0.15f)
-                    else -> SurfaceCardLight
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // 类型徽标
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = AccentBlue.copy(alpha = 0.15f)
+                ) {
+                    Text(
+                        text = taskType?.label ?: "未知类型",
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        color = AccentBlue,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
-            ) {
-                Text(
-                    text = taskType?.label ?: "未知",
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                    color = when (taskType) {
-                        TaskType.AERIAL_PHOTO -> AccentBlue
-                        TaskType.SURVEY -> StatusGreen
-                        TaskType.TRANSPORT -> StatusAmber
-                        TaskType.MONITORING -> Color(0xFF8B5CF6)
-                        else -> TextTertiary
-                    },
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = task.taskName.ifBlank { task.taskNum },
                     color = TextPrimary,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
                 )
-                Spacer(modifier = Modifier.height(2.dp))
+                MatchStatusBadge(matchStatus)
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = "任务编号：${task.taskNum}",
+                color = TextTertiary,
+                style = MaterialTheme.typography.bodySmall
+            )
+
+            // 关键约束：约定时间 / 货物 / 报价 / 操作提示
+            val constraints = buildList {
+                task.scheduledTime?.takeIf { it.isNotBlank() }?.let { add("约定时间 $it") }
+                task.cargoWeightKg?.let { add("载重 ${it.toPlainString()} kg") }
+                task.cargoCategory?.takeIf { it.isNotBlank() }?.let { add("货类 $it") }
+                task.aircraftModelName?.takeIf { it.isNotBlank() }?.let { add("机型 $it") }
+                task.quotedAmount?.let { add("锁价 ¥${it.toPlainString()}") }
+            }
+            if (constraints.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = task.taskNum,
-                    color = TextTertiary,
-                    style = MaterialTheme.typography.bodySmall
+                    text = constraints.joinToString(" · "),
+                    color = TextSecondary,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
 
-            if (task.totalAmount != null) {
+            // 地点：航点参考（后端任务以航点表达起降/作业位置）
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "地点：${FlightTaskContext.waypointPreview(task.waypoints)}",
+                color = TextSecondary,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            task.actionHint?.takeIf { it.isNotBlank() }?.let { hint ->
+                Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = "¥${task.totalAmount}",
+                    text = hint,
                     color = AccentBlue,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
+                    style = MaterialTheme.typography.bodySmall
                 )
             }
         }
@@ -413,59 +290,98 @@ private fun TaskCard(
 }
 
 @Composable
-private fun QuickActionsGrid(
-    onTaskSquareClick: () -> Unit,
-    onFlightClick: () -> Unit,
-    onHistoryClick: () -> Unit,
-    onMessagesClick: () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
+private fun MatchStatusBadge(status: MatchStatus?) {
+    val (text, color) = when (status) {
+        MatchStatus.CONFIRMED -> "已确认" to StatusGreen
+        MatchStatus.PENDING_ACCEPTANCE -> "待验收" to StatusAmber
+        else -> "执行中" to AccentBlue
+    }
+    Surface(
+        shape = RoundedCornerShape(6.dp),
+        color = color.copy(alpha = 0.15f)
     ) {
         Text(
-            text = "快捷操作",
-            color = TextPrimary,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 12.dp)
+            text = text,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            color = color,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold
         )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+    }
+}
+
+/**
+ * 空状态（场景 3）：引导前往 `app/` 接单，不提供大厅抢单。
+ *
+ * `app/` 与 `djifly/` 是两个安装包，跨应用深链不在本任务范围（REQ-DJIFLY-001 可选项），
+ * 因此这里给出明确的文字指引而不是跳转。
+ */
+@Composable
+private fun EmptyPendingTasks(onGoToApp: () -> Unit) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        shape = RoundedCornerShape(12.dp),
+        color = SurfaceCard,
+        border = BorderStroke(1.dp, Divider)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            QuickActionItem(
-                icon = Icons.Default.Search,
-                label = "任务大厅",
-                onClick = onTaskSquareClick,
-                modifier = Modifier.weight(1f)
+            Icon(
+                imageVector = Icons.Default.TaskAlt,
+                contentDescription = null,
+                tint = TextTertiary,
+                modifier = Modifier.size(48.dp)
             )
-            QuickActionItem(
-                icon = Icons.Default.PlayArrow,
-                label = "飞行控制",
-                onClick = onFlightClick,
-                modifier = Modifier.weight(1f)
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = "暂无待执飞任务",
+                color = TextPrimary,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
             )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "请前往 app 接单：用户下单并双方确认后，任务会出现在这里。\n" +
+                    "本应用不提供任务大厅与抢单。",
+                color = TextTertiary,
+                style = MaterialTheme.typography.bodySmall,
+                textAlign = TextAlign.Center,
+                lineHeight = 20.sp
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            OutlinedButton(onClick = onGoToApp) {
+                Text("前往 app 接单", color = AccentBlue)
+            }
         }
-        Spacer(modifier = Modifier.height(12.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            QuickActionItem(
-                icon = Icons.Default.History,
-                label = "历史任务",
-                onClick = onHistoryClick,
-                modifier = Modifier.weight(1f)
-            )
-            QuickActionItem(
-                icon = Icons.Default.ChatBubble,
-                label = "消息",
-                onClick = onMessagesClick,
-                modifier = Modifier.weight(1f)
-            )
-        }
+    }
+}
+
+@Composable
+private fun QuickActions(onStarterClick: () -> Unit, onHistoryClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        QuickActionItem(
+            icon = Icons.Default.PlayArrow,
+            label = "飞行准备",
+            onClick = onStarterClick,
+            modifier = Modifier.weight(1f)
+        )
+        QuickActionItem(
+            icon = Icons.Default.History,
+            label = "任务记录",
+            onClick = onHistoryClick,
+            modifier = Modifier.weight(1f)
+        )
     }
 }
 
@@ -477,9 +393,7 @@ private fun QuickActionItem(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        modifier = modifier
-            .height(72.dp)
-            .clickable(onClick = onClick),
+        modifier = modifier.height(72.dp).clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
         color = SurfaceCard,
         border = BorderStroke(1.dp, Divider)
@@ -504,21 +418,5 @@ private fun QuickActionItem(
                 style = MaterialTheme.typography.labelSmall
             )
         }
-    }
-}
-
-@Composable
-private fun EmptyStateHint(text: String) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 24.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = text,
-            color = TextTertiary,
-            style = MaterialTheme.typography.bodyMedium
-        )
     }
 }

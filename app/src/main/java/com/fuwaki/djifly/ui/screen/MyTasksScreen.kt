@@ -25,7 +25,6 @@ import com.fuwaki.djifly.data.models.TaskVo
 import com.fuwaki.djifly.ui.components.*
 import com.fuwaki.djifly.ui.theme.*
 import com.fuwaki.djifly.ui.viewmodel.ActionState
-import com.fuwaki.djifly.ui.viewmodel.ContactState
 import com.fuwaki.djifly.ui.viewmodel.TaskViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -33,15 +32,13 @@ import com.fuwaki.djifly.ui.viewmodel.TaskViewModel
 fun MyTasksScreen(
     viewModel: TaskViewModel,
     onTaskClick: (String) -> Unit,
-    onStartFlight: () -> Unit = {},
-    onContactUser: (Long, String) -> Unit = { _, _ -> },
+    onStartFlight: (String) -> Unit = {},
     onBack: () -> Unit
 ) {
     val activeTasks by viewModel.activeTasks.collectAsState()
     val completedTasks by viewModel.completedTasks.collectAsState()
     val loading by viewModel.myTasksLoading.collectAsState()
     val actionState by viewModel.actionState.collectAsState()
-    val contactState by viewModel.contactState.collectAsState()
 
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("进行中", "已完成")
@@ -65,16 +62,6 @@ fun MyTasksScreen(
             is ActionState.Error -> {
                 snackbarHostState.showSnackbar(state.message, duration = SnackbarDuration.Short)
                 viewModel.resetActionState()
-            }
-            else -> {}
-        }
-    }
-
-    LaunchedEffect(contactState) {
-        when (val state = contactState) {
-            is ContactState.Ready -> {
-                onContactUser(state.sessionId, state.otherUserName)
-                viewModel.resetContactState()
             }
             else -> {}
         }
@@ -168,12 +155,10 @@ fun MyTasksScreen(
                                 ActiveTaskCard(
                                     task = task,
                                     isLoading = actionState is ActionState.Loading,
-                                    isContactLoading = contactState is ContactState.Loading,
                                     onClick = { onTaskClick(task.taskNum) },
-                                    onContact = { viewModel.contactTaskPublisher(task) },
                                     onCancel = { showCancelDialog = task },
                                     onComplete = { showCompleteDialog = task },
-                                    onStartFlight = onStartFlight
+                                    onStartFlight = { onStartFlight(task.taskNum) }
                                 )
                             }
                             item { Spacer(modifier = Modifier.height(80.dp)) }
@@ -211,7 +196,7 @@ fun MyTasksScreen(
     showCancelDialog?.let { task ->
         ConfirmDialog(
             title = "取消接单",
-            message = "确定要取消任务「${task.taskName}」吗？取消后任务将重新回到任务大厅。",
+            message = "确定要取消任务「${task.taskName}」吗？取消后任务将重新开放撮合。",
             confirmText = "确认取消",
             onConfirm = {
                 viewModel.cancelTask(task.taskNum)
@@ -269,9 +254,7 @@ private fun EmptyMyTaskState(
 private fun ActiveTaskCard(
     task: TaskVo,
     isLoading: Boolean,
-    isContactLoading: Boolean,
     onClick: () -> Unit,
-    onContact: () -> Unit,
     onCancel: () -> Unit,
     onComplete: () -> Unit,
     onStartFlight: () -> Unit = {}
@@ -368,24 +351,6 @@ private fun ActiveTaskCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                OutlinedButton(
-                    onClick = onContact,
-                    enabled = !isContactLoading,
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(40.dp)
-                ) {
-                    if (isContactLoading) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            color = TextSecondary,
-                            strokeWidth = 2.dp
-                        )
-                    } else {
-                        Text("联系用户", color = TextSecondary, fontSize = 13.sp)
-                    }
-                }
                 OutlinedButton(
                     onClick = onCancel,
                     enabled = !isLoading,

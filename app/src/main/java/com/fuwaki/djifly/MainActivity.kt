@@ -38,20 +38,17 @@ import com.fuwaki.djifly.platform.registration.PlatformRegistrationManager
 import com.fuwaki.djifly.platform.ws.WsCommunicationState
 import com.fuwaki.djifly.sdk.DjiSdkManager
 import com.fuwaki.djifly.ui.navigation.Routes
-import com.fuwaki.djifly.ui.screen.ChatScreen
 import com.fuwaki.djifly.ui.screen.DroneManageScreen
 import com.fuwaki.djifly.ui.screen.FlightScreen
 import com.fuwaki.djifly.ui.screen.HomeScreen
 import com.fuwaki.djifly.ui.screen.LoginScreen
 import com.fuwaki.djifly.ui.screen.MainScreen
-import com.fuwaki.djifly.ui.screen.MessageScreen
 import com.fuwaki.djifly.ui.screen.MyTasksScreen
 import com.fuwaki.djifly.ui.screen.ProfileScreen
 import com.fuwaki.djifly.ui.screen.RegisterScreen
 import com.fuwaki.djifly.ui.screen.SplashScreen
 import com.fuwaki.djifly.ui.screen.StarterScreen
 import com.fuwaki.djifly.ui.screen.TaskDetailScreen
-import com.fuwaki.djifly.ui.screen.TaskSquareScreen
 import com.fuwaki.djifly.ui.theme.DjiflyTheme
 import com.fuwaki.djifly.ui.viewmodel.TaskViewModel
 import dagger.hilt.android.AndroidEntryPoint
@@ -201,20 +198,10 @@ class MainActivity : FragmentActivity() {
                                         onNavigateToTaskDetail = { taskNum ->
                                             navController.navigate(Routes.taskDetail(taskNum))
                                         },
-                                        onNavigateToStarter = {
-                                            navController.navigate(Routes.STARTER)
+                                        onNavigateToStarter = { taskNum ->
+                                            navController.navigate(Routes.starter(taskNum))
                                         },
-                                        onNavigateToTaskSquare = { selectTab(1) },
-                                        onNavigateToHistory = { selectTab(2) },
-                                        onNavigateToMessages = { selectTab(3) }
-                                    )
-                                },
-                                taskSquareContent = {
-                                    TaskSquareScreen(
-                                        viewModel = taskVm,
-                                        onTaskClick = { taskNum ->
-                                            navController.navigate(Routes.taskDetail(taskNum))
-                                        }
+                                        onNavigateToMyTasks = { selectTab(1) }
                                     )
                                 },
                                 myTasksContent = {
@@ -223,20 +210,10 @@ class MainActivity : FragmentActivity() {
                                         onTaskClick = { taskNum ->
                                             navController.navigate(Routes.taskDetail(taskNum))
                                         },
-                                        onStartFlight = {
-                                            navController.navigate(Routes.STARTER)
-                                        },
-                                        onContactUser = { sessionId, otherUserName ->
-                                            navController.navigate(Routes.chat(sessionId, otherUserName))
+                                        onStartFlight = { taskNum ->
+                                            navController.navigate(Routes.starter(taskNum))
                                         },
                                         onBack = {}
-                                    )
-                                },
-                                messagesContent = {
-                                    MessageScreen(
-                                        onNavigateToChat = { sessionId, otherUserName ->
-                                            navController.navigate(Routes.chat(sessionId, otherUserName))
-                                        }
                                     )
                                 },
                                 profileContent = {
@@ -270,33 +247,7 @@ class MainActivity : FragmentActivity() {
                                 taskNum = taskNum,
                                 viewModel = taskVm,
                                 onBack = { navController.popBackStack() },
-                                onStartFlight = { navController.navigate(Routes.starter(taskNum)) },
-                                onContactUser = { sessionId, otherUserName ->
-                                    navController.navigate(Routes.chat(sessionId, otherUserName))
-                                }
-                            )
-                        }
-
-                        // ════════════════════════════════════════
-                        // 聊天详情
-                        // ════════════════════════════════════════
-                        composable(
-                            route = Routes.CHAT,
-                            arguments = listOf(
-                                navArgument("sessionId") { type = NavType.LongType },
-                                navArgument("otherUserName") {
-                                    type = NavType.StringType
-                                    nullable = true
-                                    defaultValue = null
-                                }
-                            )
-                        ) { backStackEntry ->
-                            val sessionId = backStackEntry.arguments?.getLong("sessionId") ?: 0L
-                            val otherUserName = backStackEntry.arguments?.getString("otherUserName")
-                            ChatScreen(
-                                sessionId = sessionId,
-                                otherUserName = otherUserName,
-                                onBack = { navController.popBackStack() }
+                                onStartFlight = { navController.navigate(Routes.starter(taskNum)) }
                             )
                         }
 

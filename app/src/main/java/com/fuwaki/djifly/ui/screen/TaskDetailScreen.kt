@@ -16,13 +16,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.fuwaki.djifly.data.models.FlightEntryGate
 import com.fuwaki.djifly.data.models.TaskStatus
 import com.fuwaki.djifly.data.models.TaskType
 import com.fuwaki.djifly.data.models.TaskVo
 import com.fuwaki.djifly.ui.components.*
 import com.fuwaki.djifly.ui.theme.*
 import com.fuwaki.djifly.ui.viewmodel.ActionState
-import com.fuwaki.djifly.ui.viewmodel.ContactState
 import com.fuwaki.djifly.platform.live.RiderLiveRequestState
 import com.fuwaki.djifly.ui.viewmodel.TaskViewModel
 
@@ -33,13 +33,11 @@ fun TaskDetailScreen(
     viewModel: TaskViewModel,
     onBack: () -> Unit,
     onStartFlight: () -> Unit = {},
-    onStartLiveStream: () -> Unit = {},
-    onContactUser: (Long, String) -> Unit = { _, _ -> }
+    onStartLiveStream: () -> Unit = {}
 ) {
     val taskDetail by viewModel.taskDetail.collectAsState()
     val loading by viewModel.detailLoading.collectAsState()
     val actionState by viewModel.actionState.collectAsState()
-    val contactState by viewModel.contactState.collectAsState()
     val liveRequestState by viewModel.liveRequestState.collectAsState()
     val toastContext = LocalContext.current
 
@@ -55,7 +53,6 @@ fun TaskDetailScreen(
     }
 
     // Dialog states
-    var showAcceptDialog by remember { mutableStateOf(false) }
     var showCancelDialog by remember { mutableStateOf(false) }
     var showCompleteDialog by remember { mutableStateOf(false) }
 
@@ -76,16 +73,6 @@ fun TaskDetailScreen(
             is ActionState.Error -> {
                 snackbarHostState.showSnackbar(state.message, duration = SnackbarDuration.Short)
                 viewModel.resetActionState()
-            }
-            else -> {}
-        }
-    }
-
-    LaunchedEffect(contactState) {
-        when (val state = contactState) {
-            is ContactState.Ready -> {
-                onContactUser(state.sessionId, state.otherUserName)
-                viewModel.resetContactState()
             }
             else -> {}
         }
@@ -114,9 +101,7 @@ fun TaskDetailScreen(
                 DetailBottomBar(
                     status = status,
                     isLoading = actionState is ActionState.Loading,
-                    isContactLoading = contactState is ContactState.Loading,
-                    onContact = { viewModel.contactTaskPublisher(task) },
-                    onAccept = { showAcceptDialog = true },
+                    gateHint = FlightEntryGate.denyReason(task),
                     onCancel = { showCancelDialog = true },
                     onComplete = { showCompleteDialog = true },
                     onStartFlight = onStartFlight,
@@ -220,22 +205,10 @@ fun TaskDetailScreen(
     }
 
     // Confirmation dialogs
-    if (showAcceptDialog) {
-        ConfirmDialog(
-            title = "确认接单",
-            message = "确定要接受此任务吗？",
-            confirmText = "确认接单",
-            onConfirm = {
-                viewModel.acceptTask(taskNum)
-                showAcceptDialog = false
-            },
-            onDismiss = { showAcceptDialog = false }
-        )
-    }
     if (showCancelDialog) {
         ConfirmDialog(
             title = "取消接单",
-            message = "确定要取消此任务吗？取消后任务将重新回到任务大厅。",
+            message = "确定要取消此任务吗？取消后任务将重新开放撮合。",
             confirmText = "确认取消",
             onConfirm = {
                 viewModel.cancelTask(taskNum)
@@ -349,9 +322,7 @@ private fun MetaRow(label: String, value: String) {
 private fun DetailBottomBar(
     status: TaskStatus?,
     isLoading: Boolean,
-    isContactLoading: Boolean,
-    onContact: () -> Unit,
-    onAccept: () -> Unit,
+    gateHint: String?,
     onCancel: () -> Unit,
     onComplete: () -> Unit,
     onStartFlight: () -> Unit = {},
@@ -361,153 +332,87 @@ private fun DetailBottomBar(
         color = SurfaceCard,
         shadowElevation = 8.dp
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 12.dp)
                 .navigationBarsPadding(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            // 执飞门禁提示（FlightEntryGate）：非 CONFIRMED/等价状态时明确说明为何不能开始飞行
+            gateHint?.let { hint ->
+                Text(
+                    text = hint,
+                    color = StatusAmber,
+                    fontSize = 12.sp
+                )
+            }
+
             when (status) {
-                TaskStatus.IDLE -> {
-                    OutlinedButton(
-                        onClick = onContact,
-                        enabled = !isContactLoading,
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(48.dp)
-                    ) {
-                        if (isContactLoading) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp),
-                                color = TextSecondary,
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            Text("联系用户", color = TextSecondary)
-                        }
-                    }
-                    Button(
-                        onClick = onAccept,
-                        enabled = !isLoading,
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = AccentBlue),
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(48.dp)
-                    ) {
-                        if (isLoading) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp),
-                                color = Color.White,
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            Text("立即接单", color = Color.White)
-                        }
-                    }
-                }
                 TaskStatus.IN_PROGRESS -> {
-                    Column(
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            OutlinedButton(
-                                onClick = onContact,
-                                enabled = !isContactLoading,
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(48.dp)
-                            ) {
-                                if (isContactLoading) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(18.dp),
-                                        color = TextSecondary,
-                                        strokeWidth = 2.dp
-                                    )
-                                } else {
-                                    Text("联系用户", color = TextSecondary)
-                                }
-                            }
-                            OutlinedButton(
-                                onClick = onCancel,
-                                enabled = !isLoading,
-                                shape = RoundedCornerShape(12.dp),
-                                border = ButtonDefaults.outlinedButtonBorder,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(48.dp)
-                            ) {
-                                Text("取消接单", color = StatusRed)
-                            }
-                            Button(
-                                onClick = onStartFlight,
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = AccentBlue),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(48.dp)
-                            ) {
-                                Text("开始飞行", color = Color.White)
-                            }
-                        }
                         OutlinedButton(
-                            onClick = onStartLiveStream,
+                            onClick = onCancel,
                             enabled = !isLoading,
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .height(40.dp)
+                                .weight(1f)
+                                .height(48.dp)
                         ) {
-                            Text("开始直播", color = AccentBlue)
+                            Text("取消接单", color = StatusRed)
                         }
-                        OutlinedButton(
-                            onClick = onComplete,
-                            enabled = !isLoading,
+                        Button(
+                            onClick = onStartFlight,
+                            enabled = gateHint == null && !isLoading,
                             shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = AccentBlue),
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .height(40.dp)
+                                .weight(1f)
+                                .height(48.dp)
                         ) {
-                            if (isLoading) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(16.dp),
-                                    color = TextSecondary,
-                                    strokeWidth = 2.dp
-                                )
-                            } else {
-                                Text("完成任务", color = TextSecondary)
-                            }
+                            Text("开始飞行", color = Color.White)
                         }
                     }
-                }
-                TaskStatus.COMPLETED -> {
                     OutlinedButton(
-                        onClick = onContact,
-                        enabled = !isContactLoading,
+                        onClick = onStartLiveStream,
+                        enabled = !isLoading,
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(48.dp)
+                            .height(40.dp)
                     ) {
-                        if (isContactLoading) {
+                        Text("开始直播", color = AccentBlue)
+                    }
+                    OutlinedButton(
+                        onClick = onComplete,
+                        enabled = !isLoading,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(40.dp)
+                    ) {
+                        if (isLoading) {
                             CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp),
+                                modifier = Modifier.size(16.dp),
                                 color = TextSecondary,
                                 strokeWidth = 2.dp
                             )
                         } else {
-                            Text("联系用户", color = TextSecondary)
+                            Text("完成任务", color = TextSecondary)
                         }
                     }
                 }
-                else -> {}
+                else -> {
+                    // 未确认/已完成：不提供执飞与接单动作（接单与聊天归 app/）
+                    Text(
+                        text = gateHint ?: "该任务当前没有可执行的执飞动作",
+                        color = TextTertiary,
+                        fontSize = 13.sp
+                    )
+                }
             }
         }
     }

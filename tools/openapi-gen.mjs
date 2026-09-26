@@ -22,11 +22,11 @@ const generatorName = 'tools/openapi-gen.mjs'
 const generateCommand = 'cd djifly && node tools/openapi-gen.mjs'
 
 /**
- * 本端调用的端点清单（消费清单，人工维护，共 26 条）。
+ * 本端调用的端点清单（消费清单，人工维护，共 16 条）。
  *   method = HTTP 方法；path = Retrofit 注解里的字面量（无前导斜杠，占位符按本端 @Path 命名）。
- * 契约路径通过「占位符结构归一化」匹配：{x} 与 {y} 视为同一模板位置，
- * 因此 chat/Message/messages/{sessionId} 能对上契约的 /chat/Message/messages/{msgId}。
+ * 契约路径通过「占位符结构归一化」匹配：{x} 与 {y} 视为同一模板位置。
  * 新增调用点必须在此登记；门禁测试会核对「登记表 ↔ 契约 ↔ 代码」三者一致。
+ * djifly 只消费执飞链路（登录/任务/交付物/直播/设备），聊天、大厅、统计由 app/ 消费。
  */
 const calledEndpoints = [
   ['post', 'appUav/add'],
@@ -34,24 +34,14 @@ const calledEndpoints = [
   ['post', 'user/login'],
   ['post', 'rider/register'],
   ['post', 'user/refresh'],
-  ['get', 'rider/square'],
-  ['post', 'rider/accept'],
   ['get', 'rider/my-tasks'],
   ['get', 'rider/my-tasks/history'],
   ['post', 'rider/cancel'],
   ['post', 'rider/complete'],
   ['get', 'rider/task/detail'],
-  ['get', 'chat/session/list'],
-  ['post', 'chat/session/create'],
-  ['get', 'chat/Message/messages/{sessionId}'],
-  ['post', 'chat/Message/send'],
-  ['get', 'chat/Message/sync'],
-  ['get', 'rider/stats'],
   ['post', 'live/rider/req'],
   ['post', 'tasks/{taskNum}/attachments/upload-url'],
   ['get', 'tasks/{taskNum}/attachments'],
-  ['get', 'chat/Message/unread/count'],
-  ['post', 'chat/Message/read'],
   ['get', 'rider/drone/list'],
   ['post', 'rider/drone/bind'],
   ['delete', 'rider/drone/unbind'],
@@ -206,7 +196,7 @@ function jsonSchemaOf(content) {
 }
 
 function collect() {
-  // 闭包只取「本端真正调用」的 26 条端点；referencedEndpoints 仅生成 ApiPaths 常量。
+  // 闭包只取「本端真正调用」的 16 条端点；referencedEndpoints 仅生成 ApiPaths 常量。
   for (const [method, localPath] of calledEndpoints) {
     const op = operation(specPathFor(localPath), method)
     if (Array.isArray(op.parameters)) {

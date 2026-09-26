@@ -11,7 +11,7 @@ private const val TAG = "ApiError"
  * 用法：
  * ```kotlin
  * try {
- *     val response = api.getTaskSquare()
+ *     val response = api.getTaskDetail(taskNum)
  *     val result = response.handleApiResponse(
  *         onSuccess = { data -> _tasks.value = data?.tasks ?: emptyList() },
  *         onError = { error -> _actionState.value = ActionState.Error(error.message) }
@@ -25,7 +25,7 @@ private const val TAG = "ApiError"
 
  * 或更简单的用法：
  * ```kotlin
- * apiCall(errorHandler) { api.getTaskSquare() }
+ * apiCall(errorHandler) { api.getTaskDetail(taskNum) }
  *     .onSuccess { data -> _tasks.value = data?.tasks ?: emptyList() }
  *     .onError { error -> _actionState.value = ActionState.Error(error.message) }
  * ```
@@ -77,7 +77,7 @@ fun <T> Throwable.handleException(
  *
  * 用法：
  * ```
- * apiCall(errorHandler) { api.getTaskSquare() }
+ * apiCall(errorHandler) { api.getTaskDetail(taskNum) }
  *     .onSuccess { data -> ... }
  *     .onError { error -> ... }
  * ```

@@ -2,13 +2,9 @@ package com.fuwaki.djifly.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.fuwaki.djifly.data.error.AppError
 import com.fuwaki.djifly.data.error.GlobalErrorHandler
 import com.fuwaki.djifly.data.error.apiCall
-import com.fuwaki.djifly.platform.network.generated.ApiSessionDTO
-import com.fuwaki.djifly.data.models.TaskType
 import com.fuwaki.djifly.data.models.TaskVo
-import com.fuwaki.djifly.data.stats.RiderStatsRepository
 import com.fuwaki.djifly.platform.attachment.DeliverableCheck
 import com.fuwaki.djifly.platform.attachment.DeliverableItemPhase
 import com.fuwaki.djifly.platform.attachment.DeliverableItemUi
@@ -34,12 +30,6 @@ sealed class ActionState {
     data class Error(val message: String) : ActionState()
 }
 
-sealed class ContactState {
-    data object Idle : ContactState()
-    data object Loading : ContactState()
-    data class Ready(val sessionId: Long, val otherUserName: String) : ContactState()
-}
-
 @HiltViewModel
 class TaskViewModel @Inject constructor(
     private val api: PlatformApiService,
@@ -47,14 +37,6 @@ class TaskViewModel @Inject constructor(
     private val deliverableUploader: DeliverableUploader,
     val errorHandler: GlobalErrorHandler // 暴露给 UI 层的 GlobalErrorEffect 使用
 ) : ViewModel() {
-
-    // Task Square
-    private val _squareTasks = MutableStateFlow<List<TaskVo>>(emptyList())
-    val squareTasks: StateFlow<List<TaskVo>> = _squareTasks
-    private val _squareLoading = MutableStateFlow(false)
-    val squareLoading: StateFlow<Boolean> = _squareLoading
-    private val _selectedType = MutableStateFlow<TaskType?>(null)
-    val selectedType: StateFlow<TaskType?> = _selectedType
 
     // My Tasks
     private val _activeTasks = MutableStateFlow<List<TaskVo>>(emptyList())
@@ -74,9 +56,6 @@ class TaskViewModel @Inject constructor(
     private val _actionState = MutableStateFlow<ActionState>(ActionState.Idle)
     val actionState: StateFlow<ActionState> = _actionState
 
-    private val _contactState = MutableStateFlow<ContactState>(ContactState.Idle)
-    val contactState: StateFlow<ContactState> = _contactState
-
     // 飞手主动开播（1B-4b，Q3=C）
     private val _liveRequestState = MutableStateFlow<RiderLiveRequestState>(RiderLiveRequestState.Idle)
     val liveRequestState: StateFlow<RiderLiveRequestState> = _liveRequestState
@@ -89,28 +68,6 @@ class TaskViewModel @Inject constructor(
     val attachments: StateFlow<List<com.fuwaki.djifly.platform.network.AttachmentItem>> = _attachments
 
     private var deliverableSeq = 0
-
-    // -----------------------------------------------------------------------
-    // Task Square
-    // -----------------------------------------------------------------------
-
-    fun loadSquare() {
-        viewModelScope.launch {
-            _squareLoading.value = true
-            apiCall(errorHandler) { api.getTaskSquare() }
-                .onSuccess { data ->
-                    _squareTasks.value = data?.tasks ?: emptyList()
-                }
-                .onError { error ->
-                    _actionState.value = ActionState.Error(error.message)
-                }
-            _squareLoading.value = false
-        }
-    }
-
-    fun filterByType(type: TaskType?) {
-        _selectedType.value = type
-    }
 
     // -----------------------------------------------------------------------
     // My Tasks
@@ -155,21 +112,6 @@ class TaskViewModel @Inject constructor(
     // Actions
     // -----------------------------------------------------------------------
 
-    fun acceptTask(taskNum: String) {
-        viewModelScope.launch {
-            _actionState.value = ActionState.Loading
-            apiCall(errorHandler) { api.acceptTask(taskNum) }
-                .onSuccess {
-                    _actionState.value = ActionState.Success("接单成功")
-                    loadSquare()
-                    loadMyTasks()
-                }
-                .onError { error ->
-                    _actionState.value = ActionState.Error(error.message)
-                }
-        }
-    }
-
     fun cancelTask(taskNum: String) {
         viewModelScope.launch {
             _actionState.value = ActionState.Loading
@@ -177,7 +119,6 @@ class TaskViewModel @Inject constructor(
                 .onSuccess {
                     _actionState.value = ActionState.Success("取消成功")
                     loadMyTasks()
-                    loadSquare()
                 }
                 .onError { error ->
                     _actionState.value = ActionState.Error(error.message)
@@ -327,41 +268,7 @@ class TaskViewModel @Inject constructor(
         }
     }
 
-    fun contactTaskPublisher(task: TaskVo) {
-        if (_contactState.value is ContactState.Loading) return
-
-        viewModelScope.launch {
-            if (task.userId <= 0L) {
-                errorHandler.emit(AppError.Business("任务发布人信息缺失"))
-                _contactState.value = ContactState.Idle
-                return@launch
-            }
-
-            _contactState.value = ContactState.Loading
-            val sessionName = task.taskName.ifBlank { "任务沟通" }
-            val request = ApiSessionDTO(
-                name = sessionName,
-                type = 0,
-                userIds = listOf(task.userId)
-            )
-            apiCall(errorHandler) { api.createSession(request) }
-                .onSuccess { session ->
-                    _contactState.value = ContactState.Ready(
-                        sessionId = session.id,
-                        otherUserName = session.otherUserName ?: "任务发布人"
-                    )
-                }
-                .onError { error ->
-                    _contactState.value = ContactState.Idle
-                }
-        }
-    }
-
     fun resetActionState() {
         _actionState.value = ActionState.Idle
-    }
-
-    fun resetContactState() {
-        _contactState.value = ContactState.Idle
     }
 }

@@ -12,7 +12,7 @@ import org.junit.Test
 /**
  * 平台 WS 地址构造纯单元测试（QA-D1 P0：network 请求构造/WS URL 构造）。
  *
- * PlatformWsClient（遥测/会话通道）与 ChatRealtimeClient（聊天通道）的握手地址都由
+ * PlatformWsClient（遥测会话通道）的握手地址由
  * PlatformEndpointResolver 从 DRONE_BACKEND_BASE_URL 推导：http(s)→ws(s) 协议转换、
  * base 路径前缀保留（如 /api）、deviceId 查询参数拼接与编码。
  * 期望值一律从 BuildConfig 配置推导，配置变更（host/path/协议）不会破坏测试有效性。

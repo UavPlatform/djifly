@@ -5,9 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.fuwaki.djifly.data.auth.TokenStore
 import com.fuwaki.djifly.data.error.GlobalErrorHandler
 import com.fuwaki.djifly.data.error.apiCall
+import com.fuwaki.djifly.data.models.FlightEntryGate
 import com.fuwaki.djifly.data.models.TaskVo
-import com.fuwaki.djifly.data.stats.RiderStatsRepository
-import com.fuwaki.djifly.data.stats.RiderStatsUiState
 import com.fuwaki.djifly.platform.network.PlatformApiService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,21 +18,22 @@ import javax.inject.Inject
 
 data class HomeUiState(
     val userName: String? = null,
-    val stats: RiderStatsUiState = RiderStatsUiState(),
-    val activeTasks: List<TaskVo> = emptyList(),
-    val recommendedTasks: List<TaskVo> = emptyList(),
+    /** 待执飞任务（matchStatus=CONFIRMED 或已 IN_PROGRESS/PENDING_ACCEPTANCE，见 [FlightEntryGate]） */
+    val pendingTasks: List<TaskVo> = emptyList(),
     val isLoading: Boolean = true
 )
 
 /**
- * 首页数据（1B-6：统计接 /rider/stats 真实数据，移除本地拼凑估算与 rating 硬编码，FLY 中-7）。
+ * 首页数据：只拉取「当前飞手的任务」（/rider/my-tasks）并按执飞门禁过滤。
+ *
+ * djifly 是飞行执行适配器（REQ-DJIFLY-001）：不再拉取任务大厅（/rider/square）推荐任务，
+ * 也不再展示收益统计（/rider/stats）——这两类业务归 app/。
  */
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val api: PlatformApiService,
-    private val statsRepository: RiderStatsRepository,
     private val tokenStore: TokenStore,
-    val errorHandler: GlobalErrorHandler
+    val errorHandler: GlobalErrorHandler // 暴露给 UI 层的 GlobalErrorEffect 使用
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -49,34 +49,18 @@ class HomeViewModel @Inject constructor(
 
             val userName = tokenStore.userName.firstOrNull()
 
-            // 加载进行中的任务
-            var activeTasks = emptyList<TaskVo>()
+            // 仅本飞手名下的任务；撮合未确认（洽谈/待支付/待飞手确认）的任务不进入执飞列表
+            var pendingTasks = emptyList<TaskVo>()
             apiCall(errorHandler) { api.getMyTasks() }
                 .onSuccess { data ->
-                    activeTasks = data?.tasks
-                        ?.filter { it.taskStatus == "IN_PROGRESS" }
-                        ?.take(3)
+                    pendingTasks = data?.tasks
+                        ?.filter { FlightEntryGate.isPendingFlight(it) }
                         ?: emptyList()
                 }
-
-            // 加载推荐任务（大厅的 IDLE 任务）
-            var recommendedTasks = emptyList<TaskVo>()
-            apiCall(errorHandler) { api.getTaskSquare() }
-                .onSuccess { data ->
-                    recommendedTasks = data?.tasks
-                        ?.filter { it.taskStatus == "IDLE" }
-                        ?.take(3)
-                        ?: emptyList()
-                }
-
-            // 统计接 /rider/stats 真实数据（今日接单/总完成/总收益），口径与后端一致
-            val stats = statsRepository.loadStats()
 
             _uiState.value = HomeUiState(
                 userName = userName,
-                stats = stats ?: RiderStatsUiState(),
-                activeTasks = activeTasks,
-                recommendedTasks = recommendedTasks,
+                pendingTasks = pendingTasks,
                 isLoading = false
             )
         }

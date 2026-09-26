@@ -15,7 +15,7 @@ class PlatformConnectionSessionService @Inject constructor(
     private val wsSessionService: PlatformWsSessionService
 ) {
 
-    // 重连节奏抽到 WsReconnectBackoff，与聊天通道（ChatSessionSupervisor）共用同一节奏
+    // 重连节奏抽到 WsReconnectBackoff，与既有遥测通道节奏保持一致
     private val backoff = WsReconnectBackoff()
 
     suspend fun maintainRegisteredSession(

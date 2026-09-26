@@ -1,20 +1,14 @@
 package com.fuwaki.djifly.platform.network
 
 import com.fuwaki.djifly.data.models.ApiResult
-import com.fuwaki.djifly.data.models.ChatEnvelope
 import com.fuwaki.djifly.data.models.LiveStartVo
 import com.fuwaki.djifly.data.models.LoginResponse
-import com.fuwaki.djifly.data.models.MessageVO
 import com.fuwaki.djifly.data.models.RefreshResponse
 import com.fuwaki.djifly.data.models.RiderUav
-import com.fuwaki.djifly.data.models.SessionVO
 import com.fuwaki.djifly.data.models.TaskPageVO
 import com.fuwaki.djifly.data.models.TaskVo
-import com.fuwaki.djifly.platform.network.generated.ApiMessageDTO
 import com.fuwaki.djifly.platform.network.generated.ApiPaths
 import com.fuwaki.djifly.platform.network.generated.ApiRiderRegisterDto
-import com.fuwaki.djifly.platform.network.generated.ApiRiderStatsVO
-import com.fuwaki.djifly.platform.network.generated.ApiSessionDTO
 import com.fuwaki.djifly.platform.network.generated.ApiUserLoginDto
 import retrofit2.Response
 import retrofit2.http.Body
@@ -64,14 +58,6 @@ interface PlatformApiService {
     // 任务 — 飞手端
     // ═══════════════════════════════════════════════════════
 
-    @GET(ApiPaths.RIDER_SQUARE)
-    suspend fun getTaskSquare(): Response<ApiResult<TaskPageVO>>
-
-    @POST(ApiPaths.RIDER_ACCEPT)
-    suspend fun acceptTask(
-        @Query("taskNum") taskNum: String
-    ): Response<ApiResult<Unit>>
-
     @GET(ApiPaths.RIDER_MY_TASKS)
     suspend fun getMyTasks(): Response<ApiResult<TaskPageVO>>
 
@@ -93,39 +79,6 @@ interface PlatformApiService {
     suspend fun getTaskDetail(
         @Query("taskNum") taskNum: String
     ): Response<ApiResult<TaskVo>>
-
-    // ═══════════════════════════════════════════════════════
-    // 聊天
-    // ═══════════════════════════════════════════════════════
-
-    @GET(ApiPaths.CHAT_SESSION_LIST)
-    suspend fun getSessions(): Response<ApiResult<List<SessionVO>>>
-
-    @POST(ApiPaths.CHAT_SESSION_CREATE)
-    suspend fun createSession(
-        @Body request: ApiSessionDTO
-    ): Response<ApiResult<SessionVO>>
-
-    @GET(ApiPaths.CHAT_MESSAGE_MESSAGES)
-    suspend fun getMessages(
-        @Path("sessionId") sessionId: Long
-    ): Response<ApiResult<List<ChatEnvelope>>>
-
-    @POST(ApiPaths.CHAT_MESSAGE_SEND)
-    suspend fun sendMessage(
-        @Body request: ApiMessageDTO
-    ): Response<ApiResult<Unit>>
-
-    @GET(ApiPaths.CHAT_MESSAGE_SYNC)
-    suspend fun syncMessages(): Response<ApiResult<List<ChatEnvelope>>>
-
-    // ═══════════════════════════════════════════════════════
-    // 统计
-    // ═══════════════════════════════════════════════════════
-
-    /** 飞手统计：今日接单/总完成/总收益（契约 C9，后端 RiderStatsVO） */
-    @GET(ApiPaths.RIDER_STATS)
-    suspend fun getRiderStats(): Response<ApiResult<ApiRiderStatsVO>>
 
     // ═══════════════════════════════════════════════════════
     // 直播（飞手主动开播，1B-4b）
@@ -158,21 +111,6 @@ interface PlatformApiService {
     /** 交付物列表：任务所有者与接单飞手可见，逐条附 presigned 下载 URL（15 分钟） */
     @GET(ApiPaths.TASKS_ATTACHMENTS)
     suspend fun getAttachments(@Path("taskNum") taskNum: String): Response<ApiResult<List<AttachmentItem>>>
-
-    // ═══════════════════════════════════════════════════════
-    // 消息未读/已读（1B-8 收敛包，t49 已读推进契约）
-    // ═══════════════════════════════════════════════════════
-
-    /** 未读数（只读）：sessionId → 未读条数；消息 Tab 红点数据源 */
-    @GET(ApiPaths.CHAT_MESSAGE_UNREAD_COUNT)
-    suspend fun getUnreadCount(): Response<ApiResult<Map<String, Int>>>
-
-    /**
-     * 标记会话已读（t49 显式已读契约）：进入会话时调用，推进该会话 lastReadTime=now。
-     * 限流 30 次/60s；仅会话成员可调（非成员 403）。
-     */
-    @POST(ApiPaths.CHAT_MESSAGE_READ)
-    suspend fun markSessionRead(@Query("sessionId") sessionId: Long): Response<ApiResult<Unit>>
 
     // ═══════════════════════════════════════════════════════
     // 无人机绑定

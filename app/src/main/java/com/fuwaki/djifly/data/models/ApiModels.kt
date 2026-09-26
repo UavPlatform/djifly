@@ -60,6 +60,20 @@ data class TaskVo(
     val totalDistance: BigDecimal? = null,
     val orderStatus: String? = null, // 后端返回枚举名: PENDING/PAID/COMPLETED 等
     val actionHint: String? = null,  // 操作提示（1B-9a 状态矩阵，后端统一计算，客户端直接渲染）
+    /** 撮合子状态（ADR-0003 决定 6）：SEEKING_RIDER→…→CONFIRMED→PENDING_ACCEPTANCE→CLOSED */
+    val matchStatus: String? = null,
+    /** 选定应征的系统报价（= 成交价 totalAmount；未选定时为 null） */
+    val quotedAmount: BigDecimal? = null,
+    /** 成交机型显示名（如 DJI FlyCart 30；未选定时为 null） */
+    val aircraftModelName: String? = null,
+    /** 约定作业时间（用户下单时提交，"yyyy-MM-dd HH:mm:ss"） */
+    val scheduledTime: String? = null,
+    /** 吊运货物重量 kg */
+    val cargoWeightKg: BigDecimal? = null,
+    /** 吊运货物类别（CONSTRUCTION/EQUIPMENT/AGRICULTURAL） */
+    val cargoCategory: String? = null,
+    /** 任务期望执行时间（"yyyy-MM-dd HH:mm:ss"） */
+    val taskTime: String? = null,
     val createTime: String = "",
     val updateTime: String? = null,
     val waypoints: List<WaypointVo> = emptyList()
@@ -93,82 +107,6 @@ enum class TaskStatus(val label: String) {
 
     companion object {
         fun fromValue(value: String): TaskStatus? = entries.find { it.name == value }
-    }
-}
-
-// ═══════════════════════════════════════════════════════
-// 聊天相关
-// ═══════════════════════════════════════════════════════
-
-data class SessionVO(
-    val id: Long = 0,
-    val name: String = "",
-    val type: Int = 0,              // 0=单聊, 1=群聊, 2=系统通知
-    val userIds: List<Long> = emptyList(),
-    val otherUserName: String? = null,
-    val lastMessage: String? = null,
-    val createTime: Long = 0L,      // 后端返回时间戳
-    val lastMessageTime: Long? = null,
-    val unreadCount: Int = 0        // 会话未读数（权威来源为 /chat/Message/unread/count，1B-8 收敛包）
-)
-
-/**
- * 聊天消息 —— 与后端 ChatMessage / MessageVO 对齐
- * 后端字段: id, msgType, content, fromUserId, status, createTime
- */
-data class MessageVO(
-    val id: String = "",            // 后端返回消息 ID
-    val sessionId: Long = 0,
-    val msgType: Int = 0,           // 0=CHAT, 1=NOTICE, 2=ORDER, 3=COMMAND
-    val content: String = "",       // 消息文本内容
-    val fromUserId: Long = 0,
-    val toUserId: Long? = null,
-    val status: Int = 0,            // 0=正常, 2=已撤回
-    val createTime: Long = 0L,      // 后端返回时间戳
-    val payloadName: String? = null // 结构化载荷事件名（t23：ORDER_PAID 等，1B-8 收敛包）
-) {
-    // 从 WebSocket ChatEnvelope 构建
-    companion object {
-        fun fromEnvelope(envelope: ChatEnvelope): MessageVO {
-            return envelope.toMessageVO()
-        }
-    }
-}
-
-data class ChatEnvelope(
-    val msgId: String = "",
-    val sessionId: Long = 0,
-    val msgType: Any? = null,
-    val timestamp: Long = 0,
-    val fromUserId: Long = 0,
-    val toUserId: Long? = null,
-    val payload: Map<String, Any> = emptyMap(),
-    val isOffline: Boolean = false,
-    val needAck: Boolean = false
-) {
-    fun toMessageVO(): MessageVO {
-        val typeValue = when (msgType) {
-            is Number -> msgType.toInt()
-            is String -> when (msgType.uppercase()) {
-                "CHAT" -> 0
-                "NOTICE" -> 1
-                "ORDER" -> 2
-                "COMMAND" -> 3
-                else -> 0
-            }
-            else -> 0
-        }
-
-        return MessageVO(
-            id = msgId,
-            sessionId = sessionId,
-            msgType = typeValue,
-            content = payload["text"]?.toString().orEmpty(),
-            fromUserId = fromUserId,
-            toUserId = toUserId,
-            createTime = timestamp,
-            payloadName = payload["name"]?.toString()
-        )
     }
 }
 
