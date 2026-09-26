@@ -46,6 +46,10 @@
             "format" : "date-time",
             "type" : "string"
           },
+          "deviceId" : {
+            "description" : "作业设备DJI ID（解析链 task → task_assignment → rider_uav → 在线设备；任务未接单/飞手未绑定设备/设备离线时为 null，前端按“无作业设备”占位）",
+            "type" : "string"
+          },
           "orderNum" : {
             "description" : "订单号",
             "type" : "string"
@@ -65,6 +69,16 @@
           },
           "ownerName" : {
             "description" : "下单用户名称",
+            "type" : "string"
+          },
+          "paidAt" : {
+            "description" : "支付完成时间：优先取 PayRecord.payTime（支付成功回调时刻）；无支付流水但订单已支付/已结案时回退订单 updateTime（状态迁移时刻）；未支付或待撮合时为 null，格式 yyyy-MM-dd HH:mm:ss",
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "riderConfirmedAt" : {
+            "description" : "飞手确认接单时间（ADR-0003 决定 4；飞手未确认时为 null），格式 yyyy-MM-dd HH:mm:ss",
+            "format" : "date-time",
             "type" : "string"
           },
           "taskName" : {
@@ -88,6 +102,11 @@
             "format" : "date-time",
             "type" : "string"
           },
+          "userConfirmedAt" : {
+            "description" : "用户下单确认时间（选定应征 + 约定作业时间，ADR-0003 决定 4；无订单或未下单时为 null），格式 yyyy-MM-dd HH:mm:ss",
+            "format" : "date-time",
+            "type" : "string"
+          },
           "userId" : {
             "description" : "下单用户ID",
             "format" : "int64",
@@ -103,6 +122,39 @@
             "description" : "当前页数据列表",
             "items" : {
               "$ref" : "#/components/schemas/AdminOrderVo"
+            },
+            "type" : "array"
+          },
+          "page" : {
+            "description" : "当前页码（从 0 开始）",
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "size" : {
+            "description" : "每页条数",
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "totalElements" : {
+            "description" : "总记录数",
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "totalPages" : {
+            "description" : "总页数（由总记录数与每页条数计算）",
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "AdminPageVoAdminPilotVo" : {
+        "description" : "管理端分页信封（page 从 0 开始）",
+        "properties" : {
+          "content" : {
+            "description" : "当前页数据列表",
+            "items" : {
+              "$ref" : "#/components/schemas/AdminPilotVo"
             },
             "type" : "array"
           },
@@ -162,6 +214,145 @@
         },
         "type" : "object"
       },
+      "AdminPageVoAdminUserVo" : {
+        "description" : "管理端分页信封（page 从 0 开始）",
+        "properties" : {
+          "content" : {
+            "description" : "当前页数据列表",
+            "items" : {
+              "$ref" : "#/components/schemas/AdminUserVo"
+            },
+            "type" : "array"
+          },
+          "page" : {
+            "description" : "当前页码（从 0 开始）",
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "size" : {
+            "description" : "每页条数",
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "totalElements" : {
+            "description" : "总记录数",
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "totalPages" : {
+            "description" : "总页数（由总记录数与每页条数计算）",
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "AdminPilotDetailVo" : {
+        "description" : "管理端飞手详情（含绑定无人机与关联订单）",
+        "properties" : {
+          "completedCount" : {
+            "description" : "累计完成单数（接单记录 complete_time 非空）",
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "drones" : {
+            "description" : "绑定无人机表（无绑定为空数组）",
+            "items" : {
+              "$ref" : "#/components/schemas/AdminPilotDroneVo"
+            },
+            "type" : "array"
+          },
+          "orders" : {
+            "description" : "关联订单（按创建时间倒序，无订单为空数组）",
+            "items" : {
+              "$ref" : "#/components/schemas/AdminOrderVo"
+            },
+            "type" : "array"
+          },
+          "role" : {
+            "description" : "角色（恒为 1 飞手）",
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "status" : {
+            "description" : "账号状态（1 正常 / 0 停用）",
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "userId" : {
+            "description" : "飞手ID（user.id）",
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "userName" : {
+            "description" : "用户名（昵称）",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "AdminPilotDroneVo" : {
+        "description" : "飞手绑定无人机（djiId + 机型 + 在线 + 可用）",
+        "properties" : {
+          "aircraftModelId" : {
+            "description" : "机型ID（未映射时为 null）",
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "available" : {
+            "description" : "是否可用/启用（设备档案 is_available=1；设备未注册时为 null，不可启停）",
+            "type" : "boolean"
+          },
+          "djiId" : {
+            "description" : "DJI 设备ID",
+            "type" : "string"
+          },
+          "modelName" : {
+            "description" : "机型显示名（未映射时为 null）",
+            "type" : "string"
+          },
+          "online" : {
+            "description" : "是否在线（设备档案 online_status=1；无设备档案为 false）",
+            "type" : "boolean"
+          }
+        },
+        "type" : "object"
+      },
+      "AdminPilotVo" : {
+        "description" : "管理端注册飞手（role=1）",
+        "properties" : {
+          "completedCount" : {
+            "description" : "累计完成单数（接单记录 complete_time 非空）",
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "onlineUavCount" : {
+            "description" : "在线无人机数（online_status=1 的绑定设备）",
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "status" : {
+            "description" : "账号状态（1 正常 / 0 停用）",
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "uavCount" : {
+            "description" : "绑定无人机数（rider_uav 记录数）",
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "userId" : {
+            "description" : "飞手ID（user.id）",
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "userName" : {
+            "description" : "用户名（昵称）",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "AdminStatisticsVO" : {
         "properties" : {
           "availableUavs" : {
@@ -215,6 +406,10 @@
             "description" : "任务描述",
             "type" : "string"
           },
+          "deviceId" : {
+            "description" : "作业设备DJI ID（解析链 task → task_assignment → rider_uav → 在线设备；任务未接单/飞手未绑定设备/设备离线时为 null，前端按“无作业设备”占位）",
+            "type" : "string"
+          },
           "id" : {
             "description" : "任务ID",
             "format" : "int64",
@@ -241,10 +436,20 @@
             "description" : "发布用户名称",
             "type" : "string"
           },
+          "paidAt" : {
+            "description" : "支付完成时间：优先取 PayRecord.payTime（支付成功回调时刻）；无支付流水但订单已支付/已结案时回退订单 updateTime（状态迁移时刻）；未支付或待撮合时为 null，格式 yyyy-MM-dd HH:mm:ss",
+            "format" : "date-time",
+            "type" : "string"
+          },
           "reward" : {
             "description" : "任务奖励金额，单位：元（服务端按航点距离计价，客户端传入的 reward 仅作参考）",
             "format" : "double",
             "type" : "number"
+          },
+          "riderConfirmedAt" : {
+            "description" : "飞手确认接单时间（ADR-0003 决定 4；飞手未确认时为 null），格式 yyyy-MM-dd HH:mm:ss",
+            "format" : "date-time",
+            "type" : "string"
           },
           "riderName" : {
             "description" : "接单飞手名称（未接单时为 null）",
@@ -284,10 +489,72 @@
             "format" : "date-time",
             "type" : "string"
           },
+          "userConfirmedAt" : {
+            "description" : "用户下单确认时间（选定应征 + 约定作业时间，ADR-0003 决定 4；无订单或未下单时为 null），格式 yyyy-MM-dd HH:mm:ss",
+            "format" : "date-time",
+            "type" : "string"
+          },
           "userId" : {
             "description" : "发布用户ID",
             "format" : "int64",
             "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "AdminUserDetailVo" : {
+        "description" : "管理端用户详情（含关联订单摘要）",
+        "properties" : {
+          "orders" : {
+            "description" : "关联订单（按创建时间倒序，无订单为空数组）",
+            "items" : {
+              "$ref" : "#/components/schemas/AdminOrderVo"
+            },
+            "type" : "array"
+          },
+          "role" : {
+            "description" : "角色（0 普通用户 / 2 管理员；飞手不走本详情）",
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "status" : {
+            "description" : "账号状态（1 正常 / 0 停用）",
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "userId" : {
+            "description" : "用户ID",
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "userName" : {
+            "description" : "用户名（昵称）",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "AdminUserVo" : {
+        "description" : "管理端注册用户（role=0）",
+        "properties" : {
+          "orderCount" : {
+            "description" : "名下订单总数",
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "status" : {
+            "description" : "账号状态（1 正常 / 0 停用）",
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "userId" : {
+            "description" : "用户ID",
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "userName" : {
+            "description" : "用户名（昵称）",
+            "type" : "string"
           }
         },
         "type" : "object"
@@ -823,6 +1090,33 @@
         },
         "type" : "object"
       },
+      "ResultAdminPageVoAdminPilotVo" : {
+        "description" : "统一响应结果封装",
+        "properties" : {
+          "code" : {
+            "description" : "响应状态码（200 成功；400 参数或业务错误；401 未登录；404 资源不存在；409 状态冲突；500 服务端错误）",
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "data" : {
+            "$ref" : "#/components/schemas/AdminPageVoAdminPilotVo",
+            "description" : "业务数据（泛型；成功且有返回值时非空，无数据时为 null）"
+          },
+          "errorCode" : {
+            "description" : "业务错误码（失败时非空，取值见 ApiErrorCode 枚举，如 UAV_NOT_CONNECTED；成功时为 null）",
+            "type" : "string"
+          },
+          "message" : {
+            "description" : "提示信息（成功为“操作成功”，失败为具体失败原因）",
+            "type" : "string"
+          },
+          "success" : {
+            "description" : "是否成功：true 成功 / false 失败",
+            "type" : "boolean"
+          }
+        },
+        "type" : "object"
+      },
       "ResultAdminPageVoAdminTaskVo" : {
         "description" : "统一响应结果封装",
         "properties" : {
@@ -833,6 +1127,60 @@
           },
           "data" : {
             "$ref" : "#/components/schemas/AdminPageVoAdminTaskVo",
+            "description" : "业务数据（泛型；成功且有返回值时非空，无数据时为 null）"
+          },
+          "errorCode" : {
+            "description" : "业务错误码（失败时非空，取值见 ApiErrorCode 枚举，如 UAV_NOT_CONNECTED；成功时为 null）",
+            "type" : "string"
+          },
+          "message" : {
+            "description" : "提示信息（成功为“操作成功”，失败为具体失败原因）",
+            "type" : "string"
+          },
+          "success" : {
+            "description" : "是否成功：true 成功 / false 失败",
+            "type" : "boolean"
+          }
+        },
+        "type" : "object"
+      },
+      "ResultAdminPageVoAdminUserVo" : {
+        "description" : "统一响应结果封装",
+        "properties" : {
+          "code" : {
+            "description" : "响应状态码（200 成功；400 参数或业务错误；401 未登录；404 资源不存在；409 状态冲突；500 服务端错误）",
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "data" : {
+            "$ref" : "#/components/schemas/AdminPageVoAdminUserVo",
+            "description" : "业务数据（泛型；成功且有返回值时非空，无数据时为 null）"
+          },
+          "errorCode" : {
+            "description" : "业务错误码（失败时非空，取值见 ApiErrorCode 枚举，如 UAV_NOT_CONNECTED；成功时为 null）",
+            "type" : "string"
+          },
+          "message" : {
+            "description" : "提示信息（成功为“操作成功”，失败为具体失败原因）",
+            "type" : "string"
+          },
+          "success" : {
+            "description" : "是否成功：true 成功 / false 失败",
+            "type" : "boolean"
+          }
+        },
+        "type" : "object"
+      },
+      "ResultAdminPilotDetailVo" : {
+        "description" : "统一响应结果封装",
+        "properties" : {
+          "code" : {
+            "description" : "响应状态码（200 成功；400 参数或业务错误；401 未登录；404 资源不存在；409 状态冲突；500 服务端错误）",
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "data" : {
+            "$ref" : "#/components/schemas/AdminPilotDetailVo",
             "description" : "业务数据（泛型；成功且有返回值时非空，无数据时为 null）"
           },
           "errorCode" : {
@@ -887,6 +1235,33 @@
           },
           "data" : {
             "$ref" : "#/components/schemas/AdminTaskVo",
+            "description" : "业务数据（泛型；成功且有返回值时非空，无数据时为 null）"
+          },
+          "errorCode" : {
+            "description" : "业务错误码（失败时非空，取值见 ApiErrorCode 枚举，如 UAV_NOT_CONNECTED；成功时为 null）",
+            "type" : "string"
+          },
+          "message" : {
+            "description" : "提示信息（成功为“操作成功”，失败为具体失败原因）",
+            "type" : "string"
+          },
+          "success" : {
+            "description" : "是否成功：true 成功 / false 失败",
+            "type" : "boolean"
+          }
+        },
+        "type" : "object"
+      },
+      "ResultAdminUserDetailVo" : {
+        "description" : "统一响应结果封装",
+        "properties" : {
+          "code" : {
+            "description" : "响应状态码（200 成功；400 参数或业务错误；401 未登录；404 资源不存在；409 状态冲突；500 服务端错误）",
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "data" : {
+            "$ref" : "#/components/schemas/AdminUserDetailVo",
             "description" : "业务数据（泛型；成功且有返回值时非空，无数据时为 null）"
           },
           "errorCode" : {
@@ -3351,6 +3726,85 @@
         "tags" : [ "Admin Query API" ]
       }
     },
+    "/admin/pilots" : {
+      "get" : {
+        "description" : "注册飞手（role=1）；含绑定无人机数、在线无人机数与累计完成单；page 从 0 起",
+        "operationId" : "listPilots",
+        "parameters" : [ {
+          "description" : "每页条数（默认 20，上限 100）",
+          "in" : "query",
+          "name" : "size",
+          "required" : false,
+          "schema" : {
+            "default" : 20,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        }, {
+          "description" : "用户名关键字（模糊匹配，忽略大小写）",
+          "in" : "query",
+          "name" : "keyword",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "description" : "页码（从 0 起）",
+          "in" : "query",
+          "name" : "page",
+          "required" : false,
+          "schema" : {
+            "default" : 0,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultAdminPageVoAdminPilotVo"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "summary" : "注册飞手分页列表",
+        "tags" : [ "Admin Query API" ]
+      }
+    },
+    "/admin/pilots/{userId}" : {
+      "get" : {
+        "description" : "基本信息 + 绑定无人机表（djiId、机型名、在线、可用）+ 关联订单；无人机启用/禁用复用 POST /admin/uav/available（按 deviceId=djiId 启停）",
+        "operationId" : "pilotDetail",
+        "parameters" : [ {
+          "description" : "飞手ID",
+          "in" : "path",
+          "name" : "userId",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultAdminPilotDetailVo"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "summary" : "飞手详情",
+        "tags" : [ "Admin Query API" ]
+      }
+    },
     "/admin/tasks" : {
       "get" : {
         "description" : "支持按任务状态（枚举名：IDLE/IN_PROGRESS/COMPLETED）与任务号精确过滤；含订单双状态与操作提示",
@@ -3578,6 +4032,94 @@
         },
         "summary" : "获取管理员统计信息",
         "tags" : [ "UAV Management API" ]
+      }
+    },
+    "/admin/users" : {
+      "get" : {
+        "description" : "注册普通用户（role=0，飞手见 /admin/pilots）；含名下订单数；page 从 0 起",
+        "operationId" : "listUsers",
+        "parameters" : [ {
+          "description" : "每页条数（默认 20，上限 100）",
+          "in" : "query",
+          "name" : "size",
+          "required" : false,
+          "schema" : {
+            "default" : 20,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        }, {
+          "description" : "用户名关键字（模糊匹配，忽略大小写）",
+          "in" : "query",
+          "name" : "keyword",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "description" : "账号状态筛选（1 正常 / 0 停用）",
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        }, {
+          "description" : "页码（从 0 起）",
+          "in" : "query",
+          "name" : "page",
+          "required" : false,
+          "schema" : {
+            "default" : 0,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultAdminPageVoAdminUserVo"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "summary" : "注册用户分页列表",
+        "tags" : [ "Admin Query API" ]
+      }
+    },
+    "/admin/users/{userId}" : {
+      "get" : {
+        "description" : "基本信息 + 关联订单摘要（orderNum、任务、状态、金额）；飞手请用 /admin/pilots/{userId}",
+        "operationId" : "userDetail",
+        "parameters" : [ {
+          "description" : "用户ID",
+          "in" : "path",
+          "name" : "userId",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultAdminUserDetailVo"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "summary" : "用户详情",
+        "tags" : [ "Admin Query API" ]
       }
     },
     "/api/aircraft-models" : {
@@ -5221,7 +5763,7 @@
     },
     "/task/{taskNum}/applications" : {
       "get" : {
-        "description" : "任务属主按任务编号查询飞手应征列表：飞手、机型、载重、系统报价 quotedAmount、应征时间、状态（非属主被拒）",
+        "description" : "任务属主、应征飞手与管理员（role=2，监管端只读）按任务编号查询飞手应征列表：飞手、机型、载重、系统报价 quotedAmount、应征时间、状态（非属主非应征的普通用户 403）",
         "operationId" : "listApplications",
         "parameters" : [ {
           "description" : "任务编号",
@@ -5318,7 +5860,7 @@
     },
     "/tasks/{taskNum}/attachments" : {
       "get" : {
-        "description" : "任务所有者与接单飞手可看；逐条附 presigned 下载 URL（15 分钟有效）",
+        "description" : "任务所有者、接单飞手与管理员（role=2，监管端只读）可看；逐条附 presigned 下载 URL（15 分钟有效）",
         "operationId" : "list",
         "parameters" : [ {
           "description" : "任务编号",
@@ -5347,7 +5889,7 @@
     },
     "/tasks/{taskNum}/attachments/download-url" : {
       "get" : {
-        "description" : "任务所有者或接单飞手可看",
+        "description" : "任务所有者、接单飞手与管理员（role=2，监管端只读）可看",
         "operationId" : "downloadUrl",
         "parameters" : [ {
           "description" : "任务编号",
