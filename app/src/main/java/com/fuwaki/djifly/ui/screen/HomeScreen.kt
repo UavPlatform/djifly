@@ -21,15 +21,16 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.TaskAlt
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
+import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -37,7 +38,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -69,7 +69,6 @@ import com.fuwaki.djifly.ui.viewmodel.HomeViewModel
 fun HomeScreen(
     onNavigateToTaskDetail: (String) -> Unit,
     onNavigateToStarter: (String?) -> Unit = {},
-    onNavigateToMyTasks: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -94,8 +93,8 @@ fun HomeScreen(
         // ── 待执飞任务 ──
         item {
             SectionHeader(
-                title = "待执飞任务",
-                subtitle = "仅展示双方已确认的任务"
+                title = "待执飞订单",
+                subtitle = "双方已确认、可进入作业的任务"
             )
         }
 
@@ -129,18 +128,10 @@ fun HomeScreen(
             else -> items(uiState.pendingTasks, key = { it.id }) { task ->
                 PendingTaskCard(
                     task = task,
-                    onClick = { onNavigateToTaskDetail(task.taskNum) }
+                    onClick = { onNavigateToTaskDetail(task.taskNum) },
+                    onStartJob = { onNavigateToStarter(task.taskNum) }
                 )
             }
-        }
-
-        // ── 快捷入口（无任务上下文的飞行准备 + 任务记录） ──
-        item {
-            Spacer(modifier = Modifier.height(20.dp))
-            QuickActions(
-                onStarterClick = { onNavigateToStarter(null) },
-                onHistoryClick = onNavigateToMyTasks
-            )
         }
     }
 }
@@ -165,7 +156,7 @@ private fun HomeHeader(userName: String?) {
         )
         Spacer(modifier = Modifier.width(6.dp))
         Text(
-            text = if (userName.isNullOrBlank()) "飞行执行" else "$userName · 飞行执行",
+            text = if (userName.isNullOrBlank()) "飞翼通作业助手" else "$userName · 作业",
             color = TextPrimary,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
@@ -200,7 +191,11 @@ private fun SectionHeader(title: String, subtitle: String? = null) {
 }
 
 @Composable
-private fun PendingTaskCard(task: TaskVo, onClick: () -> Unit) {
+private fun PendingTaskCard(
+    task: TaskVo,
+    onClick: () -> Unit,
+    onStartJob: () -> Unit
+) {
     val taskType = TaskType.fromValue(task.taskType)
     val matchStatus = MatchStatus.fromValue(task.matchStatus)
 
@@ -285,6 +280,16 @@ private fun PendingTaskCard(task: TaskVo, onClick: () -> Unit) {
                     style = MaterialTheme.typography.bodySmall
                 )
             }
+
+            Spacer(modifier = Modifier.height(10.dp))
+            Button(
+                onClick = onStartJob,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(10.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = AccentBlue)
+            ) {
+                Text("进入起飞检查", color = Color.White, fontWeight = FontWeight.Medium)
+            }
         }
     }
 }
@@ -347,8 +352,8 @@ private fun EmptyPendingTasks(onGoToApp: () -> Unit) {
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "请前往 app 接单：用户下单并双方确认后，任务会出现在这里。\n" +
-                    "本应用不提供任务大厅与抢单。",
+                text = "请打开飞翼通 App 接单：用户下单并双方确认后，订单会出现在这里。\n" +
+                    "本应用仅负责执飞，不提供大厅与抢单。",
                 color = TextTertiary,
                 style = MaterialTheme.typography.bodySmall,
                 textAlign = TextAlign.Center,
@@ -362,61 +367,3 @@ private fun EmptyPendingTasks(onGoToApp: () -> Unit) {
     }
 }
 
-@Composable
-private fun QuickActions(onStarterClick: () -> Unit, onHistoryClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        QuickActionItem(
-            icon = Icons.Default.PlayArrow,
-            label = "飞行准备",
-            onClick = onStarterClick,
-            modifier = Modifier.weight(1f)
-        )
-        QuickActionItem(
-            icon = Icons.Default.History,
-            label = "任务记录",
-            onClick = onHistoryClick,
-            modifier = Modifier.weight(1f)
-        )
-    }
-}
-
-@Composable
-private fun QuickActionItem(
-    icon: ImageVector,
-    label: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        modifier = modifier.height(72.dp).clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
-        color = SurfaceCard,
-        border = BorderStroke(1.dp, Divider)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = label,
-                tint = AccentBlue,
-                modifier = Modifier.size(24.dp)
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = label,
-                color = TextSecondary,
-                style = MaterialTheme.typography.labelSmall
-            )
-        }
-    }
-}

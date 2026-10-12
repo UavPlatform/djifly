@@ -48,25 +48,6 @@ class PlatformEndpointResolver @Inject constructor() {
             .toWebSocketUrl()
     }
 
-    fun resolveChatWebSocketUrl(userId: Long): String {
-        val httpUrl = requireHttpBaseUrl().toHttpUrlOrNull()
-            ?: throw IllegalStateException("无法解析平台 HTTP 地址")
-
-        val basePath = httpUrl.encodedPath.trimEnd('/')
-        val wsPath = if (basePath.isBlank() || basePath == "/") {
-            "/ws/$userId"
-        } else {
-            "$basePath/ws/$userId"
-        }
-
-        return httpUrl.newBuilder()
-            .encodedPath(wsPath)
-            .query(null)
-            .build()
-            .toString()
-            .toWebSocketUrl()
-    }
-
     private fun normalizeConfiguredBaseUrlForHttp(configuredBaseUrl: String): String {
         val httpBaseUrl = when {
             configuredBaseUrl.startsWith("ws://", ignoreCase = true) ->

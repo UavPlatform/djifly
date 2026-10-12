@@ -14,17 +14,8 @@ package com.fuwaki.djifly.platform.network.generated
  */
 object ApiPaths {
 
-    /** POST appUav/add */
-    const val APP_UAV_ADD = "appUav/add"
-
-    /** POST api/ws/request */
-    const val API_WS_REQUEST = "api/ws/request"
-
     /** POST user/login */
     const val USER_LOGIN = "user/login"
-
-    /** POST rider/register */
-    const val RIDER_REGISTER = "rider/register"
 
     /** POST user/refresh */
     const val USER_REFRESH = "user/refresh"
@@ -32,17 +23,14 @@ object ApiPaths {
     /** GET rider/my-tasks */
     const val RIDER_MY_TASKS = "rider/my-tasks"
 
-    /** GET rider/my-tasks/history */
-    const val RIDER_MY_TASKS_HISTORY = "rider/my-tasks/history"
-
-    /** POST rider/cancel */
-    const val RIDER_CANCEL = "rider/cancel"
-
-    /** POST rider/complete */
-    const val RIDER_COMPLETE = "rider/complete"
-
     /** GET rider/task/detail */
     const val RIDER_TASK_DETAIL = "rider/task/detail"
+
+    /** POST appUav/add */
+    const val APP_UAV_ADD = "appUav/add"
+
+    /** POST api/ws/request */
+    const val API_WS_REQUEST = "api/ws/request"
 
     /** POST live/rider/req */
     const val LIVE_RIDER_REQ = "live/rider/req"
@@ -53,6 +41,9 @@ object ApiPaths {
     /** GET tasks/{taskNum}/attachments */
     const val TASKS_ATTACHMENTS = "tasks/{taskNum}/attachments"
 
+    /** POST rider/complete */
+    const val RIDER_COMPLETE = "rider/complete"
+
     /** GET rider/drone/list */
     const val RIDER_DRONE_LIST = "rider/drone/list"
 
@@ -61,9 +52,6 @@ object ApiPaths {
 
     /** DELETE rider/drone/unbind */
     const val RIDER_DRONE_UNBIND = "rider/drone/unbind"
-
-    /** POST user/register */
-    const val USER_REGISTER = "user/register"
 
     /** 事实源规格 openapi/drone-backend.openapi.json 的 sha256（门禁测试对账）。 */
     const val GENERATED_FROM_SHA256 = "f3fdf76770f2080f242142fe33921bd4b291a34b02cbab57cb2d252ab1f14b03"

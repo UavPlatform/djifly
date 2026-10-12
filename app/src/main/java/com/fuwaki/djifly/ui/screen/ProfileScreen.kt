@@ -21,8 +21,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Flight
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.SupportAgent
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -62,6 +62,7 @@ import com.fuwaki.djifly.ui.viewmodel.ProfileViewModel
 @Composable
 fun ProfileScreen(
     onNavigateToDroneManage: () -> Unit,
+    onNavigateToConnectionTest: () -> Unit,
     onLogout: () -> Unit,
     viewModel: ProfileViewModel = hiltViewModel()
 ) {
@@ -84,6 +85,32 @@ fun ProfileScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            colors = CardDefaults.cardColors(containerColor = SurfaceCard),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "关于本应用",
+                    color = TextPrimary,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 15.sp
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "飞翼通作业助手：在已确认订单上连机、上报遥测、开播与送达。接单与验收请在飞翼通 App 完成。",
+                    color = TextSecondary,
+                    fontSize = 13.sp,
+                    lineHeight = 20.sp
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
         // Menu items
         Card(
             modifier = Modifier
@@ -95,21 +122,21 @@ fun ProfileScreen(
             Column {
                 MenuItemRow(
                     icon = Icons.Filled.Flight,
-                    title = "我的无人机",
+                    title = "无人机管理",
+                    subtitle = "查看与绑定执飞机型",
                     onClick = onNavigateToDroneManage
+                )
+                MenuDivider()
+                MenuItemRow(
+                    icon = Icons.Filled.Link,
+                    title = "连接测试",
+                    subtitle = "仅检测飞机能否连上平台，不关联订单",
+                    onClick = onNavigateToConnectionTest
                 )
                 MenuDivider()
                 MenuItemRow(
                     icon = Icons.Filled.Settings,
                     title = "设置",
-                    onClick = {
-                        Toast.makeText(context, "即将上线", Toast.LENGTH_SHORT).show()
-                    }
-                )
-                MenuDivider()
-                MenuItemRow(
-                    icon = Icons.Filled.SupportAgent,
-                    title = "联系客服",
                     onClick = {
                         Toast.makeText(context, "即将上线", Toast.LENGTH_SHORT).show()
                     }
@@ -250,6 +277,7 @@ private fun ProfileHeader(
 private fun MenuItemRow(
     icon: ImageVector,
     title: String,
+    subtitle: String? = null,
     onClick: () -> Unit
 ) {
     Row(
@@ -266,12 +294,20 @@ private fun MenuItemRow(
             modifier = Modifier.size(22.dp)
         )
         Spacer(modifier = Modifier.width(12.dp))
-        Text(
-            text = title,
-            color = TextPrimary,
-            fontSize = 15.sp,
-            modifier = Modifier.weight(1f)
-        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                color = TextPrimary,
+                fontSize = 15.sp
+            )
+            if (!subtitle.isNullOrBlank()) {
+                Text(
+                    text = subtitle,
+                    color = TextTertiary,
+                    fontSize = 12.sp
+                )
+            }
+        }
         Icon(
             imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
             contentDescription = null,

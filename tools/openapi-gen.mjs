@@ -22,40 +22,29 @@ const generatorName = 'tools/openapi-gen.mjs'
 const generateCommand = 'cd djifly && node tools/openapi-gen.mjs'
 
 /**
- * 本端调用的端点清单（消费清单，人工维护，共 16 条）。
+ * 本端调用的端点清单（消费清单，人工维护）。
  *   method = HTTP 方法；path = Retrofit 注解里的字面量（无前导斜杠，占位符按本端 @Path 命名）。
  * 契约路径通过「占位符结构归一化」匹配：{x} 与 {y} 视为同一模板位置。
  * 新增调用点必须在此登记；门禁测试会核对「登记表 ↔ 契约 ↔ 代码」三者一致。
- * djifly 只消费执飞链路（登录/任务/交付物/直播/设备），聊天、大厅、统计由 app/ 消费。
+ * REQ-DJIFLY-001 定稿 9 条 + 连机管理（DroneManageScreen：list/bind/unbind，绑机主流程在 app/）。
  */
 const calledEndpoints = [
-  ['post', 'appUav/add'],
-  ['post', 'api/ws/request'],
   ['post', 'user/login'],
-  ['post', 'rider/register'],
   ['post', 'user/refresh'],
   ['get', 'rider/my-tasks'],
-  ['get', 'rider/my-tasks/history'],
-  ['post', 'rider/cancel'],
-  ['post', 'rider/complete'],
   ['get', 'rider/task/detail'],
+  ['post', 'appUav/add'],
+  ['post', 'api/ws/request'],
   ['post', 'live/rider/req'],
   ['post', 'tasks/{taskNum}/attachments/upload-url'],
   ['get', 'tasks/{taskNum}/attachments'],
+  ['post', 'rider/complete'],
   ['get', 'rider/drone/list'],
   ['post', 'rider/drone/bind'],
   ['delete', 'rider/drone/unbind'],
 ]
 
-/**
- * 非 Retrofit 调用点引用、但同样属于后端端点的路径（AuthInterceptor 免鉴权名单）。
- * 纳入 ApiPaths 才能彻底消除散落的路径字面量，行为与原先的 "/user/register" 一致。
- */
-const referencedEndpoints = [
-  ['post', 'user/register'],
-]
-
-const endpoints = [...calledEndpoints, ...referencedEndpoints]
+const endpoints = calledEndpoints
 
 const check = process.argv.includes('--check')
 
@@ -196,7 +185,7 @@ function jsonSchemaOf(content) {
 }
 
 function collect() {
-  // 闭包只取「本端真正调用」的 16 条端点；referencedEndpoints 仅生成 ApiPaths 常量。
+  // 闭包只取「本端真正调用」的端点清单。
   for (const [method, localPath] of calledEndpoints) {
     const op = operation(specPathFor(localPath), method)
     if (Array.isArray(op.parameters)) {

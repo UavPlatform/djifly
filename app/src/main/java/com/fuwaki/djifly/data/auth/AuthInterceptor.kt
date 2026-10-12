@@ -21,7 +21,7 @@ class AuthInterceptor @Inject constructor(
     override fun intercept(chain: Interceptor.Chain): Response {
         val original = chain.request()
 
-        // 登录/注册/刷新 不注入 Token。
+        // 登录/刷新/设备登记 不注入 Token。
         // 注意：/api/ws/request 自 t3 起后端已要求 JWT（不再 @SkipJwt），需正常注入；
         // WS 握手鉴权由 PlatformWsClient 在握手请求上显式携带。
         val path = original.url.encodedPath
@@ -52,13 +52,11 @@ class AuthInterceptor @Inject constructor(
 
     companion object {
         /**
-         * 免鉴权路径（契约 /user/login、/user/register、/rider/register、/user/refresh、/appUav/add）。
+         * 免鉴权路径（契约 /user/login、/user/refresh、/appUav/add）。
          * ApiPaths 常量是 Retrofit 形态（无前导斜杠），这里补回前导斜杠以匹配 [okhttp3.HttpUrl.encodedPath]。
          */
         private val SKIP_AUTH_PATHS = listOf(
             "/" + ApiPaths.USER_LOGIN,
-            "/" + ApiPaths.USER_REGISTER,
-            "/" + ApiPaths.RIDER_REGISTER,
             "/" + ApiPaths.USER_REFRESH,
             "/" + ApiPaths.APP_UAV_ADD
         )

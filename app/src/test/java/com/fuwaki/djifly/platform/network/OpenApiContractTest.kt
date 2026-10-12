@@ -24,19 +24,16 @@ class OpenApiContractTest {
 
     /** 本端调用的端点登记表（method, Retrofit 注解字面量，无前导斜杠）。新增调用点必须在此登记。 */
     private val calledEndpoints: List<List<String>> = listOf(
-        listOf("post", "appUav/add"),
-        listOf("post", "api/ws/request"),
         listOf("post", "user/login"),
-        listOf("post", "rider/register"),
         listOf("post", "user/refresh"),
         listOf("get", "rider/my-tasks"),
-        listOf("get", "rider/my-tasks/history"),
-        listOf("post", "rider/cancel"),
-        listOf("post", "rider/complete"),
         listOf("get", "rider/task/detail"),
+        listOf("post", "appUav/add"),
+        listOf("post", "api/ws/request"),
         listOf("post", "live/rider/req"),
         listOf("post", "tasks/{taskNum}/attachments/upload-url"),
         listOf("get", "tasks/{taskNum}/attachments"),
+        listOf("post", "rider/complete"),
         listOf("get", "rider/drone/list"),
         listOf("post", "rider/drone/bind"),
         listOf("delete", "rider/drone/unbind"),
@@ -88,7 +85,7 @@ class OpenApiContractTest {
             val item = paths[specPath] as? Map<*, *>
             assertTrue("契约 " + specPath + " 缺少 " + method.uppercase() + " 方法", item?.containsKey(method) == true)
         }
-        assertEquals("端点登记表应覆盖本端全部 16 条调用（新增调用点需同步登记）", 16, calledEndpoints.size)
+        assertEquals("端点登记表应覆盖本端全部调用（新增调用点需同步登记）", 13, calledEndpoints.size)
     }
 
     // ═══════════════════════════════════════════════════════

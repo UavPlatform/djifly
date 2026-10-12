@@ -2,6 +2,7 @@ package com.fuwaki.djifly.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.fuwaki.djifly.data.error.AppErrorMapping
 import com.fuwaki.djifly.data.error.GlobalErrorHandler
 import com.fuwaki.djifly.data.error.apiCall
 import com.fuwaki.djifly.data.models.TaskVo
@@ -11,6 +12,7 @@ import com.fuwaki.djifly.platform.attachment.DeliverableItemUi
 import com.fuwaki.djifly.platform.attachment.DeliverableRules
 import com.fuwaki.djifly.platform.attachment.DeliverableUploadOutcome
 import com.fuwaki.djifly.platform.attachment.DeliverableUploader
+import com.fuwaki.djifly.platform.attachment.FpvSnapshotCapture
 import com.fuwaki.djifly.platform.attachment.PendingDeliverable
 import com.fuwaki.djifly.platform.live.RiderLiveRequestMapper
 import com.fuwaki.djifly.platform.live.RiderLiveRequestState
@@ -38,14 +40,6 @@ class TaskViewModel @Inject constructor(
     val errorHandler: GlobalErrorHandler // 暴露给 UI 层的 GlobalErrorEffect 使用
 ) : ViewModel() {
 
-    // My Tasks
-    private val _activeTasks = MutableStateFlow<List<TaskVo>>(emptyList())
-    val activeTasks: StateFlow<List<TaskVo>> = _activeTasks
-    private val _completedTasks = MutableStateFlow<List<TaskVo>>(emptyList())
-    val completedTasks: StateFlow<List<TaskVo>> = _completedTasks
-    private val _myTasksLoading = MutableStateFlow(false)
-    val myTasksLoading: StateFlow<Boolean> = _myTasksLoading
-
     // Task Detail
     private val _taskDetail = MutableStateFlow<TaskVo?>(null)
     val taskDetail: StateFlow<TaskVo?> = _taskDetail
@@ -70,27 +64,6 @@ class TaskViewModel @Inject constructor(
     private var deliverableSeq = 0
 
     // -----------------------------------------------------------------------
-    // My Tasks
-    // -----------------------------------------------------------------------
-
-    fun loadMyTasks() {
-        viewModelScope.launch {
-            _myTasksLoading.value = true
-            // 加载进行中的任务
-            apiCall(errorHandler) { api.getMyTasks() }
-                .onSuccess { data ->
-                    _activeTasks.value = data?.tasks ?: emptyList()
-                }
-            // 加载历史任务
-            apiCall(errorHandler) { api.getTaskHistory() }
-                .onSuccess { data ->
-                    _completedTasks.value = data?.tasks ?: emptyList()
-                }
-            _myTasksLoading.value = false
-        }
-    }
-
-    // -----------------------------------------------------------------------
     // Task Detail
     // -----------------------------------------------------------------------
 
@@ -112,31 +85,16 @@ class TaskViewModel @Inject constructor(
     // Actions
     // -----------------------------------------------------------------------
 
-    fun cancelTask(taskNum: String) {
-        viewModelScope.launch {
-            _actionState.value = ActionState.Loading
-            apiCall(errorHandler) { api.cancelTask(taskNum) }
-                .onSuccess {
-                    _actionState.value = ActionState.Success("取消成功")
-                    loadMyTasks()
-                }
-                .onError { error ->
-                    _actionState.value = ActionState.Error(error.message)
-                }
-        }
-    }
-
-    /** 完成任务（t32 契约：note 可选完成说明，≤500 字） */
+    /** 完成任务（t32 契约：note 可选完成说明，≤500 字；须在飞行页上传送达凭证后调用） */
     fun completeTask(taskNum: String, note: String? = null) {
         viewModelScope.launch {
             _actionState.value = ActionState.Loading
             apiCall(errorHandler) { api.completeTask(taskNum, note) }
                 .onSuccess {
-                    _actionState.value = ActionState.Success("任务已完成")
-                    loadMyTasks()
+                    _actionState.value = ActionState.Success("已提交送达，等待用户验收")
                 }
                 .onError { error ->
-                    _actionState.value = ActionState.Error(error.message)
+                    _actionState.value = ActionState.Error(AppErrorMapping.userMessageFor(error))
                 }
         }
     }
@@ -178,6 +136,19 @@ class TaskViewModel @Inject constructor(
     // -----------------------------------------------------------------------
 
     /** 添加待上传交付物；类型/大小预检不过直接以 FAILED 入列（文案即拒绝原因） */
+    /** 图传抓帧 JPEG（REQ-DJIFLY-001 送达凭证主路径） */
+    fun addDeliverableFromJpeg(jpegBytes: ByteArray, fileName: String) {
+        addDeliverable(
+            fileName = fileName,
+            contentType = FpvSnapshotCapture.JPEG_CONTENT_TYPE,
+            sizeBytes = jpegBytes.size.toLong(),
+            openStream = { java.io.ByteArrayInputStream(jpegBytes) }
+        )
+    }
+
+    fun hasSuccessfulDeliveryUploadInSession(): Boolean =
+        _deliverables.value.any { it.phase == DeliverableItemPhase.UPLOADED }
+
     fun addDeliverable(fileName: String, contentType: String, sizeBytes: Long, openStream: () -> java.io.InputStream?) {
         val item = PendingDeliverable(
             id = "deliverable-${System.nanoTime()}-${deliverableSeq++}",

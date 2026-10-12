@@ -26,19 +26,11 @@ import com.fuwaki.djifly.ui.theme.TextPrimary
 import com.fuwaki.djifly.ui.theme.TextTertiary
 
 /**
- * Main container screen with bottom navigation bar.
- *
- * djifly 收敛为飞行执行适配器（REQ-DJIFLY-001）：仅 待执飞 / 任务 / 我的 三个 Tab，
- * 聊天与任务大厅 Tab 已移除（业务归 app/）。
- *
- * Hosts 3 tab screens and manages tab switching via [selectedTab] state.
- * Each tab's content is injected as a composable lambda so the actual screen
- * implementations can be provided externally.
+ * 主容器：底部「作业 / 我的」双 Tab（REQ-DJIFLY-001）。
  */
 @Composable
 fun MainScreen(
-    homeContent: @Composable (selectTab: (Int) -> Unit) -> Unit,
-    myTasksContent: @Composable () -> Unit,
+    homeContent: @Composable () -> Unit,
     profileContent: @Composable () -> Unit
 ) {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
@@ -88,9 +80,8 @@ fun MainScreen(
                 .padding(padding)
         ) {
             when (selectedTab) {
-                0 -> homeContent { tabIndex -> selectedTab = tabIndex }
-                1 -> myTasksContent()
-                2 -> profileContent()
+                0 -> homeContent()
+                1 -> profileContent()
             }
         }
     }

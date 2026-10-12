@@ -229,7 +229,7 @@ private fun OverviewCard(overview: OverviewState) {
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(
-                text = "云端控制总览",
+                text = "作业准备",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -375,9 +375,9 @@ private fun FlightEntryCard(
 ) {
     val hint = when {
         gateReason != null -> gateReason
-        !aircraftConnected -> "可进入飞控页，但当前未检测到飞机连接。"
-        !cloudControlAvailable -> "可进入飞控页，但云端控制当前不可用。"
-        else -> "飞机和服务器均已连接，云端控制可用。"
+        !aircraftConnected -> "可先进入作业页，但当前未检测到飞机连接。"
+        !cloudControlAvailable -> "可先进入作业页，平台设备通道尚未就绪。"
+        else -> "飞机与平台均已连接，可以开始作业。"
     }
 
     val hintColor = when {
@@ -388,7 +388,7 @@ private fun FlightEntryCard(
     }
 
     InfoGroupCard(
-        title = "飞控入口",
+        title = "进入作业",
         icon = Icons.Default.PlayArrow
     ) {
         Button(
@@ -416,7 +416,7 @@ private fun FlightEntryCard(
                 text = when {
                     gateVerifying -> "正在校验任务状态…"
                     gateReason != null -> "任务未确认，无法进入"
-                    else -> "进入飞行控制台"
+                    else -> "进入作业控制台"
                 },
                 fontWeight = FontWeight.Bold
             )
@@ -431,7 +431,7 @@ private fun FlightEntryCard(
                 .fillMaxWidth()
                 .height(40.dp)
         ) {
-            Text("开始直播")
+            Text("主动开播")
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -578,20 +578,20 @@ private fun buildOverviewState(
 ): OverviewState {
     return when {
         cloudControlAvailable -> OverviewState(
-            headline = "云控通道已就绪",
-            detail = "服务器连接正常，可执行云端控制。",
+            headline = "平台通道已就绪",
+            detail = "飞机已登记，可上报遥测并开播。",
             color = Color(0xFF2E7D32)
         )
 
         aircraftConnected -> OverviewState(
-            headline = "飞机已接入，等待云控通道",
-            detail = "可先进入飞控页，服务器连接成功后自动具备云控能力。",
+            headline = "飞机已连接",
+            detail = "正在与平台建立设备通道，请稍候。",
             color = Color(0xFFFB8C00)
         )
 
         else -> OverviewState(
-            headline = "等待设备接入",
-            detail = "先连接遥控器与飞机，再建立服务器连接。",
+            headline = "请先连接飞机",
+            detail = "步骤：连机 → 校验订单（如有）→ 进入作业",
             color = Color(0xFF607D8B)
         )
     }

@@ -43,9 +43,7 @@ import com.fuwaki.djifly.ui.screen.FlightScreen
 import com.fuwaki.djifly.ui.screen.HomeScreen
 import com.fuwaki.djifly.ui.screen.LoginScreen
 import com.fuwaki.djifly.ui.screen.MainScreen
-import com.fuwaki.djifly.ui.screen.MyTasksScreen
 import com.fuwaki.djifly.ui.screen.ProfileScreen
-import com.fuwaki.djifly.ui.screen.RegisterScreen
 import com.fuwaki.djifly.ui.screen.SplashScreen
 import com.fuwaki.djifly.ui.screen.StarterScreen
 import com.fuwaki.djifly.ui.screen.TaskDetailScreen
@@ -57,7 +55,7 @@ import javax.inject.Inject
 /**
  * 飞手端主 Activity
  *
- * 导航流程：Splash → Login/Register → Main(底部导航) → TaskDetail/Chat/DroneManage/Starter → Flight
+ * 导航流程：Splash → Login → Main(作业/我的) → TaskDetail/DroneManage/Starter → Flight
  */
 @AndroidEntryPoint
 class MainActivity : FragmentActivity() {
@@ -88,7 +86,6 @@ class MainActivity : FragmentActivity() {
                     val authState by authViewModel.authState.collectAsState()
                     val splashReady by authViewModel.splashReady.collectAsState()
                     val loginState by authViewModel.loginState.collectAsState()
-                    val registerState by authViewModel.registerState.collectAsState()
                     var splashNavigationHandled by remember { mutableStateOf(false) }
 
                     LaunchedEffect(splashReady, authState) {
@@ -135,16 +132,10 @@ class MainActivity : FragmentActivity() {
                         modifier = Modifier.padding(scaffoldPadding)
                         // 不使用动画过渡，避免 AnimatedContent LayoutNode 崩溃
                     ) {
-                        // ════════════════════════════════════════
-                        // 启动页
-                        // ════════════════════════════════════════
                         composable(Routes.SPLASH) {
                             SplashScreen()
                         }
 
-                        // ════════════════════════════════════════
-                        // 登录
-                        // ════════════════════════════════════════
                         composable(Routes.LOGIN) {
                             LoginScreen(
                                 loginState = loginState,
@@ -152,74 +143,34 @@ class MainActivity : FragmentActivity() {
                                 onLogin = { userName, password ->
                                     authViewModel.login(userName, password)
                                 },
-                                onNavigateToRegister = {
-                                    navController.navigate(Routes.REGISTER)
-                                },
-                                onNavigateToHome = {
-                                    navController.navigate(Routes.MAIN) {
-                                        popUpTo(Routes.LOGIN) { inclusive = true }
-                                    }
-                                }
-                            )
-                        }
-
-                        // ════════════════════════════════════════
-                        // 注册
-                        // ════════════════════════════════════════
-                        composable(Routes.REGISTER) {
-                            RegisterScreen(
-                                registerState = registerState,
-                                onRegister = { userName, password, confirmPassword, djiId ->
-                                    authViewModel.register(userName, password, confirmPassword, djiId)
-                                },
-                                onNavigateToLogin = {
-                                    navController.popBackStack()
-                                },
                                 onNavigateToHome = {
                                     navController.navigate(Routes.MAIN) {
                                         popUpTo(Routes.LOGIN) { inclusive = true }
                                     }
                                 },
-                                onBack = {
-                                    navController.popBackStack()
-                                }
+                                onClearError = { authViewModel.clearLoginError() }
                             )
                         }
 
-                        // ════════════════════════════════════════
-                        // 主页面（底部导航框架）
-                        // ════════════════════════════════════════
                         composable(Routes.MAIN) {
-                            val taskVm: TaskViewModel = hiltViewModel()
-
                             MainScreen(
-                                homeContent = { selectTab ->
+                                homeContent = {
                                     HomeScreen(
                                         onNavigateToTaskDetail = { taskNum ->
                                             navController.navigate(Routes.taskDetail(taskNum))
                                         },
                                         onNavigateToStarter = { taskNum ->
                                             navController.navigate(Routes.starter(taskNum))
-                                        },
-                                        onNavigateToMyTasks = { selectTab(1) }
-                                    )
-                                },
-                                myTasksContent = {
-                                    MyTasksScreen(
-                                        viewModel = taskVm,
-                                        onTaskClick = { taskNum ->
-                                            navController.navigate(Routes.taskDetail(taskNum))
-                                        },
-                                        onStartFlight = { taskNum ->
-                                            navController.navigate(Routes.starter(taskNum))
-                                        },
-                                        onBack = {}
+                                        }
                                     )
                                 },
                                 profileContent = {
                                     ProfileScreen(
                                         onNavigateToDroneManage = {
                                             navController.navigate(Routes.DRONE_MANAGE)
+                                        },
+                                        onNavigateToConnectionTest = {
+                                            navController.navigate(Routes.starter(null))
                                         },
                                         onLogout = {
                                             authViewModel.logout()
@@ -232,9 +183,6 @@ class MainActivity : FragmentActivity() {
                             )
                         }
 
-                        // ════════════════════════════════════════
-                        // 任务详情
-                        // ════════════════════════════════════════
                         composable(
                             route = Routes.TASK_DETAIL,
                             arguments = listOf(
@@ -247,22 +195,17 @@ class MainActivity : FragmentActivity() {
                                 taskNum = taskNum,
                                 viewModel = taskVm,
                                 onBack = { navController.popBackStack() },
-                                onStartFlight = { navController.navigate(Routes.starter(taskNum)) }
+                                onStartFlight = { navController.navigate(Routes.starter(taskNum)) },
+                                onStartLiveStream = { taskVm.requestRiderLiveStream() }
                             )
                         }
 
-                        // ════════════════════════════════════════
-                        // 无人机管理
-                        // ════════════════════════════════════════
                         composable(Routes.DRONE_MANAGE) {
                             DroneManageScreen(
                                 onBack = { navController.popBackStack() }
                             )
                         }
 
-                        // ════════════════════════════════════════
-                        // 飞行准备
-                        // ════════════════════════════════════════
                         composable(
                             route = Routes.STARTER_PATTERN,
                             arguments = listOf(
@@ -283,9 +226,6 @@ class MainActivity : FragmentActivity() {
                             )
                         }
 
-                        // ════════════════════════════════════════
-                        // 飞行控制台（横屏沉浸式）
-                        // ════════════════════════════════════════
                         composable(
                             route = Routes.FLIGHT_PATTERN,
                             arguments = listOf(
@@ -296,7 +236,6 @@ class MainActivity : FragmentActivity() {
                                 }
                             )
                         ) { backStackEntry ->
-                            // 切换到横屏
                             requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
                             FlightScreen(
                                 sdkManager = sdkManager,
@@ -305,7 +244,6 @@ class MainActivity : FragmentActivity() {
                                 liveStopCoordinator = liveStopCoordinator,
                                 taskNum = backStackEntry.arguments?.getString("taskNum"),
                                 onBack = {
-                                    // 返回时恢复竖屏
                                     requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
                                     navController.popBackStack()
                                 }

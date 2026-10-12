@@ -63,9 +63,6 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -80,6 +77,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.fuwaki.djifly.data.models.FlightEntryGate
 import com.fuwaki.djifly.platform.attachment.DeliverableItemPhase
 import com.fuwaki.djifly.platform.attachment.DeliverableItemUi
+import com.fuwaki.djifly.platform.attachment.DeliveryCompletionGate
+import com.fuwaki.djifly.platform.attachment.FpvSnapshotCapture
+import com.fuwaki.djifly.platform.attachment.FpvSnapshotTarget
+import com.fuwaki.djifly.platform.live.RiderLiveRequestState
 import com.fuwaki.djifly.platform.livestream.LiveStopCoordinator
 import com.fuwaki.djifly.ui.viewmodel.ActionState
 import com.fuwaki.djifly.ui.viewmodel.TaskViewModel
@@ -113,6 +114,8 @@ import dji.v5.ux.core.widget.setting.SettingPanelWidget
 import dji.v5.ux.core.widget.systemstatus.SystemStatusWidget
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 
 private const val TAG = "FlightScreen"
 
@@ -207,65 +210,43 @@ fun FlightScreen(
         }
     }
 
-    // 任务完成交互：仅在用户点击「标记完成」后才开始消费 actionState（避免陈旧状态干扰）
+    // 确认送达：仅在用户提交后消费 actionState（避免陈旧状态干扰）
     var taskCompleted by remember(taskNum) { mutableStateOf(false) }
     var awaitingCompleteResult by remember { mutableStateOf(false) }
-    var showCompleteNoteDialog by remember { mutableStateOf(false) }
+    var showConfirmDeliveryDialog by remember { mutableStateOf(false) }
     val toastContext = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val fpvSnapshotTarget = remember { FpvSnapshotTarget() }
+    var capturingEvidence by remember { mutableStateOf(false) }
 
-    // 交付物选择器（1B-9b）：系统照片选择器，无需存储权限
     val deliverables = taskViewModel.deliverables.collectAsState()
+    val liveRequestState by taskViewModel.liveRequestState.collectAsState()
 
-    fun registerPickedDeliverable(uri: android.net.Uri) {
-        val resolver = toastContext.contentResolver
-        val size = runCatching {
-            resolver.query(uri, arrayOf(android.provider.OpenableColumns.SIZE), null, null, null)?.use { cursor ->
-                if (cursor.moveToFirst() && !cursor.isNull(0)) cursor.getLong(0) else -1L
-            } ?: -1L
-        }.getOrDefault(-1L)
-        val displayName = runCatching {
-            resolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
-                if (cursor.moveToFirst()) cursor.getString(0) else null
-            } ?: uri.lastPathSegment
-        }.getOrNull() ?: "deliverable"
-        val contentType = runCatching { resolver.getType(uri) }.getOrNull() ?: "application/octet-stream"
-        taskViewModel.addDeliverable(
-            fileName = displayName,
-            contentType = contentType,
-            sizeBytes = size,
-            openStream = { runCatching { resolver.openInputStream(uri) }.getOrNull() }
-        )
-    }
-
-    val pickImageLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.PickVisualMedia()
-    ) { uri ->
-        if (uri != null) registerPickedDeliverable(uri)
-    }
-    val pickVideoLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.PickVisualMedia()
-    ) { uri ->
-        if (uri != null) registerPickedDeliverable(uri)
-    }
-
-    // 上传串行进行中/结束 → 视结果决定完成任务或提示重试
-    var awaitingUploadThenComplete by remember { mutableStateOf(false) }
-    var pendingCompleteNote by remember { mutableStateOf<String?>(null) }
-
-    LaunchedEffect(deliverables.value) {
-        if (!awaitingUploadThenComplete) return@LaunchedEffect
-        val items = deliverables.value
-        if (items.any { it.phase == DeliverableItemPhase.UPLOADING || it.phase == DeliverableItemPhase.PENDING }) {
-            return@LaunchedEffect
+    LaunchedEffect(liveRequestState) {
+        when (val state = liveRequestState) {
+            is RiderLiveRequestState.Success ->
+                Toast.makeText(toastContext, state.userMessage, Toast.LENGTH_SHORT).show()
+            is RiderLiveRequestState.Error ->
+                Toast.makeText(toastContext, state.userMessage, Toast.LENGTH_LONG).show()
+            else -> {}
         }
-        if (items.none { it.phase == DeliverableItemPhase.FAILED }) {
-            awaitingUploadThenComplete = false
-            awaitingCompleteResult = true
-            taskViewModel.completeTask(taskNum.orEmpty(), pendingCompleteNote)
-        } else {
-            awaitingUploadThenComplete = false
-            Toast.makeText(toastContext, "存在上传失败的成果，请重试或移除后重新完成任务", Toast.LENGTH_LONG).show()
-            showCompleteNoteDialog = true
+    }
+
+    LaunchedEffect(actionState, awaitingCompleteResult) {
+        if (!awaitingCompleteResult) return@LaunchedEffect
+        when (val state = actionState) {
+            is ActionState.Success -> {
+                taskCompleted = true
+                awaitingCompleteResult = false
+                Toast.makeText(toastContext, state.message, Toast.LENGTH_LONG).show()
+                taskViewModel.resetActionState()
+            }
+            is ActionState.Error -> {
+                awaitingCompleteResult = false
+                Toast.makeText(toastContext, state.message, Toast.LENGTH_LONG).show()
+                taskViewModel.resetActionState()
+            }
+            else -> {}
         }
     }
 
@@ -297,17 +278,58 @@ fun FlightScreen(
                 registrationState = registrationState,
                 wsConnectionState = wsConnectionState,
                 wsMessages = wsMessages,
+                fpvSnapshotTarget = fpvSnapshotTarget,
                 onBack = onBack
             )
-            // 顶部任务状态栏（1B-8）：携任务进入时展示当前任务与「标记完成」快捷入口
             if (taskContext is FlightTaskContext.Ready && !taskCompleted) {
                 FlightTaskStatusBar(
                     context = taskContext,
-                    onMarkComplete = { showCompleteNoteDialog = true },
                     modifier = Modifier
                         .align(Alignment.TopCenter)
                         .statusBarsPadding()
-                        .padding(top = 4.dp)
+                        .padding(top = 52.dp)
+                )
+                FlightDeliveryControls(
+                    deliverables = deliverables.value,
+                    capturingEvidence = capturingEvidence,
+                    canConfirmDelivery = DeliveryCompletionGate.canConfirmDelivery(deliverables.value),
+                    onCaptureEvidence = {
+                        val readyContext = taskContext
+                        val activity = toastContext.findFragmentActivity()
+                        if (activity == null) {
+                            Toast.makeText(toastContext, "无法截取图传画面", Toast.LENGTH_SHORT).show()
+                            return@FlightDeliveryControls
+                        }
+                        if (capturingEvidence || DeliveryCompletionGate.hasBlockingUpload(deliverables.value)) {
+                            Toast.makeText(toastContext, "正在上传送达凭证，请稍候", Toast.LENGTH_SHORT).show()
+                            return@FlightDeliveryControls
+                        }
+                        capturingEvidence = true
+                        scope.launch {
+                            val fileName = FpvSnapshotCapture.snapshotFileName(readyContext.taskNum)
+                            when (
+                                val result = FpvSnapshotCapture.captureFromFpv(
+                                    fpvSnapshotTarget,
+                                    activity,
+                                    fileName
+                                )
+                            ) {
+                                is FpvSnapshotCapture.CaptureResult.Ok -> {
+                                    taskViewModel.addDeliverableFromJpeg(result.jpegBytes, result.fileName)
+                                    taskViewModel.uploadAllDeliverables(readyContext.taskNum)
+                                }
+                                is FpvSnapshotCapture.CaptureResult.Failed ->
+                                    Toast.makeText(toastContext, result.reason, Toast.LENGTH_LONG).show()
+                            }
+                            capturingEvidence = false
+                        }
+                    },
+                    onConfirmDelivery = { showConfirmDeliveryDialog = true },
+                    onStartLive = { taskViewModel.requestRiderLiveStream() },
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .navigationBarsPadding()
+                        .padding(horizontal = 16.dp, vertical = 14.dp)
                 )
             }
         }
@@ -319,34 +341,28 @@ fun FlightScreen(
         )
     }
 
-    if (showCompleteNoteDialog && taskContext is FlightTaskContext.Ready) {
-        FlightCompleteNoteDialog(
+    if (showConfirmDeliveryDialog && taskContext is FlightTaskContext.Ready) {
+        FlightConfirmDeliveryDialog(
             deliverables = deliverables.value,
-            isUploading = awaitingUploadThenComplete,
-            onPickImage = {
-                pickImageLauncher.launch(
-                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                )
-            },
-            onPickVideo = {
-                pickVideoLauncher.launch(
-                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)
-                )
-            },
             onRemove = taskViewModel::removeDeliverable,
             onRetry = taskViewModel::retryDeliverable,
-            onDismiss = { showCompleteNoteDialog = false },
+            onDismiss = { showConfirmDeliveryDialog = false },
             onConfirm = { note ->
-                showCompleteNoteDialog = false
-                pendingCompleteNote = note
-                if (taskViewModel.hasBlockingDeliverables()) {
-                    // 有成果：先串行上传，全部成功后自动完成任务（失败则重新打开对话框重试）
-                    awaitingUploadThenComplete = true
-                    taskViewModel.uploadAllDeliverables(taskContext.taskNum)
-                } else {
-                    awaitingCompleteResult = true
-                    taskViewModel.completeTask(taskContext.taskNum, note)
+                if (!DeliveryCompletionGate.canConfirmDelivery(deliverables.value)) {
+                    Toast.makeText(
+                        toastContext,
+                        DeliveryCompletionGate.REASON_EVIDENCE_REQUIRED,
+                        Toast.LENGTH_LONG
+                    ).show()
+                    return@FlightConfirmDeliveryDialog
                 }
+                if (DeliveryCompletionGate.hasBlockingUpload(deliverables.value)) {
+                    Toast.makeText(toastContext, "送达凭证仍在上传中，请稍候", Toast.LENGTH_SHORT).show()
+                    return@FlightConfirmDeliveryDialog
+                }
+                showConfirmDeliveryDialog = false
+                awaitingCompleteResult = true
+                taskViewModel.completeTask(taskContext.taskNum, note)
             }
         )
     }
@@ -498,6 +514,7 @@ private fun ImmersiveFlightScreenContent(
     registrationState: PlatformRegistrationState,
     wsConnectionState: WsConnectionState,
     wsMessages: List<WsMessageLog>,
+    fpvSnapshotTarget: FpvSnapshotTarget,
     onBack: () -> Unit
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -511,6 +528,7 @@ private fun ImmersiveFlightScreenContent(
     )
     var activePanel by rememberSaveable { mutableStateOf<FlightBottomPanel?>(null) }
     var isSettingsDrawerOpen by rememberSaveable { mutableStateOf(false) }
+    var engineerMode by rememberSaveable { mutableStateOf(false) }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -543,7 +561,8 @@ private fun ImmersiveFlightScreenContent(
                     showCameraName = false,
                     showCameraSide = false,
                     enableCenterPoint = false,
-                    enableGridLines = false
+                    enableGridLines = false,
+                    onFpvViewAttached = { fpvSnapshotTarget.fpvView = it }
                 )
 
                 ViewportScrim(
@@ -580,14 +599,19 @@ private fun ImmersiveFlightScreenContent(
                     wsConnectionState = wsConnectionState,
                     activePanel = activePanel,
                     isCompact = isCompact,
+                    engineerMode = engineerMode,
                     onBack = onBack,
-                    onToggleLinkPanel = {
-                        isSettingsDrawerOpen = false
-                        activePanel = if (activePanel == FlightBottomPanel.Link) {
-                            null
-                        } else {
-                            FlightBottomPanel.Link
+                    onToggleLinkPanel = if (engineerMode) {
+                        {
+                            isSettingsDrawerOpen = false
+                            activePanel = if (activePanel == FlightBottomPanel.Link) {
+                                null
+                            } else {
+                                FlightBottomPanel.Link
+                            }
                         }
+                    } else {
+                        null
                     },
                     onOpenSettings = {
                         activePanel = null
@@ -612,29 +636,38 @@ private fun ImmersiveFlightScreenContent(
                             )
                     )
 
-                    FlightCameraRail(
-                        activePanel = activePanel,
-                        isCompact = isCompact,
-                        onToggleCameraPanel = {
-                            isSettingsDrawerOpen = false
-                            activePanel = if (activePanel == FlightBottomPanel.Camera) {
-                                null
-                            } else {
-                                FlightBottomPanel.Camera
-                            }
-                        },
-                        modifier = Modifier
-                            .align(Alignment.CenterEnd)
-                            .navigationBarsPadding()
-                            .padding(
-                                end = if (isCompact) 12.dp else 18.dp,
-                                bottom = if (isCompact) 8.dp else 0.dp
-                            )
-                    )
+                    if (engineerMode) {
+                        FlightCameraRail(
+                            activePanel = activePanel,
+                            isCompact = isCompact,
+                            onToggleCameraPanel = {
+                                isSettingsDrawerOpen = false
+                                activePanel = if (activePanel == FlightBottomPanel.Camera) {
+                                    null
+                                } else {
+                                    FlightBottomPanel.Camera
+                                }
+                            },
+                            modifier = Modifier
+                                .align(Alignment.CenterEnd)
+                                .navigationBarsPadding()
+                                .padding(
+                                    end = if (isCompact) 12.dp else 18.dp,
+                                    bottom = if (isCompact) 8.dp else 0.dp
+                                )
+                        )
+                    }
 
                     FlightTelemetryPanel(
                         activePanel = activePanel,
                         telemetryWidth = telemetryWidth,
+                        engineerMode = engineerMode,
+                        onToggleEngineerMode = {
+                            engineerMode = !engineerMode
+                            if (!engineerMode) {
+                                activePanel = null
+                            }
+                        },
                         onToggleLinkPanel = {
                             isSettingsDrawerOpen = false
                             activePanel = if (activePanel == FlightBottomPanel.Link) {
@@ -656,7 +689,7 @@ private fun ImmersiveFlightScreenContent(
                             .navigationBarsPadding()
                             .padding(
                                 start = if (isCompact) 12.dp else 18.dp,
-                                bottom = if (isCompact) 14.dp else 18.dp
+                                bottom = if (isCompact) 96.dp else 104.dp
                             )
                     )
 
@@ -715,8 +748,9 @@ private fun FlightTopOverlay(
     wsConnectionState: WsConnectionState,
     activePanel: FlightBottomPanel?,
     isCompact: Boolean,
+    engineerMode: Boolean,
     onBack: () -> Unit,
-    onToggleLinkPanel: () -> Unit,
+    onToggleLinkPanel: (() -> Unit)?,
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -747,7 +781,7 @@ private fun FlightTopOverlay(
                 modifier = Modifier.weight(if (isCompact) 0.92f else 1f)
             ) {
                 Text(
-                    text = "Flight Deck",
+                    text = "作业控制台",
                     color = Color.White,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
@@ -776,38 +810,40 @@ private fun FlightTopOverlay(
                     .width(if (isCompact) 196.dp else 248.dp)
                     .height(if (isCompact) 36.dp else 40.dp)
             )
-            Spacer(modifier = Modifier.width(8.dp))
-            Surface(
-                modifier = Modifier.clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = onToggleLinkPanel
-                ),
-                shape = RoundedCornerShape(999.dp),
-                color = OverlaySurfaceColor,
-                border = BorderStroke(
-                    width = 1.dp,
-                    color = if (activePanel == FlightBottomPanel.Link) {
-                        registrationState.statusColor().copy(alpha = 0.55f)
-                    } else {
-                        OverlayBorderColor
-                    }
-                )
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    ServerConnectionIndicatorDot(registrationState = registrationState)
-                    Text(
-                        text = "NET $topLinkLabel",
-                        color = Color.White,
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+            if (engineerMode && onToggleLinkPanel != null) {
+                Spacer(modifier = Modifier.width(8.dp))
+                Surface(
+                    modifier = Modifier.clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onToggleLinkPanel
+                    ),
+                    shape = RoundedCornerShape(999.dp),
+                    color = OverlaySurfaceColor,
+                    border = BorderStroke(
+                        width = 1.dp,
+                        color = if (activePanel == FlightBottomPanel.Link) {
+                            registrationState.statusColor().copy(alpha = 0.55f)
+                        } else {
+                            OverlayBorderColor
+                        }
                     )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        ServerConnectionIndicatorDot(registrationState = registrationState)
+                        Text(
+                            text = "链路 $topLinkLabel",
+                            color = Color.White,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
             }
             if (!summary.isVisionSystemHealthy) {
@@ -932,7 +968,7 @@ private fun FlightActionRail(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
-                text = "FLIGHT",
+                text = "飞行",
                 color = OverlayTextTertiary,
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.SemiBold
@@ -982,6 +1018,8 @@ private fun FlightCameraRail(
 private fun FlightTelemetryPanel(
     activePanel: FlightBottomPanel?,
     telemetryWidth: androidx.compose.ui.unit.Dp,
+    engineerMode: Boolean,
+    onToggleEngineerMode: () -> Unit,
     onToggleLinkPanel: () -> Unit,
     onToggleInfoPanel: () -> Unit,
     modifier: Modifier = Modifier
@@ -996,20 +1034,37 @@ private fun FlightTelemetryPanel(
                 .padding(10.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            PanelLauncherChip(
-                label = "链路",
-                active = activePanel == FlightBottomPanel.Link,
-                onClick = onToggleLinkPanel,
-                icon = null,
-                modifier = Modifier.weight(1f)
-            )
-            PanelLauncherChip(
-                label = "设备",
-                active = activePanel == FlightBottomPanel.Info,
-                onClick = onToggleInfoPanel,
-                icon = null,
-                modifier = Modifier.weight(1f)
-            )
+            if (!engineerMode) {
+                PanelLauncherChip(
+                    label = "高级",
+                    active = false,
+                    onClick = onToggleEngineerMode,
+                    icon = null,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            } else {
+                PanelLauncherChip(
+                    label = "收起",
+                    active = false,
+                    onClick = onToggleEngineerMode,
+                    icon = null,
+                    modifier = Modifier.weight(0.9f)
+                )
+                PanelLauncherChip(
+                    label = "链路",
+                    active = activePanel == FlightBottomPanel.Link,
+                    onClick = onToggleLinkPanel,
+                    icon = null,
+                    modifier = Modifier.weight(1f)
+                )
+                PanelLauncherChip(
+                    label = "设备",
+                    active = activePanel == FlightBottomPanel.Info,
+                    onClick = onToggleInfoPanel,
+                    icon = null,
+                    modifier = Modifier.weight(1f)
+                )
+            }
         }
     }
 }
@@ -1935,12 +1990,11 @@ private fun DjiSdkStatus.toFlightScreenSummary(): FlightScreenSummary {
     )
 }
 /**
- * 飞行控制台顶部任务状态栏（1B-8）：任务名 + 操作提示（t32 actionHint）+ 标记完成入口。
+ * 飞行控制台顶部任务摘要（平台作业助手）。
  */
 @Composable
 private fun FlightTaskStatusBar(
     context: FlightTaskContext.Ready,
-    onMarkComplete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -1948,82 +2002,139 @@ private fun FlightTaskStatusBar(
         shape = RoundedCornerShape(12.dp),
         color = Color.Black.copy(alpha = 0.62f)
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
         ) {
-            Column(modifier = Modifier.widthIn(max = 260.dp)) {
-                Text(
-                    text = "任务：" + context.taskName,
-                    color = Color.White,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                val hint = context.actionHint ?: ("赏金 " + context.rewardText)
-                Text(
-                    text = hint,
-                    color = Color.White.copy(alpha = 0.78f),
-                    fontSize = 10.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            Button(
-                onClick = onMarkComplete,
-                enabled = context.orderStatus != "COMPLETED",
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = AccentBlue),
-                shape = RoundedCornerShape(8.dp)
+            Text(
+                text = "任务：" + context.taskName,
+                color = Color.White,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            val hint = context.actionHint ?: ("赏金 " + context.rewardText)
+            Text(
+                text = hint,
+                color = Color.White.copy(alpha = 0.78f),
+                fontSize = 10.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+private fun FlightDeliveryControls(
+    deliverables: List<DeliverableItemUi>,
+    capturingEvidence: Boolean,
+    canConfirmDelivery: Boolean,
+    onCaptureEvidence: () -> Unit,
+    onConfirmDelivery: () -> Unit,
+    onStartLive: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val uploading = deliverables.any {
+        it.phase == DeliverableItemPhase.UPLOADING || it.phase == DeliverableItemPhase.PENDING
+    }
+    val uploadedCount = deliverables.count { it.phase == DeliverableItemPhase.UPLOADED }
+    val failed = deliverables.any { it.phase == DeliverableItemPhase.FAILED }
+
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = Color.Black.copy(alpha = 0.72f),
+        border = BorderStroke(1.dp, OverlayBorderColor)
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = when {
+                    capturingEvidence || uploading -> "正在上传送达凭证…"
+                    uploadedCount > 0 -> "已上传 $uploadedCount 张送达凭证，可确认送达"
+                    failed -> "上传失败，请重新拍摄送达凭证"
+                    else -> "送达前请拍摄当前图传画面作为凭证"
+                },
+                color = Color.White.copy(alpha = 0.85f),
+                fontSize = 12.sp
+            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Text("标记完成", fontSize = 11.sp, color = Color.White)
+                OutlinedButton(
+                    onClick = onStartLive,
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(vertical = 10.dp)
+                ) {
+                    Text("开播图传", fontSize = 12.sp, color = Color.White)
+                }
+                Button(
+                    onClick = onCaptureEvidence,
+                    enabled = !capturingEvidence && !uploading,
+                    modifier = Modifier.weight(1.4f),
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentBlue),
+                    contentPadding = PaddingValues(vertical = 10.dp)
+                ) {
+                    if (capturingEvidence || uploading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                            color = Color.White
+                        )
+                    } else {
+                        Text("拍摄送达凭证", fontSize = 13.sp, color = Color.White)
+                    }
+                }
+                Button(
+                    onClick = onConfirmDelivery,
+                    enabled = canConfirmDelivery && !uploading && !capturingEvidence,
+                    modifier = Modifier.weight(1.2f),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF22C55E),
+                        disabledContainerColor = Color(0xFF334155)
+                    ),
+                    contentPadding = PaddingValues(vertical = 10.dp)
+                ) {
+                    Text("确认送达", fontSize = 12.sp, color = Color.White)
+                }
             }
         }
     }
 }
 
 /**
- * 完成说明与交付成果对话框（1B-8 note + 1B-9b 成果上传，t32/t43 契约）。
+ * 确认送达对话框：须已在本会话成功上传凭证；可选完成说明（t32）。
  */
 @Composable
-private fun FlightCompleteNoteDialog(
+private fun FlightConfirmDeliveryDialog(
     deliverables: List<DeliverableItemUi>,
-    isUploading: Boolean,
-    onPickImage: () -> Unit,
-    onPickVideo: () -> Unit,
     onRemove: (String) -> Unit,
     onRetry: (String) -> Unit,
     onDismiss: () -> Unit,
     onConfirm: (String?) -> Unit
 ) {
     var note by remember { mutableStateOf("") }
-    val hasBlocking = deliverables.any {
-        it.phase == DeliverableItemPhase.PENDING ||
-            it.phase == DeliverableItemPhase.UPLOADING ||
-            it.phase == DeliverableItemPhase.FAILED
-    }
+    val canConfirm = DeliveryCompletionGate.canConfirmDelivery(deliverables)
+    val uploading = DeliveryCompletionGate.hasBlockingUpload(deliverables)
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("标记任务完成", color = Color.White) },
+        title = { Text("确认送达", color = Color.White) },
         text = {
             Column {
                 Text(
-                    "确认当前任务已交付？可附交付成果与完成说明（均可选）。",
+                    if (canConfirm) {
+                        "送达凭证已上传。确认后订单进入待验收，用户将在飞翼通 App 中验收。"
+                    } else {
+                        DeliveryCompletionGate.REASON_EVIDENCE_REQUIRED
+                    },
                     color = Color.White.copy(alpha = 0.8f)
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = onPickImage, modifier = Modifier.weight(1f)) {
-                        Text("选择照片", fontSize = 12.sp, color = Color.White)
-                    }
-                    OutlinedButton(onClick = onPickVideo, modifier = Modifier.weight(1f)) {
-                        Text("选择视频", fontSize = 12.sp, color = Color.White)
-                    }
-                }
 
                 deliverables.forEach { entry ->
                     Row(
@@ -2088,13 +2199,10 @@ private fun FlightCompleteNoteDialog(
         },
         confirmButton = {
             TextButton(
-                enabled = deliverables.none { it.phase == DeliverableItemPhase.UPLOADING } && !isUploading,
+                enabled = canConfirm && !uploading,
                 onClick = { onConfirm(note.trim().ifBlank { null }) }
             ) {
-                Text(
-                    if (hasBlocking) "上传并完成任务" else "确认完成",
-                    color = AccentBlue
-                )
+                Text("确认送达", color = AccentBlue)
             }
         },
         dismissButton = {

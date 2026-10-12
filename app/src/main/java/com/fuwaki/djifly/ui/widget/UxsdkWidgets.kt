@@ -108,7 +108,8 @@ fun FpvWidget(
     showCameraName: Boolean = false, // 强制不显示 DJI_MINI_4_PRO
     showCameraSide: Boolean = false, // 强制不显示 LEFT_OR_MAIN
     enableCenterPoint: Boolean = false,
-    enableGridLines: Boolean = false
+    enableGridLines: Boolean = false,
+    onFpvViewAttached: (View) -> Unit = {}
 ) {
     AndroidView(
         modifier = modifier,
@@ -120,6 +121,7 @@ fun FpvWidget(
                 isCameraSourceSideVisible = showCameraSide
                 isCenterPointEnabled = enableCenterPoint
                 isGridLinesEnabled = enableGridLines
+                onFpvViewAttached(this)
             }
         },
         update = { widget ->
@@ -133,6 +135,7 @@ fun FpvWidget(
             }
             widget.isCenterPointEnabled = enableCenterPoint
             widget.isGridLinesEnabled = enableGridLines
+            onFpvViewAttached(widget)
         }
     )
 }

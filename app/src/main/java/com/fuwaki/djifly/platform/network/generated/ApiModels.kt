@@ -113,14 +113,6 @@ data class ApiResultVoid(
     val success: Boolean? = null
 )
 
-/** 契约 components.schemas.RiderRegisterDto。 */
-data class ApiRiderRegisterDto(
-    val aircraftModelId: Long? = null,
-    val djiId: String? = null,
-    val password: String? = null,
-    val userName: String? = null
-)
-
 /** 契约 components.schemas.RiderUav。 */
 data class ApiRiderUav(
     val aircraftModelId: Long? = null,

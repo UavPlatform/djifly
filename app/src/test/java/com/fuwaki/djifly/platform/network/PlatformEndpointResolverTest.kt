@@ -63,16 +63,6 @@ class PlatformEndpointResolverTest {
     }
 
     @Test
-    fun chat_ws_url_carries_user_id_in_path_without_query() {
-        val url = resolver.resolveChatWebSocketUrl(42L)
-        val parsed = parseWsUrl(url)
-
-        assertEquals(expectedWsScheme, url.substringBefore(':'))
-        assertTrue("路径应以 /ws/42 结尾: ${parsed.encodedPath}", parsed.encodedPath.endsWith("/ws/42"))
-        assertNull(parsed.query)
-    }
-
-    @Test
     fun drone_ws_url_encodes_special_characters_in_device_id() {
         val deviceId = "SN 1&2=3"
         val url = resolver.resolveDroneWebSocketUrl(deviceId)

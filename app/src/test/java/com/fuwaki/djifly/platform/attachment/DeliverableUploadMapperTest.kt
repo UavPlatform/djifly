@@ -1,5 +1,6 @@
 package com.fuwaki.djifly.platform.attachment
 
+import com.fuwaki.djifly.data.error.AppErrorMapping
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -79,5 +80,18 @@ class DeliverableUploadMapperTest {
     @Test
     fun ticket_missing_uses_retry_hint() {
         assertEquals("未获取到上传凭证，请重试", DeliverableUploadMapper.ticketMissing().reason)
+    }
+
+    @Test
+    fun delivery_evidence_required_on_upload_url_uses_platform_message() {
+        val outcome = DeliverableUploadMapper.outcomeFromHttpResponse(
+            400,
+            errorBodyJson(AppErrorMapping.DELIVERY_EVIDENCE_REQUIRED_CODE, "raw backend")
+        )
+
+        assertEquals(
+            AppErrorMapping.DELIVERY_EVIDENCE_REQUIRED_MESSAGE,
+            (outcome as DeliverableUploadOutcome.Failed).reason
+        )
     }
 }

@@ -8,7 +8,6 @@ import com.fuwaki.djifly.data.models.RiderUav
 import com.fuwaki.djifly.data.models.TaskPageVO
 import com.fuwaki.djifly.data.models.TaskVo
 import com.fuwaki.djifly.platform.network.generated.ApiPaths
-import com.fuwaki.djifly.platform.network.generated.ApiRiderRegisterDto
 import com.fuwaki.djifly.platform.network.generated.ApiUserLoginDto
 import retrofit2.Response
 import retrofit2.http.Body
@@ -44,11 +43,6 @@ interface PlatformApiService {
         @Body request: ApiUserLoginDto
     ): Response<ApiResult<LoginResponse>>
 
-    @POST(ApiPaths.RIDER_REGISTER)
-    suspend fun register(
-        @Body request: ApiRiderRegisterDto
-    ): Response<ApiResult<LoginResponse>>
-
     @POST(ApiPaths.USER_REFRESH)
     suspend fun refreshToken(
         @Header("Refresh-Token") refreshToken: String
@@ -60,14 +54,6 @@ interface PlatformApiService {
 
     @GET(ApiPaths.RIDER_MY_TASKS)
     suspend fun getMyTasks(): Response<ApiResult<TaskPageVO>>
-
-    @GET(ApiPaths.RIDER_MY_TASKS_HISTORY)
-    suspend fun getTaskHistory(): Response<ApiResult<TaskPageVO>>
-
-    @POST(ApiPaths.RIDER_CANCEL)
-    suspend fun cancelTask(
-        @Query("taskNum") taskNum: String
-    ): Response<ApiResult<Unit>>
 
     @POST(ApiPaths.RIDER_COMPLETE)
     suspend fun completeTask(

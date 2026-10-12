@@ -1,6 +1,7 @@
 package com.fuwaki.djifly.data.error
 
 import com.fuwaki.djifly.data.models.ApiResult
+import com.fuwaki.djifly.data.error.AppErrorMapping
 import okhttp3.Protocol
 import okhttp3.Request
 import okhttp3.ResponseBody
@@ -110,5 +111,21 @@ class AppErrorMappingTest {
         assertTrue(error is AppError.Business)
         assertNull((error as AppError.Business).errorCode)
         assertEquals("任务已被接单", error.message)
+    }
+
+    @Test
+    fun delivery_evidence_required_maps_to_actionable_chinese() {
+        val error = ApiResult<Unit>(
+            success = false,
+            code = 400,
+            errorCode = AppErrorMapping.DELIVERY_EVIDENCE_REQUIRED_CODE,
+            message = "DELIVERY_EVIDENCE_REQUIRED"
+        ).toAppError()
+
+        assertTrue(error is AppError.Business)
+        assertEquals(
+            AppErrorMapping.DELIVERY_EVIDENCE_REQUIRED_MESSAGE,
+            AppErrorMapping.userMessageFor(error)
+        )
     }
 }

@@ -1,5 +1,6 @@
 package com.fuwaki.djifly.platform.attachment
 
+import com.fuwaki.djifly.data.error.AppErrorMapping
 import com.fuwaki.djifly.platform.network.ApiErrorBodyParser
 
 /** 单个交付物的上传结果（纯 Kotlin，可 JVM 单测） */
@@ -32,6 +33,8 @@ object DeliverableUploadMapper {
         val parsed = ApiErrorBodyParser.parse(rawErrorBody)
         val reason = when {
             httpCode == 503 -> STORAGE_NOT_CONFIGURED_MESSAGE
+            parsed?.errorCode == AppErrorMapping.DELIVERY_EVIDENCE_REQUIRED_CODE ->
+                AppErrorMapping.DELIVERY_EVIDENCE_REQUIRED_MESSAGE
             parsed?.message != null -> parsed.message
             else -> "上传凭证获取失败 ($httpCode)"
         }

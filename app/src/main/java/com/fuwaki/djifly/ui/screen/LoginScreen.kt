@@ -68,7 +68,6 @@ import com.fuwaki.djifly.ui.viewmodel.LoginState
  * @param loginState 登录状态
  * @param serverEndpoint 当前服务器地址（调试用）
  * @param onLogin 登录回调
- * @param onNavigateToRegister 跳转注册页
  * @param onNavigateToHome 登录成功后跳转首页
  * @param onClearError 清除错误状态
  */
@@ -77,7 +76,6 @@ fun LoginScreen(
     loginState: LoginState,
     serverEndpoint: String = "",
     onLogin: (userName: String, password: String) -> Unit = { _, _ -> },
-    onNavigateToRegister: () -> Unit = {},
     onNavigateToHome: () -> Unit = {},
     onClearError: () -> Unit = {}
 ) {
@@ -110,17 +108,24 @@ fun LoginScreen(
         ) {
             // ── Logo 区域 ──
             Text(
-                text = "飞手端",
+                text = "飞翼通",
                 fontSize = 32.sp,
                 fontWeight = FontWeight.Bold,
                 color = AccentBlue
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "DJI Fly",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Light,
+                text = "作业助手",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium,
                 color = TextSecondary
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "使用飞翼通平台账号登录",
+                fontSize = 13.sp,
+                color = TextTertiary,
+                textAlign = TextAlign.Center
             )
 
             Spacer(modifier = Modifier.height(48.dp))
@@ -250,29 +255,16 @@ fun LoginScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(32.dp))
+            Text(
+                text = "账号注册与接单请在飞翼通 App 完成",
+                color = TextTertiary,
+                fontSize = 12.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
 
-            // ── 注册链接 ──
-            Row(
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "还没有账号？",
-                    color = TextSecondary,
-                    fontSize = 14.sp
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = "立即注册",
-                    color = AccentBlue,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.clickable { onNavigateToRegister() }
-                )
-            }
-
-            Spacer(modifier = Modifier.height(48.dp))
+            Spacer(modifier = Modifier.height(40.dp))
 
             // ── 服务器设置（可折叠） ──
             Column(

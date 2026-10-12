@@ -3,7 +3,6 @@ package com.fuwaki.djifly.data.auth
 import android.util.Log
 import com.fuwaki.djifly.data.models.UserInfo
 import com.fuwaki.djifly.platform.network.PlatformApiService
-import com.fuwaki.djifly.platform.network.generated.ApiRiderRegisterDto
 import com.fuwaki.djifly.platform.network.generated.ApiUserLoginDto
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -25,7 +24,7 @@ sealed class AuthState {
 }
 
 /**
- * 认证仓库 —— 管理登录、注册、Token 刷新、登出
+ * 认证仓库 —— 管理登录、Token 刷新、登出
  */
 @Singleton
 class AuthRepository @Inject constructor(
@@ -85,32 +84,6 @@ class AuthRepository @Inject constructor(
             }
         } catch (e: Exception) {
             Log.e(TAG, "Login exception", e)
-            Result.failure(e)
-        }
-    }
-
-    /**
-     * 注册飞手（role=1）
-     */
-    suspend fun register(userName: String, password: String, djiId: String? = null): Result<UserInfo> {
-        return try {
-            val response = api.register(ApiRiderRegisterDto(userName = userName, password = password, djiId = djiId))
-            if (response.isSuccessful && response.body()?.success == true) {
-                val data = response.body()!!.data!!
-                val userInfo = parseJwtPayload(data.token)
-                tokenStore.saveSession(
-                    token = data.token,
-                    refreshToken = data.refreshToken,
-                    userId = userInfo.userId,
-                    userName = userInfo.userName,
-                    role = userInfo.role
-                )
-                Result.success(userInfo)
-            } else {
-                val msg = response.body()?.message ?: "注册失败"
-                Result.failure(Exception(msg))
-            }
-        } catch (e: Exception) {
             Result.failure(e)
         }
     }

@@ -52,10 +52,6 @@ fun TaskDetailScreen(
         }
     }
 
-    // Dialog states
-    var showCancelDialog by remember { mutableStateOf(false) }
-    var showCompleteDialog by remember { mutableStateOf(false) }
-
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(taskNum) {
@@ -102,8 +98,6 @@ fun TaskDetailScreen(
                     status = status,
                     isLoading = actionState is ActionState.Loading,
                     gateHint = FlightEntryGate.denyReason(task),
-                    onCancel = { showCancelDialog = true },
-                    onComplete = { showCompleteDialog = true },
                     onStartFlight = onStartFlight,
                     onStartLiveStream = onStartLiveStream
                 )
@@ -204,31 +198,6 @@ fun TaskDetailScreen(
         }
     }
 
-    // Confirmation dialogs
-    if (showCancelDialog) {
-        ConfirmDialog(
-            title = "取消接单",
-            message = "确定要取消此任务吗？取消后任务将重新开放撮合。",
-            confirmText = "确认取消",
-            onConfirm = {
-                viewModel.cancelTask(taskNum)
-                showCancelDialog = false
-            },
-            onDismiss = { showCancelDialog = false }
-        )
-    }
-    if (showCompleteDialog) {
-        ConfirmDialog(
-            title = "完成任务",
-            message = "确认已完成飞行任务？",
-            confirmText = "确认完成",
-            onConfirm = {
-                viewModel.completeTask(taskNum)
-                showCompleteDialog = false
-            },
-            onDismiss = { showCompleteDialog = false }
-        )
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -323,8 +292,6 @@ private fun DetailBottomBar(
     status: TaskStatus?,
     isLoading: Boolean,
     gateHint: String?,
-    onCancel: () -> Unit,
-    onComplete: () -> Unit,
     onStartFlight: () -> Unit = {},
     onStartLiveStream: () -> Unit = {}
 ) {
@@ -350,31 +317,16 @@ private fun DetailBottomBar(
 
             when (status) {
                 TaskStatus.IN_PROGRESS -> {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    Button(
+                        onClick = onStartFlight,
+                        enabled = gateHint == null && !isLoading,
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentBlue),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
                     ) {
-                        OutlinedButton(
-                            onClick = onCancel,
-                            enabled = !isLoading,
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(48.dp)
-                        ) {
-                            Text("取消接单", color = StatusRed)
-                        }
-                        Button(
-                            onClick = onStartFlight,
-                            enabled = gateHint == null && !isLoading,
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = AccentBlue),
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(48.dp)
-                        ) {
-                            Text("开始飞行", color = Color.White)
-                        }
+                        Text("进入起飞检查", color = Color.White)
                     }
                     OutlinedButton(
                         onClick = onStartLiveStream,
@@ -384,31 +336,17 @@ private fun DetailBottomBar(
                             .fillMaxWidth()
                             .height(40.dp)
                     ) {
-                        Text("开始直播", color = AccentBlue)
+                        Text("主动开播", color = AccentBlue)
                     }
-                    OutlinedButton(
-                        onClick = onComplete,
-                        enabled = !isLoading,
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(40.dp)
-                    ) {
-                        if (isLoading) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
-                                color = TextSecondary,
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            Text("完成任务", color = TextSecondary)
-                        }
-                    }
+                    Text(
+                        text = "送达与完成请在飞行控制台拍摄凭证后操作",
+                        color = TextTertiary,
+                        fontSize = 12.sp
+                    )
                 }
                 else -> {
-                    // 未确认/已完成：不提供执飞与接单动作（接单与聊天归 app/）
                     Text(
-                        text = gateHint ?: "该任务当前没有可执行的执飞动作",
+                        text = gateHint ?: "该任务当前没有可执行的作业动作",
                         color = TextTertiary,
                         fontSize = 13.sp
                     )
