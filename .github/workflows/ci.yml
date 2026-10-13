@@ -35,6 +35,8 @@ jobs:
       ORG_GRADLE_PROJECT_DRONE_BACKEND_BASE_URL: http://127.0.0.1:8888/api/
       ORG_GRADLE_PROJECT_TRTC_SDK_APP_ID: "0"
       GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.configuration-cache=false
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
 
     steps:
       - name: Checkout repository
@@ -54,8 +56,10 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3.2.0
+      - name: Install Android SDK packages (runner 预装 SDK，勿用 setup-android 的废弃 tools 包)
+        run: |
+          yes | sdkmanager --licenses >/dev/null
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
       - name: OpenAPI vendored spec sha256
         working-directory: openapi
