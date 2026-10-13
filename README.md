@@ -9,6 +9,18 @@ Android 飞手端（DJI Mobile SDK v5）。DJI SDK 依赖来自本仓 `local-mav
 | 编译（类型门禁） | `./gradlew :app:compileDebugKotlin` |
 | 单元测试 | `./gradlew :app:testDebugUnitTest` |
 
+### CI（GitHub Actions）
+
+`push` → `master` 与所有 `pull_request` 会跑 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) 作业 **`djifly-tests`**：
+
+1. `sha256sum -c openapi/drone-backend.openapi.sha256`
+2. `node tools/openapi-gen.mjs --check`
+3. `./gradlew :app:testDebugUnitTest`
+
+建议在仓库 **Branch protection** 里将 `djifly-tests` 设为必需状态检查。
+
+当前 **约 19 个 JVM 单测类**（门禁、WS 协议、送达规则、契约等）；`androidTest` 仅示例 instrumented 测试，**未纳入 CI**（需模拟器/真机）。DJI/TRTC 全链路仍须人工真机验收。
+
 ## OpenAPI 契约（消费侧）
 
 后端契约由 backend 仓导出（`backend/spec/openapi/drone-backend.openapi.json`），本仓 **vendor + sha256 对账 + 生成物入库**。

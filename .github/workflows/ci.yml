@@ -1,0 +1,79 @@
+# djifly PR / master 门禁（与 README「OpenAPI 契约」「构建与测试」同口径）。
+#
+# Branch protection 建议勾选必需检查：djifly-tests
+#
+# 执行内容：
+#   1. vendored OpenAPI sha256 对账
+#   2. node tools/openapi-gen.mjs --check
+#   3. ./gradlew :app:testDebugUnitTest（含 OpenApiContractTest 等 JVM 单测）
+#
+# 不在 CI 跑：instrumented（需真机/模拟器）、DJI 真机联调、TRTC 推流。
+name: CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    name: djifly-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    env:
+      # 覆盖 gradle.properties，避免 CI 依赖本机密钥；编译与单测足够。
+      ORG_GRADLE_PROJECT_AIRCRAFT_API_KEY: ci-placeholder-dji-sdk-key
+      ORG_GRADLE_PROJECT_DRONE_BACKEND_BASE_URL: http://127.0.0.1:8888/api/
+      ORG_GRADLE_PROJECT_TRTC_SDK_APP_ID: "0"
+      GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.configuration-cache=false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@3c1ec502f7c8a0eb27964b4c079a725d92d1f49d # v4.7.1
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5286caeca864e7a0a0a8acd0b9db0e6f # v4.4.0
+        with:
+          node-version: "20"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3.2.0
+
+      - name: OpenAPI vendored spec sha256
+        working-directory: openapi
+        run: sha256sum -c drone-backend.openapi.sha256
+
+      - name: OpenAPI generated code is up to date
+        run: node tools/openapi-gen.mjs --check
+
+      - name: Unit tests (incl. OpenApiContractTest)
+        run: ./gradlew :app:testDebugUnitTest --no-daemon --stacktrace
+
+      - name: Upload Gradle reports on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: gradle-test-reports
+          path: |
+            app/build/reports/tests/
+            app/build/test-results/
+          if-no-files-found: ignore
+          retention-days: 14

@@ -19,11 +19,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.fuwaki.djifly.ui.navigation.BottomNavItem
-import com.fuwaki.djifly.ui.theme.AccentBlue
-import com.fuwaki.djifly.ui.theme.Divider
-import com.fuwaki.djifly.ui.theme.SurfaceCard
-import com.fuwaki.djifly.ui.theme.TextPrimary
-import com.fuwaki.djifly.ui.theme.TextTertiary
 
 /**
  * 主容器：底部「作业 / 我的」双 Tab（REQ-DJIFLY-001）。
@@ -39,11 +34,11 @@ fun MainScreen(
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
             androidx.compose.foundation.layout.Column {
-                HorizontalDivider(thickness = 0.5.dp, color = Divider)
+                HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline)
                 NavigationBar(
-                    containerColor = SurfaceCard,
-                    contentColor = TextPrimary,
-                    tonalElevation = 3.dp
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                    tonalElevation = 0.dp
                 ) {
                     BottomNavItem.entries.forEachIndexed { index, item ->
                         NavigationBarItem(
@@ -62,11 +57,11 @@ fun MainScreen(
                                 )
                             },
                             colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = AccentBlue,
-                                selectedTextColor = AccentBlue,
-                                unselectedIconColor = TextTertiary,
-                                unselectedTextColor = TextTertiary,
-                                indicatorColor = AccentBlue.copy(alpha = 0.12f)
+                                selectedIconColor = MaterialTheme.colorScheme.primary,
+                                selectedTextColor = MaterialTheme.colorScheme.primary,
+                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
                             )
                         )
                     }

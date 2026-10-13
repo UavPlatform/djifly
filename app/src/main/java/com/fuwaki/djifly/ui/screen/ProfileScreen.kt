@@ -28,6 +28,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -40,7 +41,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -48,15 +48,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.fuwaki.djifly.ui.theme.AccentBlue
-import com.fuwaki.djifly.ui.theme.Divider
-import com.fuwaki.djifly.ui.theme.StatusGreen
 import com.fuwaki.djifly.ui.theme.StatusRed
-import com.fuwaki.djifly.ui.theme.SurfaceCard
-import com.fuwaki.djifly.ui.theme.SurfaceDark
-import com.fuwaki.djifly.ui.theme.TextPrimary
-import com.fuwaki.djifly.ui.theme.TextSecondary
-import com.fuwaki.djifly.ui.theme.TextTertiary
 import com.fuwaki.djifly.ui.viewmodel.ProfileViewModel
 
 @Composable
@@ -74,10 +66,9 @@ fun ProfileScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(SurfaceDark)
+            .background(MaterialTheme.colorScheme.background)
             .verticalScroll(rememberScrollState())
     ) {
-        // Green gradient header
         ProfileHeader(
             userName = userName,
             userId = userId
@@ -89,20 +80,20 @@ fun ProfileScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp),
-            colors = CardDefaults.cardColors(containerColor = SurfaceCard),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             shape = RoundedCornerShape(12.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
                     text = "关于本应用",
-                    color = TextPrimary,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 15.sp
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = "飞翼通作业助手：在已确认订单上连机、上报遥测、开播与送达。接单与验收请在飞翼通 App 完成。",
-                    color = TextSecondary,
+                    text = "飞翼通现场作业：在已确认订单上连机、上报遥测、开播与送达。接单与验收请在飞翼通 App 完成。",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 13.sp,
                     lineHeight = 20.sp
                 )
@@ -111,12 +102,11 @@ fun ProfileScreen(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Menu items
         Card(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp),
-            colors = CardDefaults.cardColors(containerColor = SurfaceCard),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             shape = RoundedCornerShape(12.dp)
         ) {
             Column {
@@ -130,7 +120,7 @@ fun ProfileScreen(
                 MenuItemRow(
                     icon = Icons.Filled.Link,
                     title = "连接测试",
-                    subtitle = "仅检测飞机能否连上平台，不关联订单",
+                    subtitle = "检测飞机能否连上平台（不关联订单）",
                     onClick = onNavigateToConnectionTest
                 )
                 MenuDivider()
@@ -146,12 +136,12 @@ fun ProfileScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Logout button
         OutlinedButton(
             onClick = { showLogoutDialog = true },
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = 16.dp)
+                .height(48.dp),
             shape = RoundedCornerShape(12.dp),
             border = androidx.compose.foundation.BorderStroke(1.dp, StatusRed)
         ) {
@@ -159,23 +149,21 @@ fun ProfileScreen(
                 text = "退出登录",
                 color = StatusRed,
                 fontSize = 16.sp,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier.padding(vertical = 4.dp)
+                fontWeight = FontWeight.Medium
             )
         }
 
         Spacer(modifier = Modifier.height(32.dp))
     }
 
-    // Logout confirmation dialog
     if (showLogoutDialog) {
         AlertDialog(
             onDismissRequest = { showLogoutDialog = false },
             title = {
-                Text("确认退出", color = TextPrimary)
+                Text("确认退出", color = MaterialTheme.colorScheme.onSurface)
             },
             text = {
-                Text("确定要退出登录吗？", color = TextSecondary)
+                Text("确定要退出登录吗？", color = MaterialTheme.colorScheme.onSurfaceVariant)
             },
             confirmButton = {
                 TextButton(onClick = {
@@ -187,12 +175,12 @@ fun ProfileScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showLogoutDialog = false }) {
-                    Text("取消", color = TextSecondary)
+                    Text("取消", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             },
-            containerColor = SurfaceCard,
-            titleContentColor = TextPrimary,
-            textContentColor = TextSecondary
+            containerColor = MaterialTheme.colorScheme.surface,
+            titleContentColor = MaterialTheme.colorScheme.onSurface,
+            textContentColor = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
@@ -205,31 +193,20 @@ private fun ProfileHeader(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .background(
-                brush = Brush.verticalGradient(
-                    colors = listOf(
-                        StatusGreen,
-                        StatusGreen.copy(alpha = 0.7f),
-                        SurfaceDark
-                    )
-                )
-            )
+            .background(MaterialTheme.colorScheme.primary)
             .padding(top = 48.dp, bottom = 24.dp, start = 24.dp, end = 24.dp)
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Avatar
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 modifier = Modifier
                     .size(64.dp)
                     .clip(CircleShape)
-                    .background(StatusGreen.copy(alpha = 0.3f)),
+                    .background(Color.White.copy(alpha = 0.2f)),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = userName.firstOrNull()?.toString() ?: "?",
-                    color = TextPrimary,
+                    color = Color.White,
                     fontWeight = FontWeight.Bold,
                     fontSize = 28.sp
                 )
@@ -241,7 +218,7 @@ private fun ProfileHeader(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = userName.ifBlank { "未登录" },
-                        color = TextPrimary,
+                        color = Color.White,
                         fontWeight = FontWeight.Bold,
                         fontSize = 20.sp
                     )
@@ -249,14 +226,14 @@ private fun ProfileHeader(
                     Box(
                         modifier = Modifier
                             .background(
-                                color = StatusGreen.copy(alpha = 0.2f),
+                                color = Color.White.copy(alpha = 0.2f),
                                 shape = RoundedCornerShape(4.dp)
                             )
                             .padding(horizontal = 8.dp, vertical = 2.dp)
                     ) {
                         Text(
                             text = "飞手",
-                            color = StatusGreen,
+                            color = Color.White,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium
                         )
@@ -265,7 +242,7 @@ private fun ProfileHeader(
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "ID: $userId",
-                    color = TextSecondary,
+                    color = Color.White.copy(alpha = 0.85f),
                     fontSize = 14.sp
                 )
             }
@@ -290,20 +267,20 @@ private fun MenuItemRow(
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = AccentBlue,
+            tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(22.dp)
         )
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
-                color = TextPrimary,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 15.sp
             )
             if (!subtitle.isNullOrBlank()) {
                 Text(
                     text = subtitle,
-                    color = TextTertiary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 12.sp
                 )
             }
@@ -311,7 +288,7 @@ private fun MenuItemRow(
         Icon(
             imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
             contentDescription = null,
-            tint = TextTertiary,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(20.dp)
         )
     }
@@ -322,6 +299,6 @@ private fun MenuDivider() {
     HorizontalDivider(
         modifier = Modifier.padding(horizontal = 16.dp),
         thickness = 0.5.dp,
-        color = Divider
+        color = MaterialTheme.colorScheme.outline
     )
 }

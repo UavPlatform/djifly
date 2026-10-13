@@ -237,17 +237,19 @@ class MainActivity : FragmentActivity() {
                             )
                         ) { backStackEntry ->
                             requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-                            FlightScreen(
-                                sdkManager = sdkManager,
-                                registrationManager = registrationManager,
-                                wsCommunicationState = wsCommunicationState,
-                                liveStopCoordinator = liveStopCoordinator,
-                                taskNum = backStackEntry.arguments?.getString("taskNum"),
-                                onBack = {
-                                    requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-                                    navController.popBackStack()
-                                }
-                            )
+                            DjiflyTheme(darkTheme = true) {
+                                FlightScreen(
+                                    sdkManager = sdkManager,
+                                    registrationManager = registrationManager,
+                                    wsCommunicationState = wsCommunicationState,
+                                    liveStopCoordinator = liveStopCoordinator,
+                                    taskNum = backStackEntry.arguments?.getString("taskNum"),
+                                    onBack = {
+                                        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                                        navController.popBackStack()
+                                    }
+                                )
+                            }
                         }
                     } // NavHost
                     } // Scaffold

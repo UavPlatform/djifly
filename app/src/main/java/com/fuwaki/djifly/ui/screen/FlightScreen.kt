@@ -30,7 +30,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
@@ -63,10 +62,7 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import android.widget.Toast
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.TextButton
@@ -97,7 +93,6 @@ import com.fuwaki.djifly.platform.ws.WsMessageLog
 import com.fuwaki.djifly.sdk.DjiSdkManager
 import com.fuwaki.djifly.sdk.DjiSdkStatus
 import com.fuwaki.djifly.sdk.SdkConnectionState
-import com.fuwaki.djifly.ui.widget.CameraControlsComposeWidget
 import com.fuwaki.djifly.ui.widget.FocusModeWidget
 import com.fuwaki.djifly.ui.widget.FpvWidget
 import com.fuwaki.djifly.ui.widget.HorizontalSituationIndicatorWidget
@@ -108,10 +103,12 @@ import com.fuwaki.djifly.ui.widget.compose.ServerConnectionChip
 import com.fuwaki.djifly.ui.widget.compose.ServerConnectionIndicatorDot
 import com.fuwaki.djifly.ui.widget.compose.TakeOffButton
 import com.fuwaki.djifly.ui.widget.compose.WebSocketMessageHistory
-import dji.sdk.keyvalue.value.common.CameraLensType
-import dji.sdk.keyvalue.value.common.ComponentIndexType
+import com.fuwaki.djifly.ui.components.FlightEdgeCameraButton
+import com.fuwaki.djifly.ui.components.FlightMinimalTopHud
+import com.fuwaki.djifly.ui.components.FlightToolsMenuSheet
+import com.fuwaki.djifly.ui.components.GhostIconButton
+import com.fuwaki.djifly.ui.components.PlatformOpsBar
 import dji.v5.ux.core.widget.setting.SettingPanelWidget
-import dji.v5.ux.core.widget.systemstatus.SystemStatusWidget
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -273,40 +270,34 @@ fun FlightScreen(
 
     if (connectionState is SdkConnectionState.ProductConnected) {
         Box(modifier = Modifier.fillMaxSize()) {
+            val readyTask = (taskContext as? FlightTaskContext.Ready)?.takeUnless { taskCompleted }
             ImmersiveFlightScreenContent(
                 sdkManager = sdkManager,
                 registrationState = registrationState,
                 wsConnectionState = wsConnectionState,
                 wsMessages = wsMessages,
                 fpvSnapshotTarget = fpvSnapshotTarget,
+                taskContext = readyTask,
                 onBack = onBack
             )
-            if (taskContext is FlightTaskContext.Ready && !taskCompleted) {
-                FlightTaskStatusBar(
-                    context = taskContext,
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .statusBarsPadding()
-                        .padding(top = 52.dp)
-                )
-                FlightDeliveryControls(
+            if (readyTask != null) {
+                PlatformOpsBar(
                     deliverables = deliverables.value,
                     capturingEvidence = capturingEvidence,
                     canConfirmDelivery = DeliveryCompletionGate.canConfirmDelivery(deliverables.value),
                     onCaptureEvidence = {
-                        val readyContext = taskContext
                         val activity = toastContext.findFragmentActivity()
                         if (activity == null) {
                             Toast.makeText(toastContext, "无法截取图传画面", Toast.LENGTH_SHORT).show()
-                            return@FlightDeliveryControls
+                            return@PlatformOpsBar
                         }
                         if (capturingEvidence || DeliveryCompletionGate.hasBlockingUpload(deliverables.value)) {
                             Toast.makeText(toastContext, "正在上传送达凭证，请稍候", Toast.LENGTH_SHORT).show()
-                            return@FlightDeliveryControls
+                            return@PlatformOpsBar
                         }
                         capturingEvidence = true
                         scope.launch {
-                            val fileName = FpvSnapshotCapture.snapshotFileName(readyContext.taskNum)
+                            val fileName = FpvSnapshotCapture.snapshotFileName(readyTask.taskNum)
                             when (
                                 val result = FpvSnapshotCapture.captureFromFpv(
                                     fpvSnapshotTarget,
@@ -316,7 +307,7 @@ fun FlightScreen(
                             ) {
                                 is FpvSnapshotCapture.CaptureResult.Ok -> {
                                     taskViewModel.addDeliverableFromJpeg(result.jpegBytes, result.fileName)
-                                    taskViewModel.uploadAllDeliverables(readyContext.taskNum)
+                                    taskViewModel.uploadAllDeliverables(readyTask.taskNum)
                                 }
                                 is FpvSnapshotCapture.CaptureResult.Failed ->
                                     Toast.makeText(toastContext, result.reason, Toast.LENGTH_LONG).show()
@@ -329,7 +320,7 @@ fun FlightScreen(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .navigationBarsPadding()
-                        .padding(horizontal = 16.dp, vertical = 14.dp)
+                        .padding(bottom = 8.dp)
                 )
             }
         }
@@ -515,6 +506,7 @@ private fun ImmersiveFlightScreenContent(
     wsConnectionState: WsConnectionState,
     wsMessages: List<WsMessageLog>,
     fpvSnapshotTarget: FpvSnapshotTarget,
+    taskContext: FlightTaskContext.Ready?,
     onBack: () -> Unit
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -529,6 +521,7 @@ private fun ImmersiveFlightScreenContent(
     var activePanel by rememberSaveable { mutableStateOf<FlightBottomPanel?>(null) }
     var isSettingsDrawerOpen by rememberSaveable { mutableStateOf(false) }
     var engineerMode by rememberSaveable { mutableStateOf(false) }
+    var showToolsMenu by rememberSaveable { mutableStateOf(false) }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -548,7 +541,6 @@ private fun ImmersiveFlightScreenContent(
     ) {
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
             val isCompact = maxWidth < 900.dp || maxHeight < 500.dp
-            val telemetryWidth = if (isCompact) 158.dp else 184.dp
             val settingsDrawerWidth = if (isCompact) {
                 (maxWidth - 24.dp).coerceAtLeast(360.dp)
             } else {
@@ -569,11 +561,11 @@ private fun ImmersiveFlightScreenContent(
                     modifier = Modifier
                         .align(Alignment.TopCenter)
                         .fillMaxWidth()
-                        .height(if (isCompact) 136.dp else 156.dp),
+                        .height(if (isCompact) 72.dp else 84.dp),
                     brush = Brush.verticalGradient(
                         listOf(
-                            Color.Black.copy(alpha = 0.88f),
-                            Color.Black.copy(alpha = 0.42f),
+                            Color.Black.copy(alpha = 0.52f),
+                            Color.Black.copy(alpha = 0.18f),
                             Color.Transparent
                         )
                     )
@@ -583,123 +575,112 @@ private fun ImmersiveFlightScreenContent(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
-                        .height(if (isCompact) 204.dp else 228.dp),
+                        .height(if (isCompact) 120.dp else 140.dp),
                     brush = Brush.verticalGradient(
                         listOf(
                             Color.Transparent,
-                            Color.Black.copy(alpha = 0.42f),
-                            Color.Black.copy(alpha = 0.88f)
+                            Color.Black.copy(alpha = 0.18f),
+                            Color.Black.copy(alpha = 0.48f)
                         )
                     )
                 )
 
-                FlightTopOverlay(
-                    summary = summary,
+                FlightMinimalTopHud(
+                    batteryPercent = summary.batteryPercentage,
+                    gpsSatellites = summary.gpsSatelliteCount,
                     registrationState = registrationState,
-                    wsConnectionState = wsConnectionState,
-                    activePanel = activePanel,
-                    isCompact = isCompact,
-                    engineerMode = engineerMode,
+                    taskContext = taskContext,
+                    showEngineerDetails = engineerMode,
+                    productShortLabel = summary.productName.ifBlank { "飞行" },
                     onBack = onBack,
-                    onToggleLinkPanel = if (engineerMode) {
+                    onOpenMore = { showToolsMenu = true },
+                    onOpenSettings = {
+                        showToolsMenu = false
+                        activePanel = null
+                        isSettingsDrawerOpen = true
+                    },
+                    onToggleEngineerMode = {
+                        engineerMode = !engineerMode
+                        if (!engineerMode) {
+                            activePanel = null
+                        }
+                    },
+                    onLinkIndicatorClick = if (engineerMode) {
                         {
+                            showToolsMenu = false
                             isSettingsDrawerOpen = false
-                            activePanel = if (activePanel == FlightBottomPanel.Link) {
-                                null
-                            } else {
-                                FlightBottomPanel.Link
-                            }
+                            activePanel = FlightBottomPanel.Link
                         }
                     } else {
                         null
-                    },
-                    onOpenSettings = {
-                        activePanel = null
-                        isSettingsDrawerOpen = true
                     },
                     modifier = Modifier
                         .align(Alignment.TopCenter)
                         .fillMaxWidth()
                         .statusBarsPadding()
-                        .padding(horizontal = if (isCompact) 12.dp else 18.dp, vertical = 10.dp)
+                        .padding(horizontal = if (isCompact) 10.dp else 14.dp, vertical = 8.dp)
                 )
 
-                if (!isSettingsDrawerOpen && activePanel == null) {
+                if (!isSettingsDrawerOpen && activePanel == null && !showToolsMenu) {
                     FlightActionRail(
                         onTakeOff = { sdkManager.performTakeOff() },
                         onReturnHome = { sdkManager.performRTH() },
                         modifier = Modifier
-                            .align(Alignment.TopStart)
-                            .padding(
-                                start = if (isCompact) 12.dp else 18.dp,
-                                top = if (isCompact) 112.dp else 126.dp
-                            )
+                            .align(Alignment.CenterStart)
+                            .padding(start = if (isCompact) 8.dp else 12.dp)
                     )
 
-                    if (engineerMode) {
-                        FlightCameraRail(
-                            activePanel = activePanel,
-                            isCompact = isCompact,
-                            onToggleCameraPanel = {
-                                isSettingsDrawerOpen = false
-                                activePanel = if (activePanel == FlightBottomPanel.Camera) {
-                                    null
-                                } else {
-                                    FlightBottomPanel.Camera
-                                }
-                            },
-                            modifier = Modifier
-                                .align(Alignment.CenterEnd)
-                                .navigationBarsPadding()
-                                .padding(
-                                    end = if (isCompact) 12.dp else 18.dp,
-                                    bottom = if (isCompact) 8.dp else 0.dp
-                                )
-                        )
-                    }
-
-                    FlightTelemetryPanel(
-                        activePanel = activePanel,
-                        telemetryWidth = telemetryWidth,
-                        engineerMode = engineerMode,
-                        onToggleEngineerMode = {
-                            engineerMode = !engineerMode
-                            if (!engineerMode) {
-                                activePanel = null
-                            }
-                        },
-                        onToggleLinkPanel = {
+                    FlightEdgeCameraButton(
+                        highlighted = false,
+                        onClick = {
                             isSettingsDrawerOpen = false
-                            activePanel = if (activePanel == FlightBottomPanel.Link) {
-                                null
-                            } else {
-                                FlightBottomPanel.Link
-                            }
-                        },
-                        onToggleInfoPanel = {
-                            isSettingsDrawerOpen = false
-                            activePanel = if (activePanel == FlightBottomPanel.Info) {
-                                null
-                            } else {
-                                FlightBottomPanel.Info
-                            }
+                            activePanel = FlightBottomPanel.Camera
                         },
                         modifier = Modifier
-                            .align(Alignment.BottomStart)
-                            .navigationBarsPadding()
-                            .padding(
-                                start = if (isCompact) 12.dp else 18.dp,
-                                bottom = if (isCompact) 96.dp else 104.dp
-                            )
+                            .align(Alignment.CenterEnd)
+                            .padding(end = if (isCompact) 8.dp else 12.dp)
                     )
 
                     FlightHsiPanel(
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
                             .navigationBarsPadding()
-                            .padding(bottom = if (isCompact) 16.dp else 20.dp)
+                            .padding(bottom = if (isCompact) 88.dp else 96.dp)
                     )
                 }
+
+                FlightToolsMenuSheet(
+                    visible = showToolsMenu,
+                    engineerMode = engineerMode,
+                    onDismiss = { showToolsMenu = false },
+                    onSelectCamera = {
+                        showToolsMenu = false
+                        isSettingsDrawerOpen = false
+                        activePanel = FlightBottomPanel.Camera
+                    },
+                    onSelectLink = {
+                        showToolsMenu = false
+                        isSettingsDrawerOpen = false
+                        activePanel = FlightBottomPanel.Link
+                    },
+                    onSelectInfo = {
+                        showToolsMenu = false
+                        isSettingsDrawerOpen = false
+                        activePanel = FlightBottomPanel.Info
+                    },
+                    onOpenDjiSettings = {
+                        showToolsMenu = false
+                        activePanel = null
+                        isSettingsDrawerOpen = true
+                    },
+                    onToggleEngineerMode = {
+                        engineerMode = !engineerMode
+                        if (!engineerMode) {
+                            activePanel = null
+                        }
+                        showToolsMenu = false
+                    }
+                )
 
                 if (activePanel != null) {
                     Box(
@@ -742,330 +723,18 @@ private fun ImmersiveFlightScreenContent(
 }
 
 @Composable
-private fun FlightTopOverlay(
-    summary: FlightScreenSummary,
-    registrationState: PlatformRegistrationState,
-    wsConnectionState: WsConnectionState,
-    activePanel: FlightBottomPanel?,
-    isCompact: Boolean,
-    engineerMode: Boolean,
-    onBack: () -> Unit,
-    onToggleLinkPanel: (() -> Unit)?,
-    onOpenSettings: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val topLinkLabel = when {
-        registrationState is PlatformRegistrationState.Registered &&
-            wsConnectionState == WsConnectionState.Connected -> "在线"
-        registrationState is PlatformRegistrationState.Failed ||
-            wsConnectionState is WsConnectionState.Error -> "异常"
-        registrationState is PlatformRegistrationState.Registering ||
-            wsConnectionState == WsConnectionState.Connecting -> "连接中"
-        else -> "待机"
-    }
-
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            CircularGlassIconButton(
-                icon = Icons.Default.ArrowBack,
-                onClick = onBack
-            )
-            Spacer(modifier = Modifier.width(10.dp))
-            Column(
-                modifier = Modifier.weight(if (isCompact) 0.92f else 1f)
-            ) {
-                Text(
-                    text = "作业控制台",
-                    color = Color.White,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = buildString {
-                        append(summary.productName.ifBlank { "未知设备" })
-                        if (summary.controllerModel.isNotBlank()) {
-                            append(" · ")
-                            append(summary.controllerModel)
-                        }
-                        if (summary.sdkStatusLabel.isNotBlank()) {
-                            append(" · SDK ")
-                            append(summary.sdkStatusLabel)
-                        }
-                    },
-                    color = OverlayTextSecondary,
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            Spacer(modifier = Modifier.width(10.dp))
-            EmbeddedSystemStatusStrip(
-                modifier = Modifier
-                    .width(if (isCompact) 196.dp else 248.dp)
-                    .height(if (isCompact) 36.dp else 40.dp)
-            )
-            if (engineerMode && onToggleLinkPanel != null) {
-                Spacer(modifier = Modifier.width(8.dp))
-                Surface(
-                    modifier = Modifier.clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = onToggleLinkPanel
-                    ),
-                    shape = RoundedCornerShape(999.dp),
-                    color = OverlaySurfaceColor,
-                    border = BorderStroke(
-                        width = 1.dp,
-                        color = if (activePanel == FlightBottomPanel.Link) {
-                            registrationState.statusColor().copy(alpha = 0.55f)
-                        } else {
-                            OverlayBorderColor
-                        }
-                    )
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        ServerConnectionIndicatorDot(registrationState = registrationState)
-                        Text(
-                            text = "链路 $topLinkLabel",
-                            color = Color.White,
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-            }
-            if (!summary.isVisionSystemHealthy) {
-                Spacer(modifier = Modifier.width(8.dp))
-                CompactTextBadge(
-                    label = "VISION CHECK",
-                    accentColor = Color(0xFFF59E0B)
-                )
-            }
-            Spacer(modifier = Modifier.width(8.dp))
-            CircularGlassIconButton(
-                icon = Icons.Default.Settings,
-                onClick = onOpenSettings
-            )
-        }
-
-        FlightStatusRibbon(
-            summary = summary,
-            isCompact = isCompact,
-            modifier = Modifier
-        )
-    }
-}
-
-@Composable
-private fun FlightStatusRibbon(
-    summary: FlightScreenSummary,
-    isCompact: Boolean,
-    modifier: Modifier = Modifier
-) {
-    GlassSurface(
-        modifier = modifier,
-        shape = RoundedCornerShape(18.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            RibbonMetricSegment(
-                label = if (isCompact) "BAT" else "BATTERY",
-                value = "${summary.batteryPercentage}%",
-                accentColor = batteryColor(summary.batteryPercentage)
-            )
-            RibbonDivider()
-            RibbonMetricSegment(
-                label = "GPS",
-                value = "${summary.gpsSatelliteCount}",
-                accentColor = signalQualityColor(summary.gpsSatelliteCount.coerceAtMost(100))
-            )
-            RibbonDivider()
-            RibbonMetricSegment(
-                label = "LINK",
-                value = "${summary.uplinkQuality} / ${summary.downlinkQuality}",
-                accentColor = signalQualityColor(
-                    quality = minOf(summary.uplinkQuality, summary.downlinkQuality)
-                )
-            )
-            RibbonDivider()
-            RibbonMetricSegment(
-                label = "TIME",
-                value = summary.flightTimeRemainingSeconds.toFlightTimeLabel(),
-                accentColor = AccentBlue
-            )
-        }
-    }
-}
-
-@Composable
-private fun RibbonMetricSegment(
-    label: String,
-    value: String,
-    accentColor: Color
-) {
-    Column(
-        verticalArrangement = Arrangement.spacedBy(2.dp)
-    ) {
-        Text(
-            text = label,
-            color = OverlayTextTertiary,
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Medium
-        )
-        Text(
-            text = value,
-            color = accentColor,
-            style = MaterialTheme.typography.bodySmall,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-    }
-}
-
-@Composable
-private fun RibbonDivider() {
-    Box(
-        modifier = Modifier
-            .width(1.dp)
-            .height(20.dp)
-            .background(OverlayBorderColor)
-    )
-}
-
-@Composable
 private fun FlightActionRail(
     onTakeOff: () -> Unit,
     onReturnHome: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val railWidth = 68.dp
-
-    GlassSurface(
-        modifier = modifier.width(railWidth),
-        shape = RoundedCornerShape(24.dp)
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 10.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Text(
-                text = "飞行",
-                color = OverlayTextTertiary,
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.SemiBold
-            )
-            TakeOffButton(onConfirm = onTakeOff)
-            ReturnHomeButton(onConfirm = onReturnHome)
-        }
-    }
-}
-
-@Composable
-private fun FlightCameraRail(
-    activePanel: FlightBottomPanel?,
-    isCompact: Boolean,
-    onToggleCameraPanel: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val controlWidth = if (isCompact) 76.dp else 82.dp
-    val railWidth = if (isCompact) 92.dp else 98.dp
-
-    GlassSurface(
-        modifier = modifier.width(railWidth),
-        shape = RoundedCornerShape(26.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 10.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            PanelLauncherChip(
-                label = "参数",
-                active = activePanel == FlightBottomPanel.Camera,
-                onClick = onToggleCameraPanel,
-                icon = null,
-                modifier = Modifier.widthIn(max = controlWidth)
-            )
-            CameraControlsComposeWidget(
-                cameraIndex = ComponentIndexType.LEFT_OR_MAIN,
-                lensType = CameraLensType.UNKNOWN,
-                controlWidth = controlWidth
-            )
-        }
-    }
-}
-
-@Composable
-private fun FlightTelemetryPanel(
-    activePanel: FlightBottomPanel?,
-    telemetryWidth: androidx.compose.ui.unit.Dp,
-    engineerMode: Boolean,
-    onToggleEngineerMode: () -> Unit,
-    onToggleLinkPanel: () -> Unit,
-    onToggleInfoPanel: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    GlassSurface(
-        modifier = modifier.width(telemetryWidth),
-        shape = RoundedCornerShape(22.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(10.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            if (!engineerMode) {
-                PanelLauncherChip(
-                    label = "高级",
-                    active = false,
-                    onClick = onToggleEngineerMode,
-                    icon = null,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            } else {
-                PanelLauncherChip(
-                    label = "收起",
-                    active = false,
-                    onClick = onToggleEngineerMode,
-                    icon = null,
-                    modifier = Modifier.weight(0.9f)
-                )
-                PanelLauncherChip(
-                    label = "链路",
-                    active = activePanel == FlightBottomPanel.Link,
-                    onClick = onToggleLinkPanel,
-                    icon = null,
-                    modifier = Modifier.weight(1f)
-                )
-                PanelLauncherChip(
-                    label = "设备",
-                    active = activePanel == FlightBottomPanel.Info,
-                    onClick = onToggleInfoPanel,
-                    icon = null,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        }
+        TakeOffButton(onConfirm = onTakeOff)
+        ReturnHomeButton(onConfirm = onReturnHome)
     }
 }
 
@@ -1073,30 +742,13 @@ private fun FlightTelemetryPanel(
 private fun FlightHsiPanel(
     modifier: Modifier = Modifier
 ) {
-    GlassSurface(
-        modifier = modifier,
-        shape = RoundedCornerShape(22.dp)
+    Box(
+        modifier = modifier.height(64.dp),
+        contentAlignment = Alignment.Center
     ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Text(
-                text = "姿态 / 航向",
-                color = OverlayTextTertiary,
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.SemiBold
-            )
-            Box(
-                modifier = Modifier.height(72.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                HorizontalSituationIndicatorWidget(
-                    modifier = Modifier.fillMaxHeight()
-                )
-            }
-        }
+        HorizontalSituationIndicatorWidget(
+            modifier = Modifier.fillMaxHeight()
+        )
     }
 }
 
@@ -1112,9 +764,11 @@ private fun FlightBottomDrawer(
     onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    GlassSurface(
+    Surface(
         modifier = modifier.fillMaxHeight(if (isCompact) 0.84f else 0.72f),
-        shape = RoundedCornerShape(26.dp)
+        shape = RoundedCornerShape(26.dp),
+        color = Color(0xD90A0F14),
+        border = BorderStroke(1.dp, OverlayBorderColor)
     ) {
         Column(
             modifier = Modifier
@@ -1140,9 +794,11 @@ private fun FlightBottomDrawer(
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
-                CircularGlassIconButton(
+                GhostIconButton(
                     icon = Icons.Default.Close,
-                    onClick = onClose
+                    onClick = onClose,
+                    contentDescription = "关闭",
+                    showBorder = false
                 )
             }
 
@@ -1153,9 +809,9 @@ private fun FlightBottomDrawer(
                 FlightBottomPanel.values().forEach { panel ->
                     PanelLauncherChip(
                         label = when (panel) {
-                            FlightBottomPanel.Camera -> "CAMERA"
-                            FlightBottomPanel.Link -> "LINK"
-                            FlightBottomPanel.Info -> "INFO"
+                            FlightBottomPanel.Camera -> "相机"
+                            FlightBottomPanel.Link -> "链路"
+                            FlightBottomPanel.Info -> "机体"
                         },
                         active = panel == activePanel,
                         onClick = { onSelectPanel(panel) },
@@ -1565,9 +1221,11 @@ private fun FlightSettingsDrawer(
                             style = MaterialTheme.typography.bodySmall
                         )
                     }
-                    CircularGlassIconButton(
+                    GhostIconButton(
                         icon = Icons.Default.Close,
-                        onClick = onClose
+                        onClick = onClose,
+                        contentDescription = "关闭",
+                        showBorder = false
                     )
                 }
                 AndroidView(
@@ -1602,38 +1260,6 @@ private fun FlightSettingsDrawer(
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun EmbeddedSystemStatusStrip(
-    modifier: Modifier = Modifier
-) {
-    GlassSurface(
-        modifier = modifier,
-        shape = RoundedCornerShape(18.dp)
-    ) {
-        AndroidView(
-            modifier = Modifier.fillMaxSize(),
-            factory = { context ->
-                val activity = context.findFragmentActivity()
-                if (activity == null) {
-                    TextView(context).apply {
-                        text = "System"
-                        setTextColor(android.graphics.Color.WHITE)
-                        textSize = 12f
-                        setPadding(24, 8, 24, 8)
-                    }
-                } else {
-                    SystemStatusWidget(activity).apply {
-                        layoutParams = ViewGroup.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                            ViewGroup.LayoutParams.MATCH_PARENT
-                        )
-                    }
-                }
-            }
-        )
     }
 }
 
@@ -1682,86 +1308,6 @@ private fun PanelLauncherChip(
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
-            )
-        }
-    }
-}
-
-@Composable
-private fun CircularGlassIconButton(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    onClick: () -> Unit
-) {
-    Surface(
-        modifier = Modifier.clickable(
-            interactionSource = remember { MutableInteractionSource() },
-            indication = null,
-            onClick = onClick
-        ),
-        shape = CircleShape,
-        color = OverlaySurfaceColor,
-        border = BorderStroke(1.dp, OverlayBorderColor)
-    ) {
-        Box(
-            modifier = Modifier.size(40.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(18.dp)
-            )
-        }
-    }
-}
-
-@Composable
-private fun CompactTextBadge(
-    label: String,
-    accentColor: Color
-) {
-    Surface(
-        shape = RoundedCornerShape(999.dp),
-        color = accentColor.copy(alpha = 0.14f),
-        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.24f))
-    ) {
-        Text(
-            text = label,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
-            color = accentColor,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.SemiBold
-        )
-    }
-}
-
-@Composable
-private fun CompactMetricChip(
-    label: String,
-    value: String,
-    accentColor: Color
-) {
-    Surface(
-        shape = RoundedCornerShape(16.dp),
-        color = OverlaySurfaceColor,
-        border = BorderStroke(1.dp, OverlayBorderColor)
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
-        ) {
-            Text(
-                text = label,
-                color = OverlayTextTertiary,
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Medium
-            )
-            Text(
-                text = value,
-                color = accentColor,
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.SemiBold
             )
         }
     }
@@ -1948,21 +1494,6 @@ private fun WsConnectionState.logEmptyStateLabel(): String {
     }
 }
 
-private fun Int.toFlightTimeLabel(): String {
-    val safeValue = coerceAtLeast(0)
-    val minutes = safeValue / 60
-    val seconds = safeValue % 60
-    return "%02d:%02d".format(minutes, seconds)
-}
-
-private fun batteryColor(percentage: Int): Color {
-    return when {
-        percentage > 30 -> Color(0xFF22C55E)
-        percentage > 15 -> Color(0xFFF59E0B)
-        else -> Color(0xFFEF4444)
-    }
-}
-
 private fun signalQualityColor(quality: Int): Color {
     return when {
         quality >= 80 -> Color(0xFF22C55E)
@@ -1989,123 +1520,6 @@ private fun DjiSdkStatus.toFlightScreenSummary(): FlightScreenSummary {
         isVisionSystemHealthy = flightData.isVisionSystemHealthy
     )
 }
-/**
- * 飞行控制台顶部任务摘要（平台作业助手）。
- */
-@Composable
-private fun FlightTaskStatusBar(
-    context: FlightTaskContext.Ready,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(12.dp),
-        color = Color.Black.copy(alpha = 0.62f)
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-        ) {
-            Text(
-                text = "任务：" + context.taskName,
-                color = Color.White,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            val hint = context.actionHint ?: ("赏金 " + context.rewardText)
-            Text(
-                text = hint,
-                color = Color.White.copy(alpha = 0.78f),
-                fontSize = 10.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-    }
-}
-
-@Composable
-private fun FlightDeliveryControls(
-    deliverables: List<DeliverableItemUi>,
-    capturingEvidence: Boolean,
-    canConfirmDelivery: Boolean,
-    onCaptureEvidence: () -> Unit,
-    onConfirmDelivery: () -> Unit,
-    onStartLive: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val uploading = deliverables.any {
-        it.phase == DeliverableItemPhase.UPLOADING || it.phase == DeliverableItemPhase.PENDING
-    }
-    val uploadedCount = deliverables.count { it.phase == DeliverableItemPhase.UPLOADED }
-    val failed = deliverables.any { it.phase == DeliverableItemPhase.FAILED }
-
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        color = Color.Black.copy(alpha = 0.72f),
-        border = BorderStroke(1.dp, OverlayBorderColor)
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text(
-                text = when {
-                    capturingEvidence || uploading -> "正在上传送达凭证…"
-                    uploadedCount > 0 -> "已上传 $uploadedCount 张送达凭证，可确认送达"
-                    failed -> "上传失败，请重新拍摄送达凭证"
-                    else -> "送达前请拍摄当前图传画面作为凭证"
-                },
-                color = Color.White.copy(alpha = 0.85f),
-                fontSize = 12.sp
-            )
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                OutlinedButton(
-                    onClick = onStartLive,
-                    modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(vertical = 10.dp)
-                ) {
-                    Text("开播图传", fontSize = 12.sp, color = Color.White)
-                }
-                Button(
-                    onClick = onCaptureEvidence,
-                    enabled = !capturingEvidence && !uploading,
-                    modifier = Modifier.weight(1.4f),
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentBlue),
-                    contentPadding = PaddingValues(vertical = 10.dp)
-                ) {
-                    if (capturingEvidence || uploading) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp,
-                            color = Color.White
-                        )
-                    } else {
-                        Text("拍摄送达凭证", fontSize = 13.sp, color = Color.White)
-                    }
-                }
-                Button(
-                    onClick = onConfirmDelivery,
-                    enabled = canConfirmDelivery && !uploading && !capturingEvidence,
-                    modifier = Modifier.weight(1.2f),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF22C55E),
-                        disabledContainerColor = Color(0xFF334155)
-                    ),
-                    contentPadding = PaddingValues(vertical = 10.dp)
-                ) {
-                    Text("确认送达", fontSize = 12.sp, color = Color.White)
-                }
-            }
-        }
-    }
-}
-
 /**
  * 确认送达对话框：须已在本会话成功上传凭证；可选完成说明（t32）。
  */

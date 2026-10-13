@@ -5,7 +5,9 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -21,15 +23,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -51,8 +52,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -63,7 +64,10 @@ import com.fuwaki.djifly.platform.registration.PlatformRegistrationState
 import com.fuwaki.djifly.sdk.DjiSdkManager
 import com.fuwaki.djifly.sdk.DjiSdkStatus
 import com.fuwaki.djifly.sdk.SdkConnectionState
-import com.fuwaki.djifly.platform.live.RiderLiveRequestState
+import com.fuwaki.djifly.ui.components.ShellPrimaryButton
+import com.fuwaki.djifly.ui.theme.StatusAmber
+import com.fuwaki.djifly.ui.theme.StatusGreen
+import com.fuwaki.djifly.ui.theme.StatusRed
 import com.fuwaki.djifly.ui.viewmodel.TaskViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -80,8 +84,6 @@ fun StarterScreen(
     val sdkStatus by sdkManager.sdkStatus.collectAsState()
     val registrationState by registrationManager.state.collectAsState()
     val context = LocalContext.current
-    val configuration = LocalConfiguration.current
-    val isWideLayout = configuration.screenWidthDp >= 900
 
     // 1B-8：任务上下文（自由飞行 taskNum 为空 → FreeFlight，不加载任务）
     val taskDetail by taskViewModel.taskDetail.collectAsState()
@@ -106,10 +108,6 @@ fun StarterScreen(
     }
 
     val serverPanel = buildServerPanelState(registrationState)
-    val overview = buildOverviewState(
-        cloudControlAvailable = serverPanel.cloudControlAvailable,
-        aircraftConnected = sdkStatus.isProductConnected
-    )
 
     var diagnosticsExpanded by rememberSaveable { mutableStateOf(false) }
     var serverStateUpdatedAtMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -124,12 +122,17 @@ fun StarterScreen(
             .background(MaterialTheme.colorScheme.background)
             .statusBarsPadding()
             .navigationBarsPadding()
+            .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        OverviewCard(overview = overview)
+        Text(
+            text = "起飞检查",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onBackground
+        )
 
-        // 任务上下文卡（1B-8：任务名/航点/赏金/操作提示；自由飞行不显示）
         when (val ctx = taskContext) {
             is FlightTaskContext.Ready -> TaskContextCard(ctx)
             is FlightTaskContext.Loading -> TaskContextLoadingCard(
@@ -140,59 +143,14 @@ fun StarterScreen(
             FlightTaskContext.FreeFlight -> {}
         }
 
-        if (isWideLayout) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                RemoteControllerStatusCard(
-                    sdkStatus = sdkStatus,
-                    modifier = Modifier.weight(1f)
-                )
-                ServerStatusCard(
-                    registrationState = registrationState,
-                    serverPanel = serverPanel,
-                    sdkStatus = sdkStatus,
-                    stateUpdatedAtMillis = serverStateUpdatedAtMillis,
-                    onRetryNow = { registrationManager.retryNow() },
-                    onCopyDiagnostics = { text ->
-                        copyToClipboard(context, text)
-                        Toast
-                            .makeText(context, "服务器诊断信息已复制", Toast.LENGTH_SHORT)
-                            .show()
-                    },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        } else {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                RemoteControllerStatusCard(
-                    sdkStatus = sdkStatus,
-                    modifier = Modifier.weight(1f)
-                )
-                ServerStatusCard(
-                    registrationState = registrationState,
-                    serverPanel = serverPanel,
-                    sdkStatus = sdkStatus,
-                    stateUpdatedAtMillis = serverStateUpdatedAtMillis,
-                    onRetryNow = { registrationManager.retryNow() },
-                    onCopyDiagnostics = { text ->
-                        copyToClipboard(context, text)
-                        Toast
-                            .makeText(context, "服务器诊断信息已复制", Toast.LENGTH_SHORT)
-                            .show()
-                    },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        }
+        PreflightStepsCard(
+            aircraftConnected = sdkStatus.isProductConnected,
+            cloudControlAvailable = serverPanel.cloudControlAvailable,
+            serverPanel = serverPanel,
+            gateVerifying = gateVerifying,
+            gateReason = flightGateReason,
+            hasOrder = taskContext is FlightTaskContext.Ready
+        )
 
         FlightEntryCard(
             gateReason = flightGateReason,
@@ -211,155 +169,119 @@ fun StarterScreen(
             onToggle = { diagnosticsExpanded = !diagnosticsExpanded },
             sdkStatus = sdkStatus,
             registrationState = registrationState,
-            stateUpdatedAtMillis = serverStateUpdatedAtMillis
+            serverPanel = serverPanel,
+            stateUpdatedAtMillis = serverStateUpdatedAtMillis,
+            onRetryNow = { registrationManager.retryNow() },
+            onCopyDiagnostics = { text ->
+                copyToClipboard(context, text)
+                Toast.makeText(context, "诊断信息已复制", Toast.LENGTH_SHORT).show()
+            }
         )
     }
 }
 
+private enum class StepDotState { Pending, Active, Done, Error }
+
 @Composable
-private fun OverviewCard(overview: OverviewState) {
-    Surface(
-        color = overview.color.copy(alpha = 0.12f),
-        shape = RoundedCornerShape(14.dp)
+private fun PreflightStepsCard(
+    aircraftConnected: Boolean,
+    cloudControlAvailable: Boolean,
+    serverPanel: ServerPanelState,
+    gateVerifying: Boolean,
+    gateReason: String?,
+    hasOrder: Boolean
+) {
+    val step1 = if (aircraftConnected) StepDotState.Done else StepDotState.Pending
+    val step2 = when {
+        cloudControlAvailable -> StepDotState.Done
+        aircraftConnected && serverPanel.showRetryAction -> StepDotState.Error
+        aircraftConnected -> StepDotState.Active
+        else -> StepDotState.Pending
+    }
+    val step3 = when {
+        gateVerifying -> StepDotState.Active
+        gateReason != null -> StepDotState.Error
+        aircraftConnected && cloudControlAvailable -> StepDotState.Done
+        else -> StepDotState.Pending
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = CardDefaults.outlinedCardBorder()
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Text(
-                text = "作业准备",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                text = "作业就绪步骤",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold
+            )
+            PreflightStepRow(
+                title = "连飞机",
+                subtitle = if (aircraftConnected) "遥控器与飞机已接入" else "请连接遥控器并开机",
+                state = step1
+            )
+            PreflightStepRow(
+                title = "平台在线",
+                subtitle = serverPanel.primaryReason,
+                state = step2
+            )
+            PreflightStepRow(
+                title = if (hasOrder) "订单可执飞" else "可执飞",
+                subtitle = when {
+                    gateVerifying -> "正在校验订单状态…"
+                    gateReason != null -> gateReason
+                    hasOrder -> "订单已确认，满足进入作业条件"
+                    else -> "连接测试模式，无关联订单"
+                },
+                state = step3
+            )
+        }
+    }
+}
+
+@Composable
+private fun PreflightStepRow(
+    title: String,
+    subtitle: String,
+    state: StepDotState
+) {
+    val dotColor = when (state) {
+        StepDotState.Done -> StatusGreen
+        StepDotState.Active -> StatusAmber
+        StepDotState.Error -> StatusRed
+        StepDotState.Pending -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .padding(top = 4.dp)
+                .size(10.dp)
+                .clip(CircleShape)
+                .background(dotColor)
+        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
             )
             Text(
-                text = overview.headline,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = overview.color
-            )
-            Text(
-                text = overview.detail,
+                text = subtitle,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
-        }
-    }
-}
-
-@Composable
-private fun RemoteControllerStatusCard(
-    sdkStatus: DjiSdkStatus,
-    modifier: Modifier = Modifier
-) {
-    InfoGroupCard(
-        title = "遥控器状态",
-        icon = Icons.Default.Build,
-        modifier = modifier
-    ) {
-        val productInfo = sdkStatus.productInfo
-        val connected = sdkStatus.isProductConnected
-
-        SummaryItem(
-            label = "连接",
-            value = if (connected) "已接入" else "未连接",
-            valueColor = if (connected) Color(0xFF2E7D32) else Color(0xFFFB8C00)
-        )
-        SummaryItem(label = "遥控器型号", value = displayValue(productInfo.controllerModel))
-        SummaryItem(label = "飞机序列号", value = displayValue(productInfo.serialNumber))
-        SummaryItem(label = "上行信号", value = signalValue(sdkStatus.flightData.uplinkQuality, connected))
-        SummaryItem(label = "下行信号", value = signalValue(sdkStatus.flightData.downlinkQuality, connected))
-        SummaryItem(label = "SDK", value = sdkStatus.sdkStatusText)
-    }
-}
-
-@Composable
-private fun ServerStatusCard(
-    registrationState: PlatformRegistrationState,
-    serverPanel: ServerPanelState,
-    sdkStatus: DjiSdkStatus,
-    stateUpdatedAtMillis: Long,
-    onRetryNow: () -> Unit,
-    onCopyDiagnostics: (String) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    InfoGroupCard(
-        title = "服务器状态",
-        icon = Icons.Default.Settings,
-        modifier = modifier
-    ) {
-        Surface(
-            color = serverPanel.color.copy(alpha = 0.10f),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(
-                    text = serverPanel.status,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = serverPanel.color
-                )
-                Text(
-                    text = serverPanel.primaryReason,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        if (serverPanel.cloudControlAvailable) {
-            Text(
-                text = "云端控制可用",
-                style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFF2E7D32),
-                fontWeight = FontWeight.Medium
-            )
-        } else {
-            Text(
-                text = "云端控制当前不可用",
-                style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFFC62828),
-                fontWeight = FontWeight.Medium
-            )
-        }
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        if (serverPanel.showRetryAction) {
-            OutlinedButton(
-                onClick = onRetryNow,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("立即重试")
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-        }
-
-        OutlinedButton(
-            onClick = {
-                onCopyDiagnostics(
-                    buildServerDiagnosticText(
-                        registrationState = registrationState,
-                        sdkStatus = sdkStatus,
-                        stateUpdatedAtMillis = stateUpdatedAtMillis
-                    )
-                )
-            },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("复制诊断")
         }
     }
 }
@@ -391,47 +313,27 @@ private fun FlightEntryCard(
         title = "进入作业",
         icon = Icons.Default.PlayArrow
     ) {
-        Button(
+        ShellPrimaryButton(
+            text = when {
+                gateReason != null -> "任务未确认，无法进入"
+                else -> "进入作业"
+            },
             onClick = onEnterFlight,
             enabled = gateReason == null,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp)
-        ) {
-            if (gateVerifying) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(18.dp),
-                    color = Color.White,
-                    strokeWidth = 2.dp
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-            } else {
-                Icon(
-                    imageVector = Icons.Default.PlayArrow,
-                    contentDescription = null
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-            }
-            Text(
-                text = when {
-                    gateVerifying -> "正在校验任务状态…"
-                    gateReason != null -> "任务未确认，无法进入"
-                    else -> "进入作业控制台"
-                },
-                fontWeight = FontWeight.Bold
-            )
-        }
+            loading = gateVerifying,
+            loadingText = "正在校验任务状态…"
+        )
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // 飞手主动开播（1B-4b）：对本人绑定的在线设备下发开播，走 START_LIVE 推流链路
         OutlinedButton(
             onClick = onStartLiveStream,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(40.dp)
+                .height(48.dp),
+            shape = RoundedCornerShape(12.dp)
         ) {
-            Text("主动开播")
+            Text("开播图传")
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -450,58 +352,142 @@ private fun DiagnosticsCard(
     onToggle: () -> Unit,
     sdkStatus: DjiSdkStatus,
     registrationState: PlatformRegistrationState,
-    stateUpdatedAtMillis: Long
+    serverPanel: ServerPanelState,
+    stateUpdatedAtMillis: Long,
+    onRetryNow: () -> Unit,
+    onCopyDiagnostics: (String) -> Unit
 ) {
-    InfoGroupCard(
-        title = "诊断信息",
-        icon = Icons.Default.Info
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onToggle),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+        border = CardDefaults.outlinedCardBorder()
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = if (expanded) "已展开：启动流程与调试字段" else "默认折叠：点击查看启动流程与调试字段",
-                modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-            OutlinedButton(onClick = onToggle) {
-                Text(if (expanded) "收起" else "展开")
-            }
-        }
-
-        if (expanded) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 220.dp)
-                    .verticalScroll(rememberScrollState())
-                    .padding(top = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                SummaryItem(label = "SDK 状态", value = sdkStatus.sdkStatusText)
-                SummaryItem(label = "初始化进度", value = "${sdkStatus.initProgress.coerceIn(0, 100)}%")
-                SummaryItem(label = "状态更新时间", value = formatLocalTime(stateUpdatedAtMillis))
-
-                Text(
-                    text = "启动流程（诊断）",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontWeight = FontWeight.Bold
+                Icon(
+                    imageVector = Icons.Default.Info,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
                 )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "诊断信息",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
+                )
+                Icon(
+                    imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            if (!expanded) {
+                Text(
+                    text = "遥控器、平台通道与启动流程详情",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
 
-                buildStartupDiagnosticSteps(
-                    sdkStatus = sdkStatus,
-                    registrationState = registrationState
-                ).forEach { step ->
-                    SummaryItem(
-                        label = step.title,
-                        value = "${step.stateLabel} · ${step.detail}"
+            if (expanded) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 360.dp)
+                        .verticalScroll(rememberScrollState())
+                        .padding(top = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "遥控器",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    val productInfo = sdkStatus.productInfo
+                    val connected = sdkStatus.isProductConnected
+                    SummaryItem(
+                        label = "连接",
+                        value = if (connected) "已接入" else "未连接",
+                        valueColor = if (connected) StatusGreen else StatusAmber
+                    )
+                    SummaryItem(label = "遥控器型号", value = displayValue(productInfo.controllerModel))
+                    SummaryItem(label = "飞机序列号", value = displayValue(productInfo.serialNumber))
+                    SummaryItem(
+                        label = "上行信号",
+                        value = signalValue(sdkStatus.flightData.uplinkQuality, connected)
+                    )
+                    SummaryItem(
+                        label = "下行信号",
+                        value = signalValue(sdkStatus.flightData.downlinkQuality, connected)
+                    )
+
+                    Text(
+                        text = "平台通道",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                    SummaryItem(label = "状态", value = serverPanel.status, valueColor = serverPanel.color)
+                    SummaryItem(label = "说明", value = serverPanel.primaryReason)
+
+                    if (serverPanel.showRetryAction) {
+                        OutlinedButton(
+                            onClick = onRetryNow,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("立即重试连接")
+                        }
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            onCopyDiagnostics(
+                                buildServerDiagnosticText(
+                                    registrationState = registrationState,
+                                    sdkStatus = sdkStatus,
+                                    stateUpdatedAtMillis = stateUpdatedAtMillis
+                                )
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("复制诊断")
+                    }
+
+                    Text(
+                        text = "启动流程",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                    SummaryItem(label = "SDK 状态", value = sdkStatus.sdkStatusText)
+                    SummaryItem(
+                        label = "初始化进度",
+                        value = "${sdkStatus.initProgress.coerceIn(0, 100)}%"
+                    )
+                    SummaryItem(
+                        label = "状态更新时间",
+                        value = formatLocalTime(stateUpdatedAtMillis)
+                    )
+                    buildStartupDiagnosticSteps(
+                        sdkStatus = sdkStatus,
+                        registrationState = registrationState
+                    ).forEach { step ->
+                        SummaryItem(
+                            label = step.title,
+                            value = "${step.stateLabel} · ${step.detail}"
+                        )
+                    }
                 }
             }
         }
@@ -568,31 +554,6 @@ private fun SummaryItem(
             color = valueColor,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis
-        )
-    }
-}
-
-private fun buildOverviewState(
-    cloudControlAvailable: Boolean,
-    aircraftConnected: Boolean
-): OverviewState {
-    return when {
-        cloudControlAvailable -> OverviewState(
-            headline = "平台通道已就绪",
-            detail = "飞机已登记，可上报遥测并开播。",
-            color = Color(0xFF2E7D32)
-        )
-
-        aircraftConnected -> OverviewState(
-            headline = "飞机已连接",
-            detail = "正在与平台建立设备通道，请稍候。",
-            color = Color(0xFFFB8C00)
-        )
-
-        else -> OverviewState(
-            headline = "请先连接飞机",
-            detail = "步骤：连机 → 校验订单（如有）→ 进入作业",
-            color = Color(0xFF607D8B)
         )
     }
 }
@@ -816,12 +777,6 @@ private fun formatLocalTime(timeMillis: Long): String {
     val formatter = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
     return formatter.format(Date(timeMillis))
 }
-
-private data class OverviewState(
-    val headline: String,
-    val detail: String,
-    val color: Color
-)
 
 private data class ServerPanelState(
     val status: String,

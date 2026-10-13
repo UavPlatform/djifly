@@ -1,9 +1,7 @@
 package com.fuwaki.djifly.ui.screen
 
 import android.widget.Toast
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,14 +21,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.TaskAlt
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
-import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -45,25 +40,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.fuwaki.djifly.data.models.MatchStatus
-import com.fuwaki.djifly.data.models.TaskType
-import com.fuwaki.djifly.data.models.TaskVo
-import com.fuwaki.djifly.ui.theme.AccentBlue
-import com.fuwaki.djifly.ui.theme.Divider
-import com.fuwaki.djifly.ui.theme.StatusAmber
-import com.fuwaki.djifly.ui.theme.StatusGreen
-import com.fuwaki.djifly.ui.theme.SurfaceCard
-import com.fuwaki.djifly.ui.theme.SurfaceDark
-import com.fuwaki.djifly.ui.theme.TextPrimary
-import com.fuwaki.djifly.ui.theme.TextSecondary
-import com.fuwaki.djifly.ui.theme.TextTertiary
+import com.fuwaki.djifly.ui.components.OrderCard
 import com.fuwaki.djifly.ui.viewmodel.HomeViewModel
 
 /**
  * 待执飞任务首页（REQ-DJIFLY-001 场景 1/3）。
- *
- * 只展示当前飞手**已双方确认**（matchStatus=CONFIRMED，或已 IN_PROGRESS/PENDING_ACCEPTANCE）的任务，
- * 无任务时空状态引导前往 `app/` 接单——不提供任务大厅/抢单入口（ADR-0002）。
  */
 @Composable
 fun HomeScreen(
@@ -81,16 +62,14 @@ fun HomeScreen(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(SurfaceDark)
+            .background(MaterialTheme.colorScheme.background)
             .statusBarsPadding(),
         contentPadding = PaddingValues(bottom = 16.dp)
     ) {
-        // ── Header ──
         item {
             HomeHeader(userName = uiState.userName)
         }
 
-        // ── 待执飞任务 ──
         item {
             SectionHeader(
                 title = "待执飞订单",
@@ -107,14 +86,13 @@ fun HomeScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     CircularProgressIndicator(
-                        color = AccentBlue,
+                        color = MaterialTheme.colorScheme.primary,
                         strokeWidth = 2.dp,
                         modifier = Modifier.size(32.dp)
                     )
                 }
             }
             uiState.pendingTasks.isEmpty() -> item {
-                // 场景 3：无任务时引导前往 app 接单（跨应用深链不在本任务范围，见 REQ-DJIFLY-001）
                 EmptyPendingTasks(
                     onGoToApp = {
                         Toast.makeText(
@@ -126,19 +104,16 @@ fun HomeScreen(
                 )
             }
             else -> items(uiState.pendingTasks, key = { it.id }) { task ->
-                PendingTaskCard(
+                OrderCard(
                     task = task,
                     onClick = { onNavigateToTaskDetail(task.taskNum) },
-                    onStartJob = { onNavigateToStarter(task.taskNum) }
+                    onStartJob = { onNavigateToStarter(task.taskNum) },
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                 )
             }
         }
     }
 }
-
-// ═══════════════════════════════════════════════════════
-// Private composables
-// ═══════════════════════════════════════════════════════
 
 @Composable
 private fun HomeHeader(userName: String?) {
@@ -151,13 +126,13 @@ private fun HomeHeader(userName: String?) {
         Icon(
             imageVector = Icons.Default.LocationOn,
             contentDescription = null,
-            tint = AccentBlue,
+            tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(20.dp)
         )
         Spacer(modifier = Modifier.width(6.dp))
         Text(
-            text = if (userName.isNullOrBlank()) "飞翼通作业助手" else "$userName · 作业",
-            color = TextPrimary,
+            text = if (userName.isNullOrBlank()) "飞翼通 · 现场作业" else "$userName · 现场作业",
+            color = MaterialTheme.colorScheme.onBackground,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
@@ -175,7 +150,7 @@ private fun SectionHeader(title: String, subtitle: String? = null) {
     ) {
         Text(
             text = title,
-            color = TextPrimary,
+            color = MaterialTheme.colorScheme.onBackground,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold
         )
@@ -183,144 +158,13 @@ private fun SectionHeader(title: String, subtitle: String? = null) {
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = subtitle,
-                color = TextTertiary,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodySmall
             )
         }
     }
 }
 
-@Composable
-private fun PendingTaskCard(
-    task: TaskVo,
-    onClick: () -> Unit,
-    onStartJob: () -> Unit
-) {
-    val taskType = TaskType.fromValue(task.taskType)
-    val matchStatus = MatchStatus.fromValue(task.matchStatus)
-
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
-        color = SurfaceCard,
-        border = BorderStroke(1.dp, Divider)
-    ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                // 类型徽标
-                Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = AccentBlue.copy(alpha = 0.15f)
-                ) {
-                    Text(
-                        text = taskType?.label ?: "未知类型",
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        color = AccentBlue,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = task.taskName.ifBlank { task.taskNum },
-                    color = TextPrimary,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
-                )
-                MatchStatusBadge(matchStatus)
-            }
-
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = "任务编号：${task.taskNum}",
-                color = TextTertiary,
-                style = MaterialTheme.typography.bodySmall
-            )
-
-            // 关键约束：约定时间 / 货物 / 报价 / 操作提示
-            val constraints = buildList {
-                task.scheduledTime?.takeIf { it.isNotBlank() }?.let { add("约定时间 $it") }
-                task.cargoWeightKg?.let { add("载重 ${it.toPlainString()} kg") }
-                task.cargoCategory?.takeIf { it.isNotBlank() }?.let { add("货类 $it") }
-                task.aircraftModelName?.takeIf { it.isNotBlank() }?.let { add("机型 $it") }
-                task.quotedAmount?.let { add("锁价 ¥${it.toPlainString()}") }
-            }
-            if (constraints.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = constraints.joinToString(" · "),
-                    color = TextSecondary,
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-
-            // 地点：航点参考（后端任务以航点表达起降/作业位置）
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "地点：${FlightTaskContext.waypointPreview(task.waypoints)}",
-                color = TextSecondary,
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-
-            task.actionHint?.takeIf { it.isNotBlank() }?.let { hint ->
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = hint,
-                    color = AccentBlue,
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-            Button(
-                onClick = onStartJob,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(10.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = AccentBlue)
-            ) {
-                Text("进入起飞检查", color = Color.White, fontWeight = FontWeight.Medium)
-            }
-        }
-    }
-}
-
-@Composable
-private fun MatchStatusBadge(status: MatchStatus?) {
-    val (text, color) = when (status) {
-        MatchStatus.CONFIRMED -> "已确认" to StatusGreen
-        MatchStatus.PENDING_ACCEPTANCE -> "待验收" to StatusAmber
-        else -> "执行中" to AccentBlue
-    }
-    Surface(
-        shape = RoundedCornerShape(6.dp),
-        color = color.copy(alpha = 0.15f)
-    ) {
-        Text(
-            text = text,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-            color = color,
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.SemiBold
-        )
-    }
-}
-
-/**
- * 空状态（场景 3）：引导前往 `app/` 接单，不提供大厅抢单。
- *
- * `app/` 与 `djifly/` 是两个安装包，跨应用深链不在本任务范围（REQ-DJIFLY-001 可选项），
- * 因此这里给出明确的文字指引而不是跳转。
- */
 @Composable
 private fun EmptyPendingTasks(onGoToApp: () -> Unit) {
     Surface(
@@ -328,8 +172,8 @@ private fun EmptyPendingTasks(onGoToApp: () -> Unit) {
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
         shape = RoundedCornerShape(12.dp),
-        color = SurfaceCard,
-        border = BorderStroke(1.dp, Divider)
+        color = MaterialTheme.colorScheme.surface,
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
     ) {
         Column(
             modifier = Modifier
@@ -340,13 +184,13 @@ private fun EmptyPendingTasks(onGoToApp: () -> Unit) {
             Icon(
                 imageVector = Icons.Default.TaskAlt,
                 contentDescription = null,
-                tint = TextTertiary,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(48.dp)
             )
             Spacer(modifier = Modifier.height(12.dp))
             Text(
                 text = "暂无待执飞任务",
-                color = TextPrimary,
+                color = MaterialTheme.colorScheme.onSurface,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
@@ -354,16 +198,15 @@ private fun EmptyPendingTasks(onGoToApp: () -> Unit) {
             Text(
                 text = "请打开飞翼通 App 接单：用户下单并双方确认后，订单会出现在这里。\n" +
                     "本应用仅负责执飞，不提供大厅与抢单。",
-                color = TextTertiary,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodySmall,
                 textAlign = TextAlign.Center,
                 lineHeight = 20.sp
             )
             Spacer(modifier = Modifier.height(16.dp))
             OutlinedButton(onClick = onGoToApp) {
-                Text("前往 app 接单", color = AccentBlue)
+                Text("前往 App 接单", color = MaterialTheme.colorScheme.primary)
             }
         }
     }
 }
-

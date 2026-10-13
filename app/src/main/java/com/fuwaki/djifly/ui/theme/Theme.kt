@@ -2,7 +2,6 @@ package com.fuwaki.djifly.ui.theme
 
 import android.app.Activity
 import android.os.Build
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
@@ -17,7 +16,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
 /**
- * 飞手端专用深色主题
+ * 飞行控制台专用深色主题
  */
 private val PilotDarkColorScheme = darkColorScheme(
     primary = AccentBlue,
@@ -40,25 +39,42 @@ private val PilotDarkColorScheme = darkColorScheme(
     outlineVariant = Divider
 )
 
-private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
+/** Shell：登录 / 作业 / 起飞检查 / 我的 */
+private val ShellLightColorScheme = lightColorScheme(
+    primary = BrandPrimary,
+    onPrimary = Color.White,
+    primaryContainer = BrandPrimary.copy(alpha = 0.12f),
+    onPrimaryContainer = BrandPrimaryDark,
+    secondary = StatusGreen,
+    onSecondary = Color.White,
+    tertiary = StatusAmber,
+    onTertiary = Color.White,
+    background = SurfacePage,
+    onBackground = ShellTextPrimary,
+    surface = ShellCard,
+    onSurface = ShellTextPrimary,
+    surfaceVariant = Color(0xFFEBEEF2),
+    onSurfaceVariant = ShellTextSecondary,
+    error = StatusRed,
+    onError = Color.White,
+    outline = ShellDivider,
+    outlineVariant = ShellDivider
 )
 
 @Composable
 fun DjiflyTheme(
-    darkTheme: Boolean = true, // 飞手端默认深色主题
-    dynamicColor: Boolean = false, // 关闭动态颜色，保持品牌一致性
+    darkTheme: Boolean = false, // Shell 默认浅色；飞行页在导航处单独包一层 darkTheme = true
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
+    val useDark = darkTheme
     val colorScheme = when {
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+            if (useDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
-        darkTheme -> PilotDarkColorScheme
-        else -> LightColorScheme
+        useDark -> PilotDarkColorScheme
+        else -> ShellLightColorScheme
     }
 
     val view = LocalView.current
@@ -66,7 +82,7 @@ fun DjiflyTheme(
         SideEffect {
             val window = (view.context as Activity).window
             window.statusBarColor = colorScheme.background.toArgb()
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !useDark
         }
     }
 
