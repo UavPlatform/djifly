@@ -38,19 +38,19 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        uses: actions/checkout@v4
         with:
           persist-credentials: false
 
       - name: Set up JDK 17
-        uses: actions/setup-java@3c1ec502f7c8a0eb27964b4c079a725d92d1f49d # v4.7.1
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
           cache: gradle
 
       - name: Set up Node.js
-        uses: actions/setup-node@49933ea5286caeca864e7a0a0a8acd0b9db0e6f # v4.4.0
+        uses: actions/setup-node@v4
         with:
           node-version: "20"
 
@@ -69,7 +69,7 @@ jobs:
 
       - name: Upload Gradle reports on failure
         if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@v4
         with:
           name: gradle-test-reports
           path: |
