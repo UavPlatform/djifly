@@ -1,6 +1,6 @@
 # djifly
 
-Android 飞手端（DJI Mobile SDK v5）。DJI SDK 依赖来自本仓 `local-maven/` 与 `Mobile-SDK-Android-V5/`（默认使用缓存 AAR，`-PuseUxsdkSource=true` 时才从源码构建 UXSDK）。
+Android 飞手端（DJI Mobile SDK v5）。DJI 依赖优先走本仓 **`local-maven/`**（已入库，大 AAR 用 Git LFS；升级 SDK 时在本机跑 `tools/populate-local-maven-from-gradle.sh` 后提交）。`-PuseUxsdkSource=true` 时从 `Mobile-SDK-Android-V5/` 源码构建 UXSDK。
 
 ## 构建与测试
 

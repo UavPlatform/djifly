@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metadata>
+  <groupId>dji.v5</groupId>
+  <artifactId>android-sdk-v5-uxsdk</artifactId>
+  <versioning>
+    <latest>5.17.0</latest>
+    <release>5.17.0</release>
+    <versions>
+      <version>5.17.0</version>
+    </versions>
+    <lastUpdated>20260621035101</lastUpdated>
+  </versioning>
+</metadata>
