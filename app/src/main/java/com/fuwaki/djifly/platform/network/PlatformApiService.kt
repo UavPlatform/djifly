@@ -94,6 +94,12 @@ interface PlatformApiService {
         @Query("sizeBytes") sizeBytes: Long
     ): Response<ApiResult<AttachmentUploadTicket>>
 
+    @POST(ApiPaths.TASKS_ATTACHMENTS_CONFIRM_UPLOAD)
+    suspend fun confirmAttachmentUpload(
+        @Path("taskNum") taskNum: String,
+        @Query("objectKey") objectKey: String
+    ): Response<ApiResult<Map<String, String>>>
+
     /** 交付物列表：任务所有者与接单飞手可见，逐条附 presigned 下载 URL（15 分钟） */
     @GET(ApiPaths.TASKS_ATTACHMENTS)
     suspend fun getAttachments(@Path("taskNum") taskNum: String): Response<ApiResult<List<AttachmentItem>>>

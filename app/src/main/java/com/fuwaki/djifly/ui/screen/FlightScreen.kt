@@ -74,8 +74,8 @@ import com.fuwaki.djifly.data.models.FlightEntryGate
 import com.fuwaki.djifly.platform.attachment.DeliverableItemPhase
 import com.fuwaki.djifly.platform.attachment.DeliverableItemUi
 import com.fuwaki.djifly.platform.attachment.DeliveryCompletionGate
-import com.fuwaki.djifly.platform.attachment.FpvSnapshotCapture
-import com.fuwaki.djifly.platform.attachment.FpvSnapshotTarget
+import com.fuwaki.djifly.platform.attachment.FpvFramePhotoCapture
+import com.fuwaki.djifly.platform.attachment.FpvPhotoResult
 import com.fuwaki.djifly.platform.live.RiderLiveRequestState
 import com.fuwaki.djifly.platform.livestream.LiveStopCoordinator
 import com.fuwaki.djifly.ui.viewmodel.ActionState
@@ -213,7 +213,8 @@ fun FlightScreen(
     var showConfirmDeliveryDialog by remember { mutableStateOf(false) }
     val toastContext = LocalContext.current
     val scope = rememberCoroutineScope()
-    val fpvSnapshotTarget = remember { FpvSnapshotTarget() }
+    val fpvFramePhotoCapture = remember(toastContext.applicationContext) { FpvFramePhotoCapture(toastContext.applicationContext) }
+    val photoCaptureProgress by fpvFramePhotoCapture.progress.collectAsState()
     var capturingEvidence by remember { mutableStateOf(false) }
 
     val deliverables = taskViewModel.deliverables.collectAsState()
@@ -276,7 +277,6 @@ fun FlightScreen(
                 registrationState = registrationState,
                 wsConnectionState = wsConnectionState,
                 wsMessages = wsMessages,
-                fpvSnapshotTarget = fpvSnapshotTarget,
                 taskContext = readyTask,
                 onBack = onBack
             )
@@ -284,35 +284,27 @@ fun FlightScreen(
                 PlatformOpsBar(
                     deliverables = deliverables.value,
                     capturingEvidence = capturingEvidence,
+                    captureProgress = photoCaptureProgress,
                     canConfirmDelivery = DeliveryCompletionGate.canConfirmDelivery(deliverables.value),
                     onCaptureEvidence = {
-                        val activity = toastContext.findFragmentActivity()
-                        if (activity == null) {
-                            Toast.makeText(toastContext, "无法截取图传画面", Toast.LENGTH_SHORT).show()
-                            return@PlatformOpsBar
-                        }
                         if (capturingEvidence || DeliveryCompletionGate.hasBlockingUpload(deliverables.value)) {
                             Toast.makeText(toastContext, "正在上传送达凭证，请稍候", Toast.LENGTH_SHORT).show()
                             return@PlatformOpsBar
                         }
                         capturingEvidence = true
                         scope.launch {
-                            val fileName = FpvSnapshotCapture.snapshotFileName(readyTask.taskNum)
-                            when (
-                                val result = FpvSnapshotCapture.captureFromFpv(
-                                    fpvSnapshotTarget,
-                                    activity,
-                                    fileName
-                                )
-                            ) {
-                                is FpvSnapshotCapture.CaptureResult.Ok -> {
-                                    taskViewModel.addDeliverableFromJpeg(result.jpegBytes, result.fileName)
-                                    taskViewModel.uploadAllDeliverables(readyTask.taskNum)
+                            try {
+                                when (val result = fpvFramePhotoCapture.capture(readyTask.taskNum)) {
+                                    is FpvPhotoResult.Ok -> {
+                                        taskViewModel.addDeliverableFromPhotoFile(result.file, result.fileName)
+                                        taskViewModel.uploadAllDeliverables(readyTask.taskNum)
+                                    }
+                                    is FpvPhotoResult.Failed ->
+                                        Toast.makeText(toastContext, result.reason, Toast.LENGTH_LONG).show()
                                 }
-                                is FpvSnapshotCapture.CaptureResult.Failed ->
-                                    Toast.makeText(toastContext, result.reason, Toast.LENGTH_LONG).show()
+                            } finally {
+                                capturingEvidence = false
                             }
-                            capturingEvidence = false
                         }
                     },
                     onConfirmDelivery = { showConfirmDeliveryDialog = true },
@@ -505,7 +497,6 @@ private fun ImmersiveFlightScreenContent(
     registrationState: PlatformRegistrationState,
     wsConnectionState: WsConnectionState,
     wsMessages: List<WsMessageLog>,
-    fpvSnapshotTarget: FpvSnapshotTarget,
     taskContext: FlightTaskContext.Ready?,
     onBack: () -> Unit
 ) {
@@ -554,7 +545,6 @@ private fun ImmersiveFlightScreenContent(
                     showCameraSide = false,
                     enableCenterPoint = false,
                     enableGridLines = false,
-                    onFpvViewAttached = { fpvSnapshotTarget.fpvView = it }
                 )
 
                 ViewportScrim(

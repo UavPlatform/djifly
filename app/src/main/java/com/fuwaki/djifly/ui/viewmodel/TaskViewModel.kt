@@ -12,7 +12,6 @@ import com.fuwaki.djifly.platform.attachment.DeliverableItemUi
 import com.fuwaki.djifly.platform.attachment.DeliverableRules
 import com.fuwaki.djifly.platform.attachment.DeliverableUploadOutcome
 import com.fuwaki.djifly.platform.attachment.DeliverableUploader
-import com.fuwaki.djifly.platform.attachment.FpvSnapshotCapture
 import com.fuwaki.djifly.platform.attachment.PendingDeliverable
 import com.fuwaki.djifly.platform.live.RiderLiveRequestMapper
 import com.fuwaki.djifly.platform.live.RiderLiveRequestState
@@ -135,27 +134,28 @@ class TaskViewModel @Inject constructor(
     // 交付物上传（1B-9b）
     // -----------------------------------------------------------------------
 
-    /** 添加待上传交付物；类型/大小预检不过直接以 FAILED 入列（文案即拒绝原因） */
-    /** 图传抓帧 JPEG（REQ-DJIFLY-001 送达凭证主路径） */
-    fun addDeliverableFromJpeg(jpegBytes: ByteArray, fileName: String) {
+    /** 添加当前图传 JPEG 缓存，通过服务端上传确认后才可送达（REQ-DJIFLY-001）。 */
+    fun addDeliverableFromPhotoFile(file: java.io.File, fileName: String) {
         addDeliverable(
             fileName = fileName,
-            contentType = FpvSnapshotCapture.JPEG_CONTENT_TYPE,
-            sizeBytes = jpegBytes.size.toLong(),
-            openStream = { java.io.ByteArrayInputStream(jpegBytes) }
+            contentType = "image/jpeg",
+            sizeBytes = file.length(),
+            openStream = { file.inputStream() },
+            onDiscard = { file.delete(); Unit }
         )
     }
 
     fun hasSuccessfulDeliveryUploadInSession(): Boolean =
         _deliverables.value.any { it.phase == DeliverableItemPhase.UPLOADED }
 
-    fun addDeliverable(fileName: String, contentType: String, sizeBytes: Long, openStream: () -> java.io.InputStream?) {
+    fun addDeliverable(fileName: String, contentType: String, sizeBytes: Long, openStream: () -> java.io.InputStream?, onDiscard: () -> Unit = {}) {
         val item = PendingDeliverable(
             id = "deliverable-${System.nanoTime()}-${deliverableSeq++}",
             fileName = fileName,
             contentType = contentType,
             sizeBytes = sizeBytes,
-            openStream = openStream
+            openStream = openStream,
+            onDiscard = onDiscard
         )
         val check = DeliverableRules.check(contentType, sizeBytes)
         val phase = if (check is DeliverableCheck.Ok) DeliverableItemPhase.PENDING else DeliverableItemPhase.FAILED
@@ -164,6 +164,7 @@ class TaskViewModel @Inject constructor(
     }
 
     fun removeDeliverable(id: String) {
+        _deliverables.value.filter { it.item.id == id }.forEach { it.item.onDiscard() }
         _deliverables.value = _deliverables.value.filterNot { it.item.id == id }
     }
 
@@ -178,6 +179,7 @@ class TaskViewModel @Inject constructor(
     }
 
     fun clearDeliverables() {
+        _deliverables.value.forEach { it.item.onDiscard() }
         _deliverables.value = emptyList()
     }
 
@@ -237,6 +239,11 @@ class TaskViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    override fun onCleared() {
+        _deliverables.value.forEach { it.item.onDiscard() }
+        super.onCleared()
     }
 
     fun resetActionState() {
