@@ -4,13 +4,15 @@
  *
  * 依据：backend/spec/openapi/drone-backend.openapi.json（结构 SSOT）的 vendored 副本
  *   - 后端仓 spec/openapi/drone-backend.openapi.json 是唯一结构事实源；
- *   - 跨仓不做自动同步，改为「vendor 规格 + sha256 对账」；
+ *   - 策略变更（参见 UavPlatform/docs 仓库 ADR）：改为「后端发布 + 机器人自动开 PR」；
  *   - 每端固定一种生成器 + 生成物入库，禁止手改。
  *
  * 用法（在 djifly/ 下执行）：
- *   node tools/openapi-sync.mjs
  *   OPENAPI_SOURCE=/path/to/spec.json node tools/openapi-sync.mjs
+ *   # 默认来源 ../backend/spec/openapi/drone-backend.openapi.json（本地调试）
+ *   # CI 通过 OPENAPI_SOURCE 环境变量指定下载的契约文件
  *
+ * 注：手动同步已废弃，生产环境由 .github/workflows/contract-sync.yml 自动处理。
  * 下一步：node tools/openapi-gen.mjs
  */
 import { createHash } from 'node:crypto'
