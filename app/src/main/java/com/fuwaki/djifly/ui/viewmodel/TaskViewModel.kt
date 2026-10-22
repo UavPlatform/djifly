@@ -87,8 +87,15 @@ class TaskViewModel @Inject constructor(
     /** 完成任务（t32 契约：note 可选完成说明，≤500 字；须在飞行页上传送达凭证后调用） */
     fun completeTask(taskNum: String, note: String? = null) {
         viewModelScope.launch {
+            if (_actionState.value is ActionState.Loading) return@launch
             _actionState.value = ActionState.Loading
-            apiCall(errorHandler) { api.completeTask(taskNum, note) }
+            apiCall(errorHandler, emptySuccessValue = Unit) {
+                api.completeTask(taskNum, note).also { response ->
+                    val body = response.body()
+                    android.util.Log.i("TaskCompletion",
+                        "http=${response.code()} success=${body?.success} code=${body?.code} errorCode=${body?.errorCode} hasData=${body?.data != null}")
+                }
+            }
                 .onSuccess {
                     _actionState.value = ActionState.Success("已提交送达，等待用户验收")
                 }
