@@ -34,6 +34,13 @@ Android 飞手端（DJI Mobile SDK v5）。DJI 依赖优先走本仓 **`local-ma
 - 触发方式：`repository_dispatch`（后端发布）、每日定时巡检、`workflow_dispatch`（手动触发）。
 - PR 会提示契约变更的影响范围；若调用清单（`tools/openapi-gen.mjs` 的 `calledEndpoints`）因契约变化而失效，需人工更新。
 
+**配置要求**（可选）：
+
+- 若要让机器人 PR 自动触发 CI，需配置 GitHub App token：
+  - `secrets.CONTRACT_BOT_APP_ID` — GitHub App ID
+  - `secrets.CONTRACT_BOT_PRIVATE_KEY` — GitHub App 私钥
+- 未配置时回退到 `GITHUB_TOKEN`（PR 不会自动触发 CI，需手动重跑）。
+
 ### 契约文件结构
 
 ```
