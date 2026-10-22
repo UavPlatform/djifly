@@ -100,8 +100,11 @@ class ApiCallResult<T>(
     val isSuccess: Boolean get() = error == null && data != null
 }
 
+// REQ-DJIFLY-001: void endpoints explicitly use Unit for successful data=null responses.
+// HTTP failures, missing envelopes and success=false must never use this fallback.
 suspend fun <T> apiCall(
     errorHandler: GlobalErrorHandler,
+    emptySuccessValue: T? = null,
     block: suspend () -> retrofit2.Response<ApiResult<T>>
 ): ApiCallResult<T> {
     return try {
@@ -109,7 +112,7 @@ suspend fun <T> apiCall(
         if (response.isSuccessful) {
             val body = response.body()
             if (body != null && body.success) {
-                ApiCallResult(body.data, null, errorHandler)
+                ApiCallResult(body.data ?: emptySuccessValue, null, errorHandler)
             } else {
                 val error = body?.toAppError() ?: AppError.Unknown("响应解析失败")
                 errorHandler.emit(error)
@@ -120,6 +123,8 @@ suspend fun <T> apiCall(
             errorHandler.emit(error)
             ApiCallResult(null, error, errorHandler)
         }
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
     } catch (e: Exception) {
         val error = e.toAppError()
         errorHandler.emit(error)

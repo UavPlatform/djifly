@@ -97,7 +97,7 @@ class DroneManageViewModel @Inject constructor(
 
     fun bindDrone(djiId: String, onSuccess: () -> Unit) {
         viewModelScope.launch {
-            apiCall(errorHandler) { api.bindDrone(djiId) }
+            apiCall(errorHandler, emptySuccessValue = Unit) { api.bindDrone(djiId) }
                 .onSuccess {
                     loadDrones()
                     onSuccess()
@@ -107,7 +107,7 @@ class DroneManageViewModel @Inject constructor(
 
     fun unbindDrone(djiId: String) {
         viewModelScope.launch {
-            apiCall(errorHandler) { api.unbindDrone(djiId) }
+            apiCall(errorHandler, emptySuccessValue = Unit) { api.unbindDrone(djiId) }
                 .onSuccess {
                     loadDrones()
                 }
