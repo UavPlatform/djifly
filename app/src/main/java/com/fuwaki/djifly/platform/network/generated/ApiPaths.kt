@@ -1,7 +1,7 @@
 // GENERATED — DO NOT EDIT.
 // 契约路径表：调用点只允许引用 ApiPaths 常量，禁止散落路径字面量。
 // 生成器：tools/openapi-gen.mjs
-// 事实源：openapi/drone-backend.openapi.json (sha256: f3fdf76770f2080f242142fe33921bd4b291a34b02cbab57cb2d252ab1f14b03)
+// 事实源：openapi/drone-backend.openapi.json (sha256: cd361a3ba6901157db67f531aaec0d3229fc3e224867a92429c546d74df42656)
 // 生成命令：cd djifly && node tools/openapi-gen.mjs
 
 package com.fuwaki.djifly.platform.network.generated
@@ -54,5 +54,5 @@ object ApiPaths {
     const val RIDER_DRONE_UNBIND = "rider/drone/unbind"
 
     /** 事实源规格 openapi/drone-backend.openapi.json 的 sha256（门禁测试对账）。 */
-    const val GENERATED_FROM_SHA256 = "f3fdf76770f2080f242142fe33921bd4b291a34b02cbab57cb2d252ab1f14b03"
+    const val GENERATED_FROM_SHA256 = "cd361a3ba6901157db67f531aaec0d3229fc3e224867a92429c546d74df42656"
 }

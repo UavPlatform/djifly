@@ -522,15 +522,68 @@
         },
         "type" : "object"
       },
+      "AdminUserComplaintVo" : {
+        "description" : "管理端用户名下投诉摘要",
+        "properties" : {
+          "adminNote" : {
+            "description" : "管理员备注",
+            "type" : "string"
+          },
+          "createTime" : {
+            "description" : "提交时间",
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "description" : {
+            "description" : "用户描述",
+            "type" : "string"
+          },
+          "id" : {
+            "description" : "投诉ID",
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "orderNum" : {
+            "description" : "关联订单号",
+            "type" : "string"
+          },
+          "reason" : {
+            "description" : "投诉原因枚举名（ComplaintReason）",
+            "type" : "string"
+          },
+          "resolveTime" : {
+            "description" : "处理完成时间",
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "status" : {
+            "description" : "处理状态枚举名（ComplaintStatus）",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "AdminUserDetailVo" : {
         "description" : "管理端用户详情（含关联订单摘要）",
         "properties" : {
+          "complaints" : {
+            "description" : "名下投诉（按提交时间倒序，无则为空数组）",
+            "items" : {
+              "$ref" : "#/components/schemas/AdminUserComplaintVo"
+            },
+            "type" : "array"
+          },
           "orders" : {
             "description" : "关联订单（按创建时间倒序，无订单为空数组）",
             "items" : {
               "$ref" : "#/components/schemas/AdminOrderVo"
             },
             "type" : "array"
+          },
+          "registerTime" : {
+            "description" : "注册时间（存量用户可能为空）",
+            "format" : "date-time",
+            "type" : "string"
           },
           "role" : {
             "description" : "角色（0 普通用户 / 2 管理员；飞手不走本详情）",
@@ -557,10 +610,20 @@
       "AdminUserVo" : {
         "description" : "管理端注册用户（role=0）",
         "properties" : {
+          "disputeCount" : {
+            "description" : "名下投诉（争议）总数",
+            "format" : "int64",
+            "type" : "integer"
+          },
           "orderCount" : {
             "description" : "名下订单总数",
             "format" : "int64",
             "type" : "integer"
+          },
+          "registerTime" : {
+            "description" : "注册时间（存量用户可能为空）",
+            "format" : "date-time",
+            "type" : "string"
           },
           "status" : {
             "description" : "账号状态（1 正常 / 0 停用）",
@@ -4789,7 +4852,7 @@
     },
     "/live/close" : {
       "post" : {
-        "description" : "运营端结束观看语义：先补齐当前用户观看记录 end_time；若设备在线且直播在运行，则向设备下发 STOP_LIVE 命令（复用 START_LIVE 的 ACK/超时模式），确认后结束直播会话并补齐该设备全体观众的观看记录；设备离线则直接补终态。协议详见 DroneWebSocketHandler#sendStopLiveCommand javadoc。",
+        "description" : "运营端结束观看语义：先补齐当前用户观看记录 end_time；若设备在线且直播在运行，则向设备下发 STOP_LIVE 命令（复用 START_LIVE 的 ACK/超时模式），确认后结束直播会话并补齐该设备全体观众的观看记录；设备离线则直接补终态。协议详见 DroneCommandService#sendStopLiveCommand javadoc。",
         "operationId" : "closeLive",
         "parameters" : [ {
           "description" : "无人机设备ID",
@@ -6309,7 +6372,7 @@
     },
     "/tasks/{taskNum}/attachments" : {
       "get" : {
-        "description" : "任务所有者、接单飞手与管理员（role=2，监管端只读）可看；逐条附 presigned 下载 URL（15 分钟有效）",
+        "description" : "任务所有者、接单飞手与管理员（role=2，监管端只读）可看；仅返回已确认或核验通过的历史附件（uploadStatus=UPLOADED），校验对象存在且大小一致后附下载 URL",
         "operationId" : "list",
         "parameters" : [ {
           "description" : "任务编号",
@@ -6333,6 +6396,41 @@
           }
         },
         "summary" : "附件列表",
+        "tags" : [ "Task Attachment API" ]
+      }
+    },
+    "/tasks/{taskNum}/attachments/confirm-upload" : {
+      "post" : {
+        "description" : "仅原上传者可确认；验证对象存在且大小一致后置为 UPLOADED，重复确认幂等",
+        "operationId" : "confirmAttachmentUpload",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "taskNum",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "objectKey",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultMapStringObject"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "summary" : "确认附件上传完成",
         "tags" : [ "Task Attachment API" ]
       }
     },
@@ -6375,7 +6473,7 @@
     },
     "/tasks/{taskNum}/attachments/upload-url" : {
       "post" : {
-        "description" : "仅任务的接单飞手可调用；校验类型（图片 jpeg/png/webp ≤20MB，视频 mp4/mov ≤500MB）后返回 presigned PUT URL（15 分钟有效），客户端直传 MinIO",
+        "description" : "任务所有者或接单飞手可调用；校验类型（图片 jpeg/png/webp ≤20MB，视频 mp4/mov ≤500MB）后返回 presigned PUT URL（15 分钟有效）并登记 PENDING；直传后须调用 confirm-upload",
         "operationId" : "uploadUrl",
         "parameters" : [ {
           "description" : "任务编号",
