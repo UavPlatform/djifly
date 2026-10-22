@@ -17,20 +17,14 @@ copy_artifact() {
     exit 1
   fi
   cp -f "$found" "$dir/$artifact-$VER.$ext"
-  if [[ ! -f "$dir/$artifact-$VER.pom" ]]; then
-    cat >"$dir/$artifact-$VER.pom" <<EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
-  <modelVersion>4.0.0</modelVersion>
-  <groupId>$group_id</groupId>
-  <artifactId>$artifact</artifactId>
-  <version>$VER</version>
-  <packaging>$ext</packaging>
-</project>
-EOF
+  # Preserve the official POM: generating a minimal POM silently removes runtime dependencies.
+  local found_pom
+  found_pom="$(find "$CACHE/$group_id/$artifact/$VER" -name "$artifact-$VER.pom" -type f | head -1)"
+  if [[ -z "$found_pom" ]]; then
+    echo "missing original POM in gradle cache: $group_id:$artifact:$VER" >&2
+    exit 1
   fi
+  cp -f "$found_pom" "$dir/$artifact-$VER.pom"
   echo "ok $group_id:$artifact:$VER"
 }
 

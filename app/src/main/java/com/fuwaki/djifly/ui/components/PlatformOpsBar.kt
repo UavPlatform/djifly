@@ -64,11 +64,13 @@ fun PlatformOpsBar(
     onConfirmDelivery: () -> Unit,
     onStartLive: () -> Unit,
     modifier: Modifier = Modifier,
+    captureProgress: String = "",
 ) {
     val uploading = deliverables.any {
         it.phase == DeliverableItemPhase.UPLOADING || it.phase == DeliverableItemPhase.PENDING
     }
-    val banner = platformUploadBannerMessage(deliverables, capturingEvidence)
+    val banner = if (capturingEvidence && captureProgress.isNotBlank()) captureProgress
+        else platformUploadBannerMessage(deliverables, capturingEvidence)
 
     Column(
         modifier = modifier,

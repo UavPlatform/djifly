@@ -41,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -48,6 +49,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.fuwaki.djifly.ui.theme.StatusGreen
 import com.fuwaki.djifly.ui.theme.StatusRed
 import com.fuwaki.djifly.ui.viewmodel.ProfileViewModel
 
@@ -193,7 +195,14 @@ private fun ProfileHeader(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.primary)
+            // REQ-DJIFLY-002: green header inspired by GitHub 84d1f9c, blended into the light Shell.
+            .background(
+                brush = Brush.verticalGradient(
+                    0f to StatusGreen,
+                    0.85f to Color(0xFF047857),
+                    1f to MaterialTheme.colorScheme.background
+                )
+            )
             .padding(top = 48.dp, bottom = 24.dp, start = 24.dp, end = 24.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {

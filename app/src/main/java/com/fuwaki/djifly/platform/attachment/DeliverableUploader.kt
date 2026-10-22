@@ -2,6 +2,11 @@ package com.fuwaki.djifly.platform.attachment
 
 import com.fuwaki.djifly.platform.network.AttachmentUploadTicket
 import com.fuwaki.djifly.platform.network.PlatformApiService
+import android.util.Log
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.CancellationException
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -21,12 +26,13 @@ data class PendingDeliverable(
     val fileName: String,
     val contentType: String,
     val sizeBytes: Long,
-    val openStream: () -> InputStream?
+    val openStream: () -> InputStream?,
+    val onDiscard: () -> Unit = {}
 )
 
 /**
  * 交付物上传编排（1B-9b，t43 契约）：
- * 本地预检 → 请求 presigned PUT 凭证 → OkHttp 直传 MinIO。
+ * 本地预检 → 请求 presigned PUT 凭证 → IO 线程直传 → 后端校验确认。
  *
  * 注意：直传必须使用独立 OkHttpClient——业务 client 的拦截器会注入 Authorization 头，
  * 而预签名 URL 的鉴权在查询参数上，携带额外 Authorization 会导致 S3 签名校验失败。
@@ -46,6 +52,10 @@ class DeliverableUploader @Inject constructor(
         .build()
 
     suspend fun upload(taskNum: String, deliverable: PendingDeliverable): DeliverableUploadOutcome {
+        return withContext(Dispatchers.IO) { uploadOnIo(taskNum, deliverable) }
+    }
+
+    private suspend fun uploadOnIo(taskNum: String, deliverable: PendingDeliverable): DeliverableUploadOutcome {
         // 1. 本地预检（t43 类型/大小限制）
         when (val check = DeliverableRules.check(deliverable.contentType, deliverable.sizeBytes)) {
             is DeliverableCheck.Rejected -> return DeliverableUploadOutcome.Rejected(check.reason)
@@ -60,7 +70,10 @@ class DeliverableUploader @Inject constructor(
                 contentType = deliverable.contentType,
                 sizeBytes = deliverable.sizeBytes
             )
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
+            logFailure("ticket", taskNum, null, e)
             return DeliverableUploadMapper.networkFailure()
         }
 
@@ -69,15 +82,18 @@ class DeliverableUploader @Inject constructor(
             return DeliverableUploadMapper.outcomeFromHttpResponse(ticketResponse.code(), raw)
         }
 
-        val ticket: AttachmentUploadTicket = ticketResponse.body()?.data
+        val ticket: AttachmentUploadTicket = ticketResponse.body()?.takeIf { it.success }?.data
             ?: return DeliverableUploadMapper.ticketMissing()
         val uploadUrl = ticket.uploadUrl
             ?: return DeliverableUploadMapper.ticketMissing()
 
-        // 3. presigned PUT 直传（流式写入；预签名不签 Content-Type，无需特殊头）
-        return try {
+        val objectKey = ticket.objectKey?.takeIf { it.isNotBlank() }
+            ?: return DeliverableUploadMapper.ticketMissing()
+
+        // 3. 存储预签名 PUT（REQ-DJIFLY-001）：Content-Type 与签名一致，不携带业务 Token。
+        try {
             val body = object : RequestBody() {
-                override fun contentType() = "application/octet-stream".toMediaTypeOrNull()
+                override fun contentType() = deliverable.contentType.toMediaTypeOrNull()
 
                 override fun contentLength(): Long = deliverable.sizeBytes
 
@@ -87,23 +103,56 @@ class DeliverableUploader @Inject constructor(
                     input.use { stream -> sink.writeAll(stream.source()) }
                 }
             }
+            val destination = uploadUrl.toHttpUrl()
+            Log.i("DeliverableUpload", "stage=put task=$taskNum key=$objectKey size=${deliverable.sizeBytes} destination=${destination.scheme}://${destination.host}:${destination.port}${destination.encodedPath}")
             plainClient.newCall(
                 Request.Builder().url(uploadUrl).put(body).build()
             ).execute().use { response ->
-                if (response.isSuccessful) {
-                    DeliverableUploadOutcome.Uploaded(
-                        objectKey = ticket.objectKey ?: "",
-                        fileName = deliverable.fileName
-                    )
-                } else {
-                    val raw = runCatching { response.body?.string() }.getOrNull()
-                    DeliverableUploadOutcome.Failed(
-                        DeliverableUploadMapper.outcomeFromHttpResponse(response.code, raw).reason
-                    )
+                Log.i("DeliverableUpload", "stage=put task=$taskNum key=$objectKey http=${response.code}")
+                if (!response.isSuccessful) {
+                    val raw = runCatching { response.peekBody(8192).string() }.getOrNull()
+                    val storageCode = Regex("<Code>([A-Za-z0-9_-]+)</Code>")
+                        .find(raw.orEmpty())?.groupValues?.get(1).orEmpty()
+                    val requestId = Regex("<RequestId>([A-Za-z0-9_-]+)</RequestId>")
+                        .find(raw.orEmpty())?.groupValues?.get(1).orEmpty()
+                    Log.e("DeliverableUpload", "stage=put task=$taskNum key=$objectKey http=${response.code} code=$storageCode requestId=$requestId")
+                    return DeliverableUploadOutcome.Failed("文件直传失败（HTTP ${response.code} $storageCode），请重试")
                 }
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            DeliverableUploadMapper.putFailure()
+            logFailure("put", taskNum, objectKey, e)
+            return DeliverableUploadMapper.putFailure()
+        }
+
+        // A successful PUT alone is insufficient; the server must verify the stored object.
+        return try {
+            val confirmation = api.confirmAttachmentUpload(taskNum, objectKey)
+            Log.i("DeliverableUpload", "stage=confirm task=$taskNum key=$objectKey http=${confirmation.code()} success=${confirmation.body()?.success}")
+            if (confirmation.isSuccessful && confirmation.body()?.success == true &&
+                confirmation.body()?.data?.get("uploadStatus") == "UPLOADED" &&
+                confirmation.body()?.data?.get("objectKey") == objectKey) {
+                DeliverableUploadOutcome.Uploaded(objectKey, deliverable.fileName)
+            } else {
+                Log.e("DeliverableUpload", "stage=confirm task=$taskNum key=$objectKey http=${confirmation.code()}")
+                DeliverableUploadOutcome.Failed("文件上传确认失败，请重试")
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logFailure("confirm", taskNum, objectKey, e)
+            DeliverableUploadOutcome.Failed("文件上传确认失败，请重试")
+        }
+    }
+
+    private fun logFailure(stage: String, taskNum: String, key: String?, error: Exception) {
+        // Do not log exception messages: networking exceptions may contain signed URLs.
+        Log.e("DeliverableUpload", "stage=$stage task=$taskNum key=$key exception=${error.javaClass.name}")
+        error.stackTrace.forEach { Log.e("DeliverableUpload", "at $it") }
+        error.cause?.let { cause ->
+            Log.e("DeliverableUpload", "cause=${cause.javaClass.name}")
+            cause.stackTrace.forEach { Log.e("DeliverableUpload", "at $it") }
         }
     }
 }

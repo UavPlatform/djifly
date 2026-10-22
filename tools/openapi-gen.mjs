@@ -37,6 +37,7 @@ const calledEndpoints = [
   ['post', 'api/ws/request'],
   ['post', 'live/rider/req'],
   ['post', 'tasks/{taskNum}/attachments/upload-url'],
+  ['post', 'tasks/{taskNum}/attachments/confirm-upload'],
   ['get', 'tasks/{taskNum}/attachments'],
   ['post', 'rider/complete'],
   ['get', 'rider/drone/list'],

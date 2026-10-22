@@ -38,6 +38,9 @@ object ApiPaths {
     /** POST tasks/{taskNum}/attachments/upload-url */
     const val TASKS_ATTACHMENTS_UPLOAD_URL = "tasks/{taskNum}/attachments/upload-url"
 
+    /** POST tasks/{taskNum}/attachments/confirm-upload */
+    const val TASKS_ATTACHMENTS_CONFIRM_UPLOAD = "tasks/{taskNum}/attachments/confirm-upload"
+
     /** GET tasks/{taskNum}/attachments */
     const val TASKS_ATTACHMENTS = "tasks/{taskNum}/attachments"
 
