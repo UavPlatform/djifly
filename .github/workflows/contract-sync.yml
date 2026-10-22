@@ -63,7 +63,7 @@ jobs:
           echo "开始下载 OpenAPI 契约..."
           
           # 尝试获取最新的 contract-* Release
-          RELEASE_INFO=$(gh release list --repo UavPlatform/backend --limit 30 --json tagName,isPrerelease,assets | \
+          RELEASE_INFO=$(gh release list --repo UavPlatform/backend --limit 30 --json tagName,isPrerelease | \
             jq -r '[.[] | select(.tagName | startswith("contract-")) | select(.isPrerelease == false)] | first')
           
           if [ "$RELEASE_INFO" != "null" ] && [ -n "$RELEASE_INFO" ]; then
