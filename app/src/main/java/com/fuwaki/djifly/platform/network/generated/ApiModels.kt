@@ -1,7 +1,7 @@
 // GENERATED — DO NOT EDIT.
 // 契约模型：后端 components.schemas 中「被调用端点可达」的传递闭包。
 // 生成器：tools/openapi-gen.mjs
-// 事实源：openapi/drone-backend.openapi.json (sha256: cd361a3ba6901157db67f531aaec0d3229fc3e224867a92429c546d74df42656)
+// 事实源：openapi/drone-backend.openapi.json (sha256: c1c01a4a306b2ba64bd426793c756796e2060514e51bf993158256e8428fa133)
 // 生成命令：cd djifly && node tools/openapi-gen.mjs
 
 package com.fuwaki.djifly.platform.network.generated
