@@ -128,7 +128,7 @@ class OpenApiContractTest {
     fun generated_models_parse_sample_payloads() {
         val gson = Gson()
         val order = gson.fromJson(
-            "{"orderId":"ord-1","stage":"IN_TRANSIT","assignmentVersion":3,"depositAmount":100.0}",
+            """{"orderId":"ord-1","stage":"IN_TRANSIT","assignmentVersion":3,"depositAmount":100.0}""",
             ApiDispatchOrderVO::class.java
         )
         assertEquals("ord-1", order.orderId)
