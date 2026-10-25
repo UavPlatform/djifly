@@ -14,6 +14,11 @@ package com.fuwaki.djifly.platform.network.generated
  * 本文件由生成器维护，禁止手改。
  */
 
+/** 契约 components.schemas.DispatchAssignmentDTO。 */
+data class ApiDispatchAssignmentDTO(
+    val assignmentVersion: Long
+)
+
 /** 契约 components.schemas.DispatchBillVO。 */
 data class ApiDispatchBillVO(
     val balanceAmount: Double? = null,
@@ -25,12 +30,39 @@ data class ApiDispatchBillVO(
     val settlementReference: String? = null
 )
 
+/** 契约 components.schemas.DispatchDeliveryDTO。 */
+data class ApiDispatchDeliveryDTO(
+    val assignmentVersion: Long,
+    val materialIds: List<String>
+)
+
 /** 契约 components.schemas.DispatchExecutedDroneVO。 */
 data class ApiDispatchExecutedDroneVO(
     val aircraftModelId: Long? = null,
     val modelCode: String? = null,
     val modelName: String? = null,
     val serialNumber: String? = null
+)
+
+/** 契约 components.schemas.DispatchMaterialUploadDTO。 */
+data class ApiDispatchMaterialUploadDTO(
+    val contentType: String,
+    val fileName: String,
+    val purpose: String,
+    val sizeBytes: Long
+)
+
+/** 契约 components.schemas.DispatchMaterialVO。 */
+data class ApiDispatchMaterialVO(
+    val confirmedAt: String? = null,
+    val contentType: String? = null,
+    val downloadUrl: String? = null,
+    val fileName: String? = null,
+    val materialId: String? = null,
+    val purpose: String? = null,
+    val sizeBytes: Long? = null,
+    val uploadStatus: String? = null,
+    val uploaderId: Long? = null
 )
 
 /** 契约 components.schemas.DispatchOrderVO。 */
@@ -66,6 +98,16 @@ data class ApiDispatchQuoteVO(
     val pricePerMeter: Double? = null,
     val rule: String? = null,
     val totalAmount: Double? = null
+)
+
+/** 契约 components.schemas.DispatchUploadTicketVO。 */
+data class ApiDispatchUploadTicketVO(
+    val contentType: String? = null,
+    val expireSeconds: Int? = null,
+    val materialId: String? = null,
+    val method: String? = null,
+    val sizeBytes: Long? = null,
+    val uploadUrl: String? = null
 )
 
 /** 契约 components.schemas.FlightConnectDTO。 */
@@ -128,6 +170,33 @@ data class ApiLiveStartVO(
     val roomId: String? = null
 )
 
+/** 契约 components.schemas.ResultDispatchMaterialVO。 */
+data class ApiResultDispatchMaterialVO(
+    val code: Int? = null,
+    val data: ApiDispatchMaterialVO? = null,
+    val errorCode: String? = null,
+    val message: String? = null,
+    val success: Boolean? = null
+)
+
+/** 契约 components.schemas.ResultDispatchOrderVO。 */
+data class ApiResultDispatchOrderVO(
+    val code: Int? = null,
+    val data: ApiDispatchOrderVO? = null,
+    val errorCode: String? = null,
+    val message: String? = null,
+    val success: Boolean? = null
+)
+
+/** 契约 components.schemas.ResultDispatchUploadTicketVO。 */
+data class ApiResultDispatchUploadTicketVO(
+    val code: Int? = null,
+    val data: ApiDispatchUploadTicketVO? = null,
+    val errorCode: String? = null,
+    val message: String? = null,
+    val success: Boolean? = null
+)
+
 /** 契约 components.schemas.ResultFlightConnectionVO。 */
 data class ApiResultFlightConnectionVO(
     val code: Int? = null,
@@ -146,6 +215,15 @@ data class ApiResultFlightSampleBatchVO(
     val success: Boolean? = null
 )
 
+/** 契约 components.schemas.ResultListDispatchMaterialVO。 */
+data class ApiResultListDispatchMaterialVO(
+    val code: Int? = null,
+    val data: List<ApiDispatchMaterialVO>? = null,
+    val errorCode: String? = null,
+    val message: String? = null,
+    val success: Boolean? = null
+)
+
 /** 契约 components.schemas.ResultListDispatchOrderVO。 */
 data class ApiResultListDispatchOrderVO(
     val code: Int? = null,
@@ -155,55 +233,10 @@ data class ApiResultListDispatchOrderVO(
     val success: Boolean? = null
 )
 
-/** 契约 components.schemas.ResultListMapStringObject。 */
-data class ApiResultListMapStringObject(
-    val code: Int? = null,
-    val data: List<Map<String, Any?>>? = null,
-    val errorCode: String? = null,
-    val message: String? = null,
-    val success: Boolean? = null
-)
-
-/** 契约 components.schemas.ResultListRiderUav。 */
-data class ApiResultListRiderUav(
-    val code: Int? = null,
-    val data: List<ApiRiderUav>? = null,
-    val errorCode: String? = null,
-    val message: String? = null,
-    val success: Boolean? = null
-)
-
 /** 契约 components.schemas.ResultLiveStartVO。 */
 data class ApiResultLiveStartVO(
     val code: Int? = null,
     val data: ApiLiveStartVO? = null,
-    val errorCode: String? = null,
-    val message: String? = null,
-    val success: Boolean? = null
-)
-
-/** 契约 components.schemas.ResultMapStringObject。 */
-data class ApiResultMapStringObject(
-    val code: Int? = null,
-    val data: Map<String, Any?>? = null,
-    val errorCode: String? = null,
-    val message: String? = null,
-    val success: Boolean? = null
-)
-
-/** 契约 components.schemas.ResultTaskPageVO。 */
-data class ApiResultTaskPageVO(
-    val code: Int? = null,
-    val data: ApiTaskPageVO? = null,
-    val errorCode: String? = null,
-    val message: String? = null,
-    val success: Boolean? = null
-)
-
-/** 契约 components.schemas.ResultTaskVo。 */
-data class ApiResultTaskVo(
-    val code: Int? = null,
-    val data: ApiTaskVo? = null,
     val errorCode: String? = null,
     val message: String? = null,
     val success: Boolean? = null
@@ -245,59 +278,6 @@ data class ApiResultVoid(
     val success: Boolean? = null
 )
 
-/** 契约 components.schemas.RiderUav。 */
-data class ApiRiderUav(
-    val aircraftModelId: Long? = null,
-    val createTime: String? = null,
-    val djiId: String? = null,
-    val id: Long? = null,
-    val userId: Long? = null
-)
-
-/** 契约 components.schemas.TaskPageVO。 */
-data class ApiTaskPageVO(
-    val currentPage: Int? = null,
-    val tasks: List<ApiTaskVo>? = null,
-    val totalElements: Long? = null,
-    val totalPages: Int? = null
-)
-
-/** 契约 components.schemas.TaskVo。 */
-data class ApiTaskVo(
-    val acceptTime: String? = null,
-    val actionHint: String? = null,
-    val aircraftModelId: Long? = null,
-    val aircraftModelName: String? = null,
-    val cargoCategory: String? = null,
-    val cargoWeightKg: Double? = null,
-    val completeNote: String? = null,
-    val createTime: String? = null,
-    val description: String? = null,
-    val deviceId: String? = null,
-    val id: Long? = null,
-    val liveState: String? = null,
-    val matchStatus: String? = null,
-    val modelCode: String? = null,
-    val orderNum: String? = null,
-    val orderStatus: String? = null,
-    val quotedAmount: Double? = null,
-    val riderConfirmedAt: String? = null,
-    val riderId: Long? = null,
-    val riderName: String? = null,
-    val scheduledTime: String? = null,
-    val taskName: String? = null,
-    val taskNum: String? = null,
-    val taskStatus: String? = null,
-    val taskTime: String? = null,
-    val taskType: String? = null,
-    val totalAmount: Double? = null,
-    val totalDistance: Double? = null,
-    val updateTime: String? = null,
-    val userConfirmedAt: String? = null,
-    val userId: Long? = null,
-    val waypoints: List<ApiWaypointVo>? = null
-)
-
 /** 契约 components.schemas.TokenRefreshVO。 */
 data class ApiTokenRefreshVO(
     val token: String? = null
@@ -330,13 +310,4 @@ data class ApiUserLoginDto(
 data class ApiUserLoginVO(
     val refreshToken: String? = null,
     val token: String? = null
-)
-
-/** 契约 components.schemas.WaypointVo。 */
-data class ApiWaypointVo(
-    val altitude: Double? = null,
-    val id: Long? = null,
-    val latitude: Double? = null,
-    val longitude: Double? = null,
-    val orderIndex: Int? = null
 )

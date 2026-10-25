@@ -11,7 +11,7 @@ enum class DeliverableItemPhase { PENDING, UPLOADING, UPLOADED, FAILED }
  * @param item 待上传交付物本体（含流工厂，仅在 UPLOADING 时被消费）
  * @param phase 上传阶段
  * @param message 阶段附注（拒绝原因/失败原因，可空）
- * @param objectKey 上传成功后的对象键（与任务关联的唯一标识）
+ * @param objectKey 上传成功后的 materialId（派单物料 ID）
  */
 data class DeliverableItemUi(
     val item: PendingDeliverable,

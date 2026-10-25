@@ -85,33 +85,17 @@ class DroneManageViewModel @Inject constructor(
     }
 
     fun loadDrones() {
-        viewModelScope.launch {
-            _loading.value = true
-            apiCall(errorHandler) { api.getDroneList() }
-                .onSuccess { data ->
-                    _drones.value = data ?: emptyList()
-                }
-            _loading.value = false
-        }
+        _loading.value = false
+        _drones.value = emptyList()
     }
 
     fun bindDrone(djiId: String, onSuccess: () -> Unit) {
-        viewModelScope.launch {
-            apiCall(errorHandler, emptySuccessValue = Unit) { api.bindDrone(djiId) }
-                .onSuccess {
-                    loadDrones()
-                    onSuccess()
-                }
-        }
+        // 旧 /rider/drone/bind 已下线：机型机身号由连机遥测自动上报。
+        onSuccess()
     }
 
     fun unbindDrone(djiId: String) {
-        viewModelScope.launch {
-            apiCall(errorHandler, emptySuccessValue = Unit) { api.unbindDrone(djiId) }
-                .onSuccess {
-                    loadDrones()
-                }
-        }
+        // no-op：旧解绑接口已删除。
     }
 }
 

@@ -11,7 +11,10 @@ object DispatchStages {
     const val IN_TRANSIT = "IN_TRANSIT"
     private val FLYABLE = setOf(PILOT_ARRIVED, IN_TRANSIT)
 
-    fun isFlyable(order: ApiDispatchOrderVO): Boolean = order.orderId != null && order.stage in FLYABLE
+    fun isFlyable(order: ApiDispatchOrderVO): Boolean = order.orderId != null && isFlyableStage(order.stage)
+
+    /** 阶段字符串是否可执飞（详情门禁与首页列表共用）。 */
+    fun isFlyableStage(stage: String?): Boolean = stage in FLYABLE
 
     /** 当前订单：运输中优先，其次飞手到场；其他阶段不展示为可执飞。 */
     fun current(orders: List<ApiDispatchOrderVO>): ApiDispatchOrderVO? =
