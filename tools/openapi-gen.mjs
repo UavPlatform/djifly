@@ -43,6 +43,11 @@ const calledEndpoints = [
   ['get', 'rider/drone/list'],
   ['post', 'rider/drone/bind'],
   ['delete', 'rider/drone/unbind'],
+  // 派单执行与遥测（ADR-0009）
+  ['get', 'dispatch/pilot/orders'],
+  ['post', 'dispatch/pilot/orders/{orderId}/flight-connections'],
+  ['post', 'dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/samples/batch'],
+  ['post', 'dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/close'],
 ]
 
 const endpoints = calledEndpoints

@@ -45,7 +45,9 @@ data class FlightDataState(
     val latitude: Double? = null,     // 纬度（度），来源 KeyAircraftLocation
     val longitude: Double? = null,    // 经度（度），来源 KeyAircraftLocation
     val altitude: Double? = null,     // 相对起飞点高度（米），来源 KeyAltitude
-    val speed: Double? = null         // 水平速度（米/秒），来源 KeyAircraftVelocity
+    val speed: Double? = null,        // 水平速度（米/秒），来源 KeyAircraftVelocity
+    val batteryKnown: Boolean = false, // 是否已收到电量 Key；未收到时遥测上报 null 而不是 0
+    val isFlying: Boolean? = null     // 是否在飞，来源 KeyIsFlying；未获取为 null
 )
 
 /**

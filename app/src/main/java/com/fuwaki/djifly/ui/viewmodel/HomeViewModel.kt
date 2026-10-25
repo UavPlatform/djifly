@@ -8,6 +8,8 @@ import com.fuwaki.djifly.data.error.apiCall
 import com.fuwaki.djifly.data.models.FlightEntryGate
 import com.fuwaki.djifly.data.models.TaskVo
 import com.fuwaki.djifly.platform.network.PlatformApiService
+import com.fuwaki.djifly.platform.telemetry.DispatchFlightState
+import com.fuwaki.djifly.platform.telemetry.DispatchTelemetryService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -33,11 +35,15 @@ data class HomeUiState(
 class HomeViewModel @Inject constructor(
     private val api: PlatformApiService,
     private val tokenStore: TokenStore,
+    private val dispatchTelemetry: DispatchTelemetryService,
     val errorHandler: GlobalErrorHandler // 暴露给 UI 层的 GlobalErrorEffect 使用
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
+
+    /** 派单执行：当前订单、连机记录、待补传条数（自动上报，无需手填编号）。 */
+    val dispatchState: StateFlow<DispatchFlightState> = dispatchTelemetry.state
 
     init {
         loadHomeData()
@@ -48,6 +54,7 @@ class HomeViewModel @Inject constructor(
             _uiState.value = _uiState.value.copy(isLoading = true)
 
             val userName = tokenStore.userName.firstOrNull()
+            dispatchTelemetry.refreshOrders()
 
             // 仅本飞手名下的任务；撮合未确认（洽谈/待支付/待飞手确认）的任务不进入执飞列表
             var pendingTasks = emptyList<TaskVo>()

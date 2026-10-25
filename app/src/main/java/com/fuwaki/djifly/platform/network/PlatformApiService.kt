@@ -7,6 +7,11 @@ import com.fuwaki.djifly.data.models.RefreshResponse
 import com.fuwaki.djifly.data.models.RiderUav
 import com.fuwaki.djifly.data.models.TaskPageVO
 import com.fuwaki.djifly.data.models.TaskVo
+import com.fuwaki.djifly.platform.dispatch.DispatchOrder
+import com.fuwaki.djifly.platform.dispatch.FlightConnectRequest
+import com.fuwaki.djifly.platform.dispatch.FlightConnection
+import com.fuwaki.djifly.platform.dispatch.FlightSampleBatchRequest
+import com.fuwaki.djifly.platform.dispatch.FlightSampleBatchResult
 import com.fuwaki.djifly.platform.network.generated.ApiPaths
 import com.fuwaki.djifly.platform.network.generated.ApiUserLoginDto
 import retrofit2.Response
@@ -120,36 +125,30 @@ interface PlatformApiService {
     suspend fun unbindDrone(
         @Query("djiId") djiId: String
     ): Response<ApiResult<Unit>>
+
+    // ═══════════════════════════════════════════════════════
+    // 派单执行：当前订单、连机记录、遥测批量上报（ADR-0007 / ADR-0009）
+    // ═══════════════════════════════════════════════════════
+
+    @GET(ApiPaths.DISPATCH_PILOT_ORDERS)
+    suspend fun getMyDispatchOrders(): Response<ApiResult<List<DispatchOrder>>>
+
+    @POST(ApiPaths.DISPATCH_PILOT_ORDERS_FLIGHT_CONNECTIONS)
+    suspend fun connectFlight(
+        @Path("orderId") orderId: String,
+        @Body request: FlightConnectRequest
+    ): Response<ApiResult<FlightConnection>>
+
+    @POST(ApiPaths.DISPATCH_PILOT_ORDERS_FLIGHT_CONNECTIONS_SAMPLES_BATCH)
+    suspend fun uploadFlightSamples(
+        @Path("orderId") orderId: String,
+        @Path("connectionId") connectionId: String,
+        @Body request: FlightSampleBatchRequest
+    ): Response<ApiResult<FlightSampleBatchResult>>
+
+    @POST(ApiPaths.DISPATCH_PILOT_ORDERS_FLIGHT_CONNECTIONS_CLOSE)
+    suspend fun closeFlight(
+        @Path("orderId") orderId: String,
+        @Path("connectionId") connectionId: String
+    ): Response<ApiResult<Unit>>
 }
-
-// ═══════════════════════════════════════════════════════
-// 保留原有的无人机注册相关模型
-// ═══════════════════════════════════════════════════════
-
-data class RegisterDroneRequest(
-    val uavName: String,
-    val onlineStatus: Char,
-    val djiId: String,
-    val controllerModel: String
-)
-
-data class RegisterDroneResponse(
-    val success: Boolean = false,
-    val id: Long? = null,
-    val name: String? = null,
-    val message: String? = null
-)
-
-data class RequestDroneWebSocketConnectionResponse(
-    val success: Boolean = false,
-    val code: String? = null,
-    val message: String? = null
-)
-
-data class PlatformApiErrorResponse(
-    val success: Boolean = false,
-    val code: String? = null,
-    val id: Long? = null,
-    val name: String? = null,
-    val message: String? = null
-)
