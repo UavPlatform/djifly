@@ -89,7 +89,7 @@ class TaskViewModel @Inject constructor(
             id = 0,
             taskNum = order.orderId.orEmpty(),
             taskName = "派单 ${order.orderId.orEmpty().take(8)}",
-            taskStatus = order.stage,
+            taskStatus = order.stage.orEmpty(),
             orderStatus = order.fundsStatus,
             totalAmount = order.depositAmount?.let { java.math.BigDecimal.valueOf(it) },
             actionHint = com.fuwaki.djifly.platform.dispatch.DispatchStages.label(order.stage),
