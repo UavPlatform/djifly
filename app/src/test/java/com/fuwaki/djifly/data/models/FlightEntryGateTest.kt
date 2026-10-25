@@ -13,7 +13,8 @@ import org.junit.Test
  * 覆盖：
  * 1. 待执飞列表口径（首页只展示 CONFIRMED / IN_PROGRESS / PENDING_ACCEPTANCE）；
  * 2. 进入 FlightScreen 的放行与拒绝矩阵（含明确提示文案）；
- * 3. MatchStatus 解析（未知/null 值不崩溃，按未确认处理）。
+ * 3. 派单唯一路径：PILOT_ARRIVED / IN_TRANSIT 放行，其它派单阶段拒绝；
+ * 4. MatchStatus 解析（未知/null 值不崩溃，按未确认处理）。
  */
 class FlightEntryGateTest {
 
@@ -105,6 +106,47 @@ class FlightEntryGateTest {
         assertFalse(FlightEntryGate.isPendingFlight(negotiating))
         assertFalse(FlightEntryGate.canEnterFlight(negotiating))
         assertNotNull(FlightEntryGate.denyReason(negotiating))
+    }
+
+
+    // ── 派单阶段（dispatchAsTask 把 stage 写入 taskStatus，matchStatus 为空）──
+
+    @Test
+    fun dispatch_flyable_stages_may_enter_flight() {
+        listOf("PILOT_ARRIVED", "IN_TRANSIT").forEach { stage ->
+            assertTrue("派单阶段 $stage 应可进入飞行", FlightEntryGate.canEnterFlight(null, stage))
+            assertNull(FlightEntryGate.denyReason(null, stage))
+            assertTrue(FlightEntryGate.isPendingFlight(null, stage))
+            val task = TaskVo(taskNum = "ord-1", taskStatus = stage, matchStatus = null)
+            assertTrue(FlightEntryGate.canEnterFlight(task))
+            assertNull(FlightEntryGate.denyReason(task))
+        }
+    }
+
+    @Test
+    fun dispatch_non_flyable_stages_are_denied() {
+        listOf(
+            "AWAITING_DEPOSIT",
+            "WAITING_ACCEPTANCE",
+            "PILOT_PREPARING",
+            "DELIVERY_CONFIRMATION",
+            "COMPLETED",
+            "CANCELLED",
+        ).forEach { stage ->
+            assertFalse("派单阶段 $stage 不得进入飞行", FlightEntryGate.canEnterFlight(null, stage))
+            val reason = FlightEntryGate.denyReason(null, stage)
+            assertNotNull("拒绝时必须给出提示文案", reason)
+            // COMPLETED 走旧「任务已完成」分支；其余走派单阶段文案
+            if (stage == "COMPLETED") {
+                assertTrue(reason!!.contains("已完成") || reason.contains("不可执飞"))
+            } else {
+                assertTrue(
+                    "提示需点明不可执飞阶段，实际=$reason",
+                    reason!!.contains("不可执飞") || reason.contains("已完成") || reason.contains("已结案"),
+                )
+            }
+            assertFalse(FlightEntryGate.isPendingFlight(null, stage))
+        }
     }
 
     // ── MatchStatus 解析 ──────────────────────────────────
