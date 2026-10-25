@@ -152,3 +152,35 @@ interface PlatformApiService {
         @Path("connectionId") connectionId: String
     ): Response<ApiResult<Unit>>
 }
+
+// ═══════════════════════════════════════════════════════
+// 保留原有的无人机注册相关模型
+// ═══════════════════════════════════════════════════════
+
+data class RegisterDroneRequest(
+    val uavName: String,
+    val onlineStatus: Char,
+    val djiId: String,
+    val controllerModel: String
+)
+
+data class RegisterDroneResponse(
+    val success: Boolean = false,
+    val id: Long? = null,
+    val name: String? = null,
+    val message: String? = null
+)
+
+data class RequestDroneWebSocketConnectionResponse(
+    val success: Boolean = false,
+    val code: String? = null,
+    val message: String? = null
+)
+
+data class PlatformApiErrorResponse(
+    val success: Boolean = false,
+    val code: String? = null,
+    val id: Long? = null,
+    val name: String? = null,
+    val message: String? = null
+)
