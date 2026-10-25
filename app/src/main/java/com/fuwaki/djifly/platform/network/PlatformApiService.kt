@@ -7,11 +7,11 @@ import com.fuwaki.djifly.data.models.RefreshResponse
 import com.fuwaki.djifly.data.models.RiderUav
 import com.fuwaki.djifly.data.models.TaskPageVO
 import com.fuwaki.djifly.data.models.TaskVo
-import com.fuwaki.djifly.platform.dispatch.DispatchOrder
-import com.fuwaki.djifly.platform.dispatch.FlightConnectRequest
-import com.fuwaki.djifly.platform.dispatch.FlightConnection
-import com.fuwaki.djifly.platform.dispatch.FlightSampleBatchRequest
-import com.fuwaki.djifly.platform.dispatch.FlightSampleBatchResult
+import com.fuwaki.djifly.platform.network.generated.ApiFlightConnectDTO
+import com.fuwaki.djifly.platform.network.generated.ApiFlightSampleBatchDTO
+import com.fuwaki.djifly.platform.network.generated.ApiResultFlightConnectionVO
+import com.fuwaki.djifly.platform.network.generated.ApiResultFlightSampleBatchVO
+import com.fuwaki.djifly.platform.network.generated.ApiResultListDispatchOrderVO
 import com.fuwaki.djifly.platform.network.generated.ApiPaths
 import com.fuwaki.djifly.platform.network.generated.ApiUserLoginDto
 import retrofit2.Response
@@ -131,20 +131,20 @@ interface PlatformApiService {
     // ═══════════════════════════════════════════════════════
 
     @GET(ApiPaths.DISPATCH_PILOT_ORDERS)
-    suspend fun getMyDispatchOrders(): Response<ApiResult<List<DispatchOrder>>>
+    suspend fun getMyDispatchOrders(): Response<ApiResultListDispatchOrderVO>
 
     @POST(ApiPaths.DISPATCH_PILOT_ORDERS_FLIGHT_CONNECTIONS)
     suspend fun connectFlight(
         @Path("orderId") orderId: String,
-        @Body request: FlightConnectRequest
-    ): Response<ApiResult<FlightConnection>>
+        @Body request: ApiFlightConnectDTO
+    ): Response<ApiResultFlightConnectionVO>
 
     @POST(ApiPaths.DISPATCH_PILOT_ORDERS_FLIGHT_CONNECTIONS_SAMPLES_BATCH)
     suspend fun uploadFlightSamples(
         @Path("orderId") orderId: String,
         @Path("connectionId") connectionId: String,
-        @Body request: FlightSampleBatchRequest
-    ): Response<ApiResult<FlightSampleBatchResult>>
+        @Body request: ApiFlightSampleBatchDTO
+    ): Response<ApiResultFlightSampleBatchVO>
 
     @POST(ApiPaths.DISPATCH_PILOT_ORDERS_FLIGHT_CONNECTIONS_CLOSE)
     suspend fun closeFlight(

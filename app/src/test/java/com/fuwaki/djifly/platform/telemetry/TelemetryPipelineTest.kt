@@ -1,11 +1,12 @@
 package com.fuwaki.djifly.platform.telemetry
 
-import com.fuwaki.djifly.platform.dispatch.DispatchOrder
 import com.fuwaki.djifly.platform.dispatch.DispatchStages
-import com.fuwaki.djifly.platform.dispatch.FlightSample
+import com.fuwaki.djifly.platform.network.generated.ApiDispatchOrderVO
+import com.fuwaki.djifly.platform.network.generated.ApiFlightSampleDTO
 import com.fuwaki.djifly.sdk.FlightDataState
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -38,22 +39,29 @@ class TelemetryPipelineTest {
         assertNull(sampler.sample(FlightDataState(speed = Double.NaN), 4_000L, payloadKg = -1.0).speed)
     }
 
-    private fun item(seq: Long, conn: String = "c1") = QueuedSample("o1", conn, FlightSample(seq, 1_000L + seq))
+    private fun item(seq: Long, conn: String = "c1") = QueuedSample("o1", conn, ApiFlightSampleDTO(sequence = seq, capturedAt = 1_000L + seq))
 
-    @Test fun fileQueueSurvivesRestartAndCapsOldest() {
+    @Test fun fileQueueAppendsOnlyAndRefusesWhenFullInsteadOfDropping() {
         val file = tmp.root.resolve("q/pending.jsonl")
         val q = FileTelemetryQueue(file, capacity = 3)
-        (0L..3L).forEach { q.add(item(it)) }
-        assertEquals(3, q.size()); assertEquals(1L, q.droppedForCapacity)
+        q.add(item(0))
+        val firstLine = file.readLines().single()
+        assertTrue(q.add(item(1))); assertTrue(q.add(item(2)))
+        assertEquals(firstLine, file.readLines().first()) // 追加写：已写的行不被改写
+        assertEquals(3, file.readLines().size)
+        assertFalse(q.add(item(3)))                        // 满了：拒绝新条目，不丢旧数据
+        assertEquals(listOf(0L, 1L, 2L), q.peek(10).map { it.sample.sequence })
+        q.removeHead(2)
+        assertEquals(3, file.readLines().size)              // 删除只记偏移，不重写
         val reopened = FileTelemetryQueue(file, capacity = 3)
-        assertEquals(listOf(1L, 2L, 3L), reopened.peek(10).map { it.sample.sequence })
-        reopened.remove(reopened.peek(2))
-        assertEquals(listOf(3L), FileTelemetryQueue(file).peek(10).map { it.sample.sequence })
+        assertEquals(listOf(2L), reopened.peek(10).map { it.sample.sequence })
+        reopened.removeHead(1)
+        assertEquals(0, FileTelemetryQueue(file).size())
     }
 
     @Test fun uploaderKeepsSamplesOnRetryAndBatchesPerConnection() = runBlocking {
         val q = FileTelemetryQueue(tmp.root.resolve("u.jsonl"))
-        listOf(item(0), item(1), item(2, "c2")).forEach(q::add)
+        listOf(item(0), item(1), item(2, "c2")).forEach { q.add(it) }
         val calls = mutableListOf<Pair<String, Int>>()
         var outcome: UploadOutcome = UploadOutcome.Retry
         val uploader = TelemetryUploader(q, BatchSender { _, conn, samples -> calls += conn to samples.size; outcome })
@@ -82,8 +90,16 @@ class TelemetryPipelineTest {
         assertEquals("1581F", DroneModelMapper.validSerial(" 1581F "))
     }
 
+    @Test fun payloadComesFromWaybillCargoWeight() {
+        assertEquals(12.5, DispatchStages.cargoWeightKg(ApiDispatchOrderVO(fields = mapOf("weightMin" to "10", "weightMax" to "12.5")))!!, 0.0)
+        assertEquals(10.0, DispatchStages.cargoWeightKg(ApiDispatchOrderVO(fields = mapOf("weightMin" to 10)))!!, 0.0)
+        assertNull(DispatchStages.cargoWeightKg(ApiDispatchOrderVO(fields = mapOf("weightMax" to "abc"))))
+        assertNull(DispatchStages.cargoWeightKg(null))
+    }
+
     @Test fun currentOrderPrefersInTransitThenArrived() {
-        val orders = listOf(DispatchOrder("a", "COMPLETED"), DispatchOrder("b", "PILOT_ARRIVED"), DispatchOrder("c", "IN_TRANSIT"))
+        val orders = listOf(ApiDispatchOrderVO(orderId = "a", stage = "COMPLETED"), ApiDispatchOrderVO(orderId = "b", stage = "PILOT_ARRIVED"),
+            ApiDispatchOrderVO(orderId = "c", stage = "IN_TRANSIT"))
         assertEquals("c", DispatchStages.current(orders)?.orderId)
         assertEquals("b", DispatchStages.current(orders.take(2))?.orderId)
         assertNull(DispatchStages.current(orders.take(1)))

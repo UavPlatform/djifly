@@ -34,10 +34,10 @@ fun DispatchOrderCard(state: DispatchFlightState, modifier: Modifier = Modifier)
                 color = MaterialTheme.colorScheme.primary
             )
             Spacer(Modifier.height(4.dp))
-            Text("订单 ${order.orderId.take(8)}", style = MaterialTheme.typography.bodySmall)
+            Text("订单 ${order.orderId.orEmpty().take(8)}", style = MaterialTheme.typography.bodySmall)
             val c = state.connection
             Text(
-                text = if (c != null) "已连机：${c.modelName ?: c.modelCode ?: "未知机型"} · ${c.serialNumber ?: "未知"}（自动记录）"
+                text = if (c != null) "已连机：${c.modelName} · ${c.serialNumber}（自动记录${if (c.serverId == null) "，待联网上报" else ""}）"
                 else "连上飞机后自动记录机型与机身号",
                 style = MaterialTheme.typography.bodyMedium
             )
@@ -48,6 +48,8 @@ fun DispatchOrderCard(state: DispatchFlightState, modifier: Modifier = Modifier)
             if (state.pendingSamples > 0) {
                 Text("待补传遥测 ${state.pendingSamples} 条（联网后自动上传）", style = MaterialTheme.typography.bodySmall)
             }
+            state.cacheWarning?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold) }
             state.lastError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
         }
     }
