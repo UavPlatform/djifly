@@ -41,7 +41,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.fuwaki.djifly.ui.components.DispatchOrderCard
-import com.fuwaki.djifly.ui.components.OrderCard
 import com.fuwaki.djifly.ui.viewmodel.HomeViewModel
 
 /**
@@ -103,7 +102,7 @@ fun HomeScreen(
                     )
                 }
             }
-            uiState.pendingTasks.isEmpty() -> item {
+            uiState.pendingOrders.isEmpty() -> item {
                 EmptyPendingTasks(
                     onGoToApp = {
                         Toast.makeText(
@@ -114,11 +113,11 @@ fun HomeScreen(
                     }
                 )
             }
-            else -> items(uiState.pendingTasks, key = { it.id }) { task ->
-                OrderCard(
-                    task = task,
-                    onClick = { onNavigateToTaskDetail(task.taskNum) },
-                    onStartJob = { onNavigateToStarter(task.taskNum) },
+            else -> items(uiState.pendingOrders, key = { it.orderId.orEmpty() }) { order ->
+                DispatchOrderCard(
+                    state = com.fuwaki.djifly.platform.telemetry.DispatchFlightState(currentOrder = order),
+                    onOpen = { onNavigateToTaskDetail(order.orderId.orEmpty()) },
+                    onStart = { onNavigateToStarter(order.orderId) },
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                 )
             }

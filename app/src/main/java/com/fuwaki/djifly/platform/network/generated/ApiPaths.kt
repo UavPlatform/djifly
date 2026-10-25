@@ -20,12 +20,6 @@ object ApiPaths {
     /** POST user/refresh */
     const val USER_REFRESH = "user/refresh"
 
-    /** GET rider/my-tasks */
-    const val RIDER_MY_TASKS = "rider/my-tasks"
-
-    /** GET rider/task/detail */
-    const val RIDER_TASK_DETAIL = "rider/task/detail"
-
     /** POST appUav/add */
     const val APP_UAV_ADD = "appUav/add"
 
@@ -35,29 +29,23 @@ object ApiPaths {
     /** POST live/rider/req */
     const val LIVE_RIDER_REQ = "live/rider/req"
 
-    /** POST tasks/{taskNum}/attachments/upload-url */
-    const val TASKS_ATTACHMENTS_UPLOAD_URL = "tasks/{taskNum}/attachments/upload-url"
-
-    /** POST tasks/{taskNum}/attachments/confirm-upload */
-    const val TASKS_ATTACHMENTS_CONFIRM_UPLOAD = "tasks/{taskNum}/attachments/confirm-upload"
-
-    /** GET tasks/{taskNum}/attachments */
-    const val TASKS_ATTACHMENTS = "tasks/{taskNum}/attachments"
-
-    /** POST rider/complete */
-    const val RIDER_COMPLETE = "rider/complete"
-
-    /** GET rider/drone/list */
-    const val RIDER_DRONE_LIST = "rider/drone/list"
-
-    /** POST rider/drone/bind */
-    const val RIDER_DRONE_BIND = "rider/drone/bind"
-
-    /** DELETE rider/drone/unbind */
-    const val RIDER_DRONE_UNBIND = "rider/drone/unbind"
-
     /** GET dispatch/pilot/orders */
     const val DISPATCH_PILOT_ORDERS = "dispatch/pilot/orders"
+
+    /** POST dispatch/orders/{orderId}/start-transport */
+    const val DISPATCH_ORDERS_START_TRANSPORT = "dispatch/orders/{orderId}/start-transport"
+
+    /** POST dispatch/orders/{orderId}/deliver */
+    const val DISPATCH_ORDERS_DELIVER = "dispatch/orders/{orderId}/deliver"
+
+    /** GET dispatch/orders/{orderId}/materials */
+    const val DISPATCH_ORDERS_MATERIALS = "dispatch/orders/{orderId}/materials"
+
+    /** POST dispatch/orders/{orderId}/materials/upload-ticket */
+    const val DISPATCH_ORDERS_MATERIALS_UPLOAD_TICKET = "dispatch/orders/{orderId}/materials/upload-ticket"
+
+    /** POST dispatch/orders/{orderId}/materials/{materialId}/confirm */
+    const val DISPATCH_ORDERS_MATERIALS_CONFIRM = "dispatch/orders/{orderId}/materials/{materialId}/confirm"
 
     /** POST dispatch/pilot/orders/{orderId}/flight-connections */
     const val DISPATCH_PILOT_ORDERS_FLIGHT_CONNECTIONS = "dispatch/pilot/orders/{orderId}/flight-connections"

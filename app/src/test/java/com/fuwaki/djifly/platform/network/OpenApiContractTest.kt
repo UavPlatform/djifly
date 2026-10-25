@@ -1,8 +1,7 @@
 package com.fuwaki.djifly.platform.network
 
 import com.fuwaki.djifly.platform.network.generated.ApiPaths
-import com.fuwaki.djifly.platform.network.generated.ApiTaskVo
-import com.fuwaki.djifly.platform.network.generated.ApiUavVo
+import com.fuwaki.djifly.platform.network.generated.ApiDispatchOrderVO
 import com.google.gson.Gson
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -26,18 +25,18 @@ class OpenApiContractTest {
     private val calledEndpoints: List<List<String>> = listOf(
         listOf("post", "user/login"),
         listOf("post", "user/refresh"),
-        listOf("get", "rider/my-tasks"),
-        listOf("get", "rider/task/detail"),
         listOf("post", "appUav/add"),
         listOf("post", "api/ws/request"),
         listOf("post", "live/rider/req"),
-        listOf("post", "tasks/{taskNum}/attachments/upload-url"),
-        listOf("post", "tasks/{taskNum}/attachments/confirm-upload"),
-        listOf("get", "tasks/{taskNum}/attachments"),
-        listOf("post", "rider/complete"),
-        listOf("get", "rider/drone/list"),
-        listOf("post", "rider/drone/bind"),
-        listOf("delete", "rider/drone/unbind"),
+        listOf("get", "dispatch/pilot/orders"),
+        listOf("post", "dispatch/orders/{orderId}/start-transport"),
+        listOf("post", "dispatch/orders/{orderId}/deliver"),
+        listOf("get", "dispatch/orders/{orderId}/materials"),
+        listOf("post", "dispatch/orders/{orderId}/materials/upload-ticket"),
+        listOf("post", "dispatch/orders/{orderId}/materials/{materialId}/confirm"),
+        listOf("post", "dispatch/pilot/orders/{orderId}/flight-connections"),
+        listOf("post", "dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/samples/batch"),
+        listOf("post", "dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/close"),
     )
 
     private val specFile: File by lazy { resolveSpecFile() }
@@ -128,22 +127,13 @@ class OpenApiContractTest {
     @Test
     fun generated_models_parse_sample_payloads() {
         val gson = Gson()
-
-        val uav = gson.fromJson(
-            "{\"id\":7,\"uavName\":\"SN-1\",\"djiId\":\"SN-1\",\"controllerModel\":\"RC\",\"isAvailable\":\"1\"}",
-            ApiUavVo::class.java
+        val order = gson.fromJson(
+            "{"orderId":"ord-1","stage":"IN_TRANSIT","assignmentVersion":3,"depositAmount":100.0}",
+            ApiDispatchOrderVO::class.java
         )
-        assertEquals(7L, uav.id)
-        assertEquals("SN-1", uav.uavName)
-
-        // 撮合子状态字段（TASK-DJIFLY-002 执飞门禁的契约来源）
-        val task = gson.fromJson(
-            "{\"taskNum\":\"T-1\",\"taskStatus\":\"IN_PROGRESS\",\"matchStatus\":\"CONFIRMED\"}",
-            ApiTaskVo::class.java
-        )
-        assertEquals("T-1", task.taskNum)
-        assertEquals("IN_PROGRESS", task.taskStatus)
-        assertEquals("CONFIRMED", task.matchStatus)
+        assertEquals("ord-1", order.orderId)
+        assertEquals("IN_TRANSIT", order.stage)
+        assertEquals(3L, order.assignmentVersion)
     }
 
     // ═══════════════════════════════════════════════════════

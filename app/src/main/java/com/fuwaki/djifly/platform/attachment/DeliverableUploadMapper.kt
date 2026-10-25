@@ -6,7 +6,7 @@ import com.fuwaki.djifly.platform.network.ApiErrorBodyParser
 /** 单个交付物的上传结果（纯 Kotlin，可 JVM 单测） */
 sealed interface DeliverableUploadOutcome {
     /** 直传成功，附件已登记并与任务关联 */
-    data class Uploaded(val objectKey: String, val fileName: String) : DeliverableUploadOutcome
+    data class Uploaded(val materialId: String, val fileName: String) : DeliverableUploadOutcome
 
     /** 类型/大小预检拒绝（本地规则），不可重试同一文件 */
     data class Rejected(val reason: String) : DeliverableUploadOutcome

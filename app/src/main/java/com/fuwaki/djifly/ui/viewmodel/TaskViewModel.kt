@@ -66,42 +66,67 @@ class TaskViewModel @Inject constructor(
     // Task Detail
     // -----------------------------------------------------------------------
 
+    private var assignmentVersion: Long = 0L
+
+    /** 加载派单订单详情（路由参数仍叫 taskNum，值改为 orderId）。 */
     fun loadTaskDetail(taskNum: String) {
         viewModelScope.launch {
             _detailLoading.value = true
-            apiCall(errorHandler) { api.getTaskDetail(taskNum) }
-                .onSuccess { data ->
-                    _taskDetail.value = data
-                }
-                .onError { error ->
-                    _actionState.value = ActionState.Error(error.message)
-                }
+            val response = runCatching { api.getMyDispatchOrders() }.getOrNull()
+            val order = response?.takeIf { it.isSuccessful }?.body()?.data.orEmpty()
+                .firstOrNull { it.orderId == taskNum }
+            assignmentVersion = order?.assignmentVersion ?: 0L
+            _taskDetail.value = order?.let { dispatchAsTask(it) }
+            if (order == null) {
+                _actionState.value = ActionState.Error("未找到可执飞的派单订单")
+            }
             _detailLoading.value = false
         }
+    }
+
+    private fun dispatchAsTask(order: com.fuwaki.djifly.platform.network.generated.ApiDispatchOrderVO): TaskVo {
+        return TaskVo(
+            id = 0,
+            taskNum = order.orderId.orEmpty(),
+            taskName = "派单 ${order.orderId.orEmpty().take(8)}",
+            taskStatus = order.stage,
+            orderStatus = order.fundsStatus,
+            totalAmount = order.depositAmount?.let { java.math.BigDecimal.valueOf(it) },
+            actionHint = com.fuwaki.djifly.platform.dispatch.DispatchStages.label(order.stage),
+        )
     }
 
     // -----------------------------------------------------------------------
     // Actions
     // -----------------------------------------------------------------------
 
-    /** 完成任务（t32 契约：note 可选完成说明，≤500 字；须在飞行页上传送达凭证后调用） */
+    /** 派单送达：POST /dispatch/orders/{orderId}/deliver */
     fun completeTask(taskNum: String, note: String? = null) {
         viewModelScope.launch {
             if (_actionState.value is ActionState.Loading) return@launch
             _actionState.value = ActionState.Loading
-            apiCall(errorHandler, emptySuccessValue = Unit) {
-                api.completeTask(taskNum, note).also { response ->
-                    val body = response.body()
-                    android.util.Log.i("TaskCompletion",
-                        "http=${response.code()} success=${body?.success} code=${body?.code} errorCode=${body?.errorCode} hasData=${body?.data != null}")
-                }
+            val materialIds = _deliverables.value
+                .mapNotNull { it.objectKey }
+                .filter { it.isNotBlank() }
+            val response = runCatching {
+                api.deliverOrder(
+                    orderId = taskNum,
+                    body = com.fuwaki.djifly.platform.network.generated.ApiDispatchDeliveryDTO(
+                        assignmentVersion = assignmentVersion,
+                        materialIds = materialIds
+                    )
+                )
+            }.getOrNull()
+            val body = response?.body()
+            android.util.Log.i(
+                "TaskCompletion",
+                "http=${response?.code()} success=${body?.success} materials=${materialIds.size}"
+            )
+            if (response?.isSuccessful == true && body?.success == true) {
+                _actionState.value = ActionState.Success("已提交送达，等待货主确认")
+            } else {
+                _actionState.value = ActionState.Error(body?.message ?: "送达提交失败")
             }
-                .onSuccess {
-                    _actionState.value = ActionState.Success("已提交送达，等待用户验收")
-                }
-                .onError { error ->
-                    _actionState.value = ActionState.Error(AppErrorMapping.userMessageFor(error))
-                }
         }
     }
 
@@ -218,7 +243,7 @@ class TaskViewModel @Inject constructor(
                         when (outcome) {
                             is DeliverableUploadOutcome.Uploaded -> it.copy(
                                 phase = DeliverableItemPhase.UPLOADED,
-                                objectKey = outcome.objectKey,
+                                objectKey = outcome.materialId,
                                 message = null
                             )
                             is DeliverableUploadOutcome.Rejected -> it.copy(
@@ -240,9 +265,17 @@ class TaskViewModel @Inject constructor(
     /** 刷新附件列表（成果归档确认，任务所有者/飞手可见） */
     fun refreshAttachments(taskNum: String) {
         viewModelScope.launch {
-            runCatching { api.getAttachments(taskNum) }.onSuccess { response ->
+            runCatching { api.listMaterials(taskNum) }.onSuccess { response ->
                 if (response.isSuccessful) {
-                    _attachments.value = response.body()?.data.orEmpty()
+                    _attachments.value = response.body()?.data.orEmpty().map { material ->
+                        com.fuwaki.djifly.platform.network.AttachmentItem(
+                            objectKey = material.materialId,
+                            fileName = material.fileName,
+                            contentType = material.contentType,
+                            sizeBytes = material.sizeBytes,
+                            downloadUrl = material.downloadUrl
+                        )
+                    }
                 }
             }
         }
