@@ -89,7 +89,7 @@ class DjiSdkManager @Inject constructor() {
     private fun startListeningToFlightData() {
         BatteryKey.KeyChargeRemainingInPercent.create(ComponentIndexType.LEFT_OR_MAIN).listen(this) { percent: Int? ->
             percent?.let {
-                updateFlightData { data -> data.copy(batteryPercentage = it) }
+                updateFlightData { data -> data.copy(batteryPercentage = it, batteryKnown = true) }
             }
         }
         FlightControllerKey.KeyGPSSatelliteCount.create().listen(this) { count: Int? ->
@@ -130,6 +130,10 @@ class DjiSdkManager @Inject constructor() {
             updateFlightData { data ->
                 FlightTelemetry.applyVelocity(data, velocity?.x, velocity?.y)
             }
+        }
+        // 是否在飞（Boolean），用于遥测 flying 字段；未获取保持 null
+        FlightControllerKey.KeyIsFlying.create().listen(this) { flying: Boolean? ->
+            updateFlightData { data -> data.copy(isFlying = flying) }
         }
         PerceptionManager.getInstance().addPerceptionInformationListener(perceptionListener)
     }

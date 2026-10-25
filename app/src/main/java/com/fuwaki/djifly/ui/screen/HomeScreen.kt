@@ -40,6 +40,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.fuwaki.djifly.ui.components.DispatchOrderCard
 import com.fuwaki.djifly.ui.components.OrderCard
 import com.fuwaki.djifly.ui.viewmodel.HomeViewModel
 
@@ -53,6 +54,7 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val dispatchState by viewModel.dispatchState.collectAsState()
     val context = LocalContext.current
 
     LaunchedEffect(Unit) {
@@ -68,6 +70,15 @@ fun HomeScreen(
     ) {
         item {
             HomeHeader(userName = uiState.userName)
+        }
+
+        if (dispatchState.currentOrder != null) {
+            item {
+                DispatchOrderCard(
+                    state = dispatchState,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+            }
         }
 
         item {

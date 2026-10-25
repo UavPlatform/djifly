@@ -14,6 +14,7 @@ class MyApplication : Application() {
     private val TAG = this::class.simpleName
     @Inject lateinit var sdkManager: DjiSdkManager
     @Inject lateinit var platformRegistrationManager: PlatformRegistrationManager
+    @Inject lateinit var dispatchTelemetryService: com.fuwaki.djifly.platform.telemetry.DispatchTelemetryService
 
     override fun attachBaseContext(base: Context?) {
         super.attachBaseContext(base)
@@ -29,5 +30,6 @@ class MyApplication : Application() {
 
         sdkManager.initSdk(this)
         platformRegistrationManager.start()
+        dispatchTelemetryService.start()
     }
 }

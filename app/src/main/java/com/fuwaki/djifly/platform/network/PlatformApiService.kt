@@ -7,6 +7,11 @@ import com.fuwaki.djifly.data.models.RefreshResponse
 import com.fuwaki.djifly.data.models.RiderUav
 import com.fuwaki.djifly.data.models.TaskPageVO
 import com.fuwaki.djifly.data.models.TaskVo
+import com.fuwaki.djifly.platform.network.generated.ApiFlightConnectDTO
+import com.fuwaki.djifly.platform.network.generated.ApiFlightSampleBatchDTO
+import com.fuwaki.djifly.platform.network.generated.ApiResultFlightConnectionVO
+import com.fuwaki.djifly.platform.network.generated.ApiResultFlightSampleBatchVO
+import com.fuwaki.djifly.platform.network.generated.ApiResultListDispatchOrderVO
 import com.fuwaki.djifly.platform.network.generated.ApiPaths
 import com.fuwaki.djifly.platform.network.generated.ApiUserLoginDto
 import retrofit2.Response
@@ -119,6 +124,32 @@ interface PlatformApiService {
     @DELETE(ApiPaths.RIDER_DRONE_UNBIND)
     suspend fun unbindDrone(
         @Query("djiId") djiId: String
+    ): Response<ApiResult<Unit>>
+
+    // ═══════════════════════════════════════════════════════
+    // 派单执行：当前订单、连机记录、遥测批量上报（ADR-0007 / ADR-0009）
+    // ═══════════════════════════════════════════════════════
+
+    @GET(ApiPaths.DISPATCH_PILOT_ORDERS)
+    suspend fun getMyDispatchOrders(): Response<ApiResultListDispatchOrderVO>
+
+    @POST(ApiPaths.DISPATCH_PILOT_ORDERS_FLIGHT_CONNECTIONS)
+    suspend fun connectFlight(
+        @Path("orderId") orderId: String,
+        @Body request: ApiFlightConnectDTO
+    ): Response<ApiResultFlightConnectionVO>
+
+    @POST(ApiPaths.DISPATCH_PILOT_ORDERS_FLIGHT_CONNECTIONS_SAMPLES_BATCH)
+    suspend fun uploadFlightSamples(
+        @Path("orderId") orderId: String,
+        @Path("connectionId") connectionId: String,
+        @Body request: ApiFlightSampleBatchDTO
+    ): Response<ApiResultFlightSampleBatchVO>
+
+    @POST(ApiPaths.DISPATCH_PILOT_ORDERS_FLIGHT_CONNECTIONS_CLOSE)
+    suspend fun closeFlight(
+        @Path("orderId") orderId: String,
+        @Path("connectionId") connectionId: String
     ): Response<ApiResult<Unit>>
 }
 

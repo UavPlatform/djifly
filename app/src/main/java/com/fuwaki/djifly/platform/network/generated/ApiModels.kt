@@ -14,6 +14,111 @@ package com.fuwaki.djifly.platform.network.generated
  * 本文件由生成器维护，禁止手改。
  */
 
+/** 契约 components.schemas.DispatchBillVO。 */
+data class ApiDispatchBillVO(
+    val balanceAmount: Double? = null,
+    val finalAmount: Double? = null,
+    val quote: ApiDispatchQuoteVO? = null,
+    val reviewComment: String? = null,
+    val reviewScore: Int? = null,
+    val settledAt: String? = null,
+    val settlementReference: String? = null
+)
+
+/** 契约 components.schemas.DispatchExecutedDroneVO。 */
+data class ApiDispatchExecutedDroneVO(
+    val aircraftModelId: Long? = null,
+    val modelCode: String? = null,
+    val modelName: String? = null,
+    val serialNumber: String? = null
+)
+
+/** 契约 components.schemas.DispatchOrderVO。 */
+data class ApiDispatchOrderVO(
+    val assignedPilotId: Long? = null,
+    val assignmentVersion: Long? = null,
+    val bill: ApiDispatchBillVO? = null,
+    val createdAt: String? = null,
+    val currency: String? = null,
+    val deliveredAt: String? = null,
+    val depositAmount: Double? = null,
+    val executedDrone: ApiDispatchExecutedDroneVO? = null,
+    val fields: Map<String, Any?>? = null,
+    val fundsStatus: String? = null,
+    val orderId: String? = null,
+    val paymentMode: String? = null,
+    val paymentReference: String? = null,
+    val pilotServiceFee: Double? = null,
+    val receiptAt: String? = null,
+    val refundReference: String? = null,
+    val stage: String? = null,
+    val startedAt: String? = null,
+    val updatedAt: String? = null
+)
+
+/** 契约 components.schemas.DispatchQuoteVO。 */
+data class ApiDispatchQuoteVO(
+    val depositAmount: Double? = null,
+    val distanceBasis: String? = null,
+    val distanceCharge: Double? = null,
+    val distanceMeters: Double? = null,
+    val pilotServiceFee: Double? = null,
+    val pricePerMeter: Double? = null,
+    val rule: String? = null,
+    val totalAmount: Double? = null
+)
+
+/** 契约 components.schemas.FlightConnectDTO。 */
+data class ApiFlightConnectDTO(
+    val assignmentVersion: Long? = null,
+    val modelCode: String,
+    val modelName: String,
+    val requestKey: String,
+    val serialNumber: String,
+    val startedAt: Long? = null
+)
+
+/** 契约 components.schemas.FlightConnectionVO。 */
+data class ApiFlightConnectionVO(
+    val aircraftModelId: Long? = null,
+    val assignmentVersion: Long? = null,
+    val connectionId: String? = null,
+    val endReason: String? = null,
+    val endedAt: String? = null,
+    val maxPayloadKg: Double? = null,
+    val modelCode: String? = null,
+    val modelName: String? = null,
+    val openedAt: String? = null,
+    val orderId: String? = null,
+    val overweight: Boolean? = null,
+    val serialNumber: String? = null
+)
+
+/** 契约 components.schemas.FlightSampleBatchDTO。 */
+data class ApiFlightSampleBatchDTO(
+    val samples: List<ApiFlightSampleDTO>
+)
+
+/** 契约 components.schemas.FlightSampleBatchVO。 */
+data class ApiFlightSampleBatchVO(
+    val accepted: Int? = null,
+    val duplicates: Int? = null,
+    val rejected: Int? = null
+)
+
+/** 契约 components.schemas.FlightSampleDTO。 */
+data class ApiFlightSampleDTO(
+    val altitude: Double? = null,
+    val battery: Int? = null,
+    val capturedAt: Long? = null,
+    val flying: Boolean? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val payloadKg: Double? = null,
+    val sequence: Long? = null,
+    val speed: Double? = null
+)
+
 /** 契约 components.schemas.LiveStartVO。 */
 data class ApiLiveStartVO(
     val ackConfirmed: Boolean? = null,
@@ -21,6 +126,33 @@ data class ApiLiveStartVO(
     val liveState: String? = null,
     val requestId: String? = null,
     val roomId: String? = null
+)
+
+/** 契约 components.schemas.ResultFlightConnectionVO。 */
+data class ApiResultFlightConnectionVO(
+    val code: Int? = null,
+    val data: ApiFlightConnectionVO? = null,
+    val errorCode: String? = null,
+    val message: String? = null,
+    val success: Boolean? = null
+)
+
+/** 契约 components.schemas.ResultFlightSampleBatchVO。 */
+data class ApiResultFlightSampleBatchVO(
+    val code: Int? = null,
+    val data: ApiFlightSampleBatchVO? = null,
+    val errorCode: String? = null,
+    val message: String? = null,
+    val success: Boolean? = null
+)
+
+/** 契约 components.schemas.ResultListDispatchOrderVO。 */
+data class ApiResultListDispatchOrderVO(
+    val code: Int? = null,
+    val data: List<ApiDispatchOrderVO>? = null,
+    val errorCode: String? = null,
+    val message: String? = null,
+    val success: Boolean? = null
 )
 
 /** 契约 components.schemas.ResultListMapStringObject。 */

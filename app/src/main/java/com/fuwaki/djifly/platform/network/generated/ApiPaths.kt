@@ -56,6 +56,18 @@ object ApiPaths {
     /** DELETE rider/drone/unbind */
     const val RIDER_DRONE_UNBIND = "rider/drone/unbind"
 
+    /** GET dispatch/pilot/orders */
+    const val DISPATCH_PILOT_ORDERS = "dispatch/pilot/orders"
+
+    /** POST dispatch/pilot/orders/{orderId}/flight-connections */
+    const val DISPATCH_PILOT_ORDERS_FLIGHT_CONNECTIONS = "dispatch/pilot/orders/{orderId}/flight-connections"
+
+    /** POST dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/samples/batch */
+    const val DISPATCH_PILOT_ORDERS_FLIGHT_CONNECTIONS_SAMPLES_BATCH = "dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/samples/batch"
+
+    /** POST dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/close */
+    const val DISPATCH_PILOT_ORDERS_FLIGHT_CONNECTIONS_CLOSE = "dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/close"
+
     /** 事实源规格 openapi/drone-backend.openapi.json 的 sha256（门禁测试对账）。 */
     const val GENERATED_FROM_SHA256 = "c953c4d5b6b6adc327436a587f5cf2ba12d255ee7ca99a9c1ee40bfcb5f27a24"
 }
