@@ -1,7 +1,7 @@
 // GENERATED — DO NOT EDIT.
 // 契约路径表：调用点只允许引用 ApiPaths 常量，禁止散落路径字面量。
 // 生成器：tools/openapi-gen.mjs
-// 事实源：openapi/drone-backend.openapi.json (sha256: 5a4433d935536b0ab9687a41b9344a1ca9abd5a08781b04a096cdaee1140237e)
+// 事实源：openapi/drone-backend.openapi.json (sha256: d1c26911eb1ed909509d7ed624f9154847eb14b94f43c97592a91babc3eae3d9)
 // 生成命令：cd djifly && node tools/openapi-gen.mjs
 
 package com.fuwaki.djifly.platform.network.generated
@@ -57,5 +57,5 @@ object ApiPaths {
     const val DISPATCH_PILOT_ORDERS_FLIGHT_CONNECTIONS_CLOSE = "dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/close"
 
     /** 事实源规格 openapi/drone-backend.openapi.json 的 sha256（门禁测试对账）。 */
-    const val GENERATED_FROM_SHA256 = "5a4433d935536b0ab9687a41b9344a1ca9abd5a08781b04a096cdaee1140237e"
+    const val GENERATED_FROM_SHA256 = "d1c26911eb1ed909509d7ed624f9154847eb14b94f43c97592a91babc3eae3d9"
 }
