@@ -48,10 +48,16 @@ class FlightRecorder(private val queue: TelemetryQueue, private val journal: Con
 
     init {
         // 进程重启后无法接上原来的序号，上一条未结束的连接就此结束，重新连机时开新记录。
+        // 结束时间取这条连接最后一次采样的时间（没有采样则取开始时间），不用「现在」，避免把停机时段算进连机时长。
+        val queued = queue.peek(queue.capacity).groupBy { it.connectionId }
+            .mapValues { (_, v) -> v.mapNotNull { it.sample.capturedAt }.maxOrNull() }
         journal.all().filter { it.endedAt == null }.forEach { c ->
-            journal.update(c.localId) { it.copy(endedAt = System.currentTimeMillis()) }
+            val last = listOfNotNull(c.lastSampleAt, queued[c.localId]).maxOrNull() ?: c.startedAt
+            journal.update(c.localId) { it.copy(endedAt = last) }
         }
     }
+
+    internal fun journalForTest(): ConnectionJournal = journal
 
     fun active(): LocalConnection? = journal.all().lastOrNull { it.endedAt == null }
 
@@ -77,6 +83,7 @@ class FlightRecorder(private val queue: TelemetryQueue, private val journal: Con
             sampler = TelemetrySampler()
         }
         val sample = sampler.sample(s.flight, now, DispatchStages.cargoWeightKg(order))
+        journal.markSample(current.localId, now)
         if (queue.add(QueuedSample(current.orderId, current.localId, sample))) {
             cacheWarning = if (queue.size() >= queue.capacity * 9 / 10)
                 "离线遥测缓存即将用满（${queue.size()}/${queue.capacity}），请尽快联网补传" else null
@@ -86,9 +93,26 @@ class FlightRecorder(private val queue: TelemetryQueue, private val journal: Con
         }
     }
 
-    /** 登记 → 补传 → 结束。任何一步遇到网络问题都停下，下一轮再试；不丢本机记录。 */
+    /**
+     * 结束 → 登记 → 补传。先上报已结束的旧连接，避免旧连接仍占着机身号时新连接登记被 409。
+     * 任何一步遇到网络问题都停下，下一轮再试；不丢本机记录。
+     */
     suspend fun sync(api: FlightApi) {
         var problem: String? = null
+        for (c in journal.all().filter { it.endedAt != null && it.serverId != null && !it.closed }) {
+            val code = runCatching { api.close(c.orderId, c.serverId!!) }.getOrNull()
+            when {
+                code in 200..299 -> journal.update(c.localId) { it.copy(closed = true) }
+                retryable(code) -> {
+                    val failures = journal.update(c.localId) { it.copy(closeFailures = it.closeFailures + 1) }?.closeFailures ?: 0
+                    if (failures >= CLOSE_WARN_AFTER) problem = "结束连机上报失败（已重试 $failures 次），会继续自动重试"
+                }
+                else -> {
+                    journal.update(c.localId) { it.copy(closed = true) }
+                    problem = "结束连机被平台拒绝（$code），请联系调度核对本单连机时长"
+                }
+            }
+        }
         for (c in journal.all().filter { it.serverId == null && it.rejected == null }) {
             val reply = runCatching {
                 api.connect(c.orderId, ApiFlightConnectDTO(c.assignmentVersion, c.modelCode, c.modelName, c.requestKey,
@@ -99,6 +123,11 @@ class FlightRecorder(private val queue: TelemetryQueue, private val journal: Con
                 reply.code in 200..299 && serverId != null ->
                     journal.update(c.localId) { it.copy(serverId = serverId, overweight = reply.body?.overweight == true) }
                 retryable(reply.code) -> { problem = problem ?: "连机记录已在本机保存，联网后自动上报"; break }
+                // 409（订单阶段刚变化、旧连接尚未结束等）可能是暂时的：保留本机记录和采样，有限次重试后才放弃。
+                reply.code == 409 && c.connectConflicts + 1 < CONNECT_CONFLICT_LIMIT -> {
+                    journal.update(c.localId) { it.copy(connectConflicts = it.connectConflicts + 1) }
+                    problem = problem ?: "连机记录暂未被平台接受（409），会继续重试"
+                }
                 else -> {
                     journal.update(c.localId) { it.copy(rejected = "连机记录被拒绝（${reply.code}）", closed = true) }
                     problem = "连机记录被平台拒绝（${reply.code}），本次飞行的遥测不会上报，请检查订单状态"
@@ -114,20 +143,6 @@ class FlightRecorder(private val queue: TelemetryQueue, private val journal: Con
                     ?.let(TelemetryHttp::outcome) ?: UploadOutcome.Retry
             }
         }).flush()
-        for (c in journal.all().filter { it.endedAt != null && it.serverId != null && !it.closed }) {
-            val code = runCatching { api.close(c.orderId, c.serverId!!) }.getOrNull()
-            when {
-                code in 200..299 -> journal.update(c.localId) { it.copy(closed = true) }
-                retryable(code) -> {
-                    val failures = journal.update(c.localId) { it.copy(closeFailures = it.closeFailures + 1) }?.closeFailures ?: 0
-                    if (failures >= CLOSE_WARN_AFTER) problem = "结束连机上报失败（已重试 $failures 次），会继续自动重试"
-                }
-                else -> {
-                    journal.update(c.localId) { it.copy(closed = true) }
-                    problem = "结束连机被平台拒绝（$code），请联系调度核对本单连机时长"
-                }
-            }
-        }
         error = problem
     }
 
@@ -135,5 +150,7 @@ class FlightRecorder(private val queue: TelemetryQueue, private val journal: Con
 
     companion object {
         const val CLOSE_WARN_AFTER = 3
+        /** 登记连续 409 达到此次数才视为永久拒绝（上传协程每 5 秒一轮，约 10 分钟）。 */
+        const val CONNECT_CONFLICT_LIMIT = 120
     }
 }

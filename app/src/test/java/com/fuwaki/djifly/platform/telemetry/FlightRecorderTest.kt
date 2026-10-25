@@ -21,12 +21,16 @@ class FlightRecorderTest {
     private class FakeApi : FlightApi {
         var online = false
         var closeCode: Int? = 200
+        var connectCode = 200
+        val log = mutableListOf<String>()
         val connects = mutableListOf<ApiFlightConnectDTO>()
         val uploads = mutableListOf<Pair<String, Int>>()
         val closes = mutableListOf<String>()
         var calls = 0
         override suspend fun connect(orderId: String, request: ApiFlightConnectDTO): ApiReply<ApiFlightConnectionVO> {
             calls++; if (!online) return ApiReply(null)
+            log += "connect:${request.serialNumber}"
+            if (connectCode != 200) return ApiReply(connectCode)
             connects += request; return ApiReply(200, ApiFlightConnectionVO(connectionId = "srv-${connects.size}"))
         }
         override suspend fun upload(orderId: String, connectionId: String, batch: ApiFlightSampleBatchDTO): Int? {
@@ -35,6 +39,7 @@ class FlightRecorderTest {
         }
         override suspend fun close(orderId: String, connectionId: String): Int? {
             calls++; if (!online) return null
+            log += "close:$connectionId"
             closes += connectionId; return closeCode
         }
     }
@@ -98,4 +103,59 @@ class FlightRecorderTest {
         again.record(5_000, snap())
         assertEquals(2, FileConnectionJournal(journalFile).all().size)
     }
+
+    @Test fun lateRegistrationConflictKeepsOfflineSamplesAndRetries() = runBlocking {
+        val api = FakeApi(); val r = recorder()
+        r.record(1_000, snap()); r.record(3_000, snap()); r.record(5_000, snap(connected = false)) // 整趟离线
+        api.online = true; api.connectCode = 409
+        r.sync(api)
+        assertEquals(2, r.status().pendingSamples)          // 409 不丢本机采样
+        assertNull(r.journalFor("SN1").rejected)
+        assertTrue(r.status().error!!.contains("409"))
+        api.connectCode = 200
+        r.sync(api)
+        assertEquals(1_000L, api.connects.single().startedAt)
+        assertEquals(listOf("srv-1" to 2), api.uploads)
+        assertEquals(0, r.status().pendingSamples)
+    }
+
+    @Test fun persistentConflictIsGivenUpOnlyAfterLimit() = runBlocking {
+        val api = FakeApi().apply { online = true; connectCode = 409 }; val r = recorder()
+        r.record(1_000, snap())
+        repeat(FlightRecorder.CONNECT_CONFLICT_LIMIT - 1) { r.sync(api) }
+        assertNull(r.journalFor("SN1").rejected)
+        r.sync(api)
+        assertNotNull(r.journalFor("SN1").rejected)
+    }
+
+    @Test fun syncEndsOldConnectionBeforeRegisteringNewOne() = runBlocking {
+        val api = FakeApi().apply { online = true }; val r = recorder()
+        r.record(1_000, snap()); r.sync(api)              // srv-1 for SN1
+        api.online = false
+        r.record(3_000, snap(serial = "SN2"))             // 换机：SN1 本机结束，SN2 本机开始（离线）
+        api.online = true; api.log.clear()
+        r.sync(api)
+        assertEquals(listOf("close:srv-1", "connect:SN2"), api.log)
+    }
+
+    @Test fun restartClosesDanglingConnectionAtLastSampleTime() {
+        val journalFile = tmp.root.resolve("d.jsonl"); val queueFile = tmp.root.resolve("dq.jsonl")
+        FlightRecorder(FileTelemetryQueue(queueFile), FileConnectionJournal(journalFile)).apply {
+            record(1_000, snap()); record(3_000, snap()); record(5_000, snap())
+        }
+        FlightRecorder(FileTelemetryQueue(queueFile), FileConnectionJournal(journalFile))   // 进程重启（几小时后）
+        assertEquals(5_000L, FileConnectionJournal(journalFile).all().single().endedAt)
+    }
+
+    @Test fun restartUsesLastSampleTimeEvenAfterSamplesWereUploaded() = runBlocking {
+        val journalFile = tmp.root.resolve("u.jsonl"); val queueFile = tmp.root.resolve("uq.jsonl")
+        val api = FakeApi().apply { online = true }
+        FlightRecorder(FileTelemetryQueue(queueFile), FileConnectionJournal(journalFile)).apply {
+            record(1_000, snap()); record(7_000, snap()); sync(api)
+        }
+        FlightRecorder(FileTelemetryQueue(queueFile), FileConnectionJournal(journalFile))
+        assertEquals(7_000L, FileConnectionJournal(journalFile).all().single().endedAt)
+    }
+
+    private fun FlightRecorder.journalFor(serial: String) = journalForTest().all().single { it.serialNumber == serial }
 }
