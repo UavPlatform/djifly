@@ -1,7 +1,7 @@
 // GENERATED — DO NOT EDIT.
 // 契约模型：后端 components.schemas 中「被调用端点可达」的传递闭包。
 // 生成器：tools/openapi-gen.mjs
-// 事实源：openapi/drone-backend.openapi.json (sha256: 48d3fd4aed7b0f22380d0134b8c2b6e290f33fa258881ec15d3a58634b3e51ec)
+// 事实源：openapi/drone-backend.openapi.json (sha256: f8b3bf06c83b4d3a4a0cc8f4baf1639ced50463c1fcc0d2bb4a39c52d4bdf282)
 // 生成命令：cd djifly && node tools/openapi-gen.mjs
 
 package com.fuwaki.djifly.platform.network.generated
@@ -67,6 +67,8 @@ data class ApiDispatchMaterialVO(
 
 /** 契约 components.schemas.DispatchOrderVO。 */
 data class ApiDispatchOrderVO(
+    val acceptedAt: String? = null,
+    val arrivedAt: String? = null,
     val assignedPilotId: Long? = null,
     val assignmentVersion: Long? = null,
     val bill: ApiDispatchBillVO? = null,
@@ -74,6 +76,7 @@ data class ApiDispatchOrderVO(
     val currency: String? = null,
     val deliveredAt: String? = null,
     val depositAmount: Double? = null,
+    val depositPaidAt: String? = null,
     val executedDrone: ApiDispatchExecutedDroneVO? = null,
     val fields: Map<String, Any?>? = null,
     val fundsStatus: String? = null,
@@ -85,7 +88,8 @@ data class ApiDispatchOrderVO(
     val refundReference: String? = null,
     val stage: String? = null,
     val startedAt: String? = null,
-    val updatedAt: String? = null
+    val updatedAt: String? = null,
+    val waitingSince: String? = null
 )
 
 /** 契约 components.schemas.DispatchQuoteVO。 */
