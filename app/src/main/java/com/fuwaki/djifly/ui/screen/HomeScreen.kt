@@ -39,7 +39,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import com.fuwaki.djifly.platform.dispatch.DispatchStages
 import com.fuwaki.djifly.ui.components.AircraftBar
 import com.fuwaki.djifly.ui.components.DispatchOrderCard

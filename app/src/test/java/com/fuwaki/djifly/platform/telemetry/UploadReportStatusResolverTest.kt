@@ -1,6 +1,7 @@
 package com.fuwaki.djifly.platform.telemetry
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -34,10 +35,53 @@ class UploadReportStatusResolverTest {
         assertEquals(UploadReportPhase.NOT_STARTED, s.phase)
         assertTrue(s.phrase.contains("未开始记录"))
         assertTrue(s.phrase.contains("缺飞机") || s.phrase.contains("机身号"))
+        assertFalse(s.phrase.contains("没有可飞的单"))
     }
 
     @Test
-    fun local_pending_separates_from_not_started() {
+    fun not_started_when_order_missing_only() {
+        val s = UploadReportStatusResolver.resolve(
+            hasFlyableOrder = false,
+            aircraftConfirmed = true,
+            connection = null,
+            pendingSamples = 0,
+            lastError = null,
+        )
+        assertEquals(UploadReportPhase.NOT_STARTED, s.phase)
+        assertTrue(s.phrase.contains("没有可飞的单"))
+        assertFalse(s.phrase.contains("缺飞机"))
+    }
+
+    @Test
+    fun not_started_when_confirmed_with_order_but_no_connection() {
+        val s = UploadReportStatusResolver.resolve(
+            hasFlyableOrder = true,
+            aircraftConfirmed = true,
+            connection = null,
+            pendingSamples = 0,
+            lastError = null,
+        )
+        assertEquals(UploadReportPhase.NOT_STARTED, s.phase)
+        assertEquals("未开始记录", s.phrase)
+        assertFalse(s.phrase.contains("没有可飞的单"))
+    }
+
+    @Test
+    fun not_started_when_connection_exists_but_no_samples_and_no_server_id() {
+        val s = UploadReportStatusResolver.resolve(
+            hasFlyableOrder = true,
+            aircraftConfirmed = true,
+            connection = connection(serverId = null),
+            pendingSamples = 0,
+            lastError = null,
+        )
+        assertEquals(UploadReportPhase.NOT_STARTED, s.phase)
+        assertEquals("未开始记录", s.phrase)
+        assertFalse(s.phrase.contains("已在本机记录"))
+    }
+
+    @Test
+    fun local_pending_only_when_pending_samples_positive() {
         val s = UploadReportStatusResolver.resolve(
             hasFlyableOrder = true,
             aircraftConfirmed = true,

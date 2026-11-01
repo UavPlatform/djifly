@@ -13,6 +13,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -174,8 +175,13 @@ fun FlightScreen(
     liveStopCoordinator: LiveStopCoordinator,
     taskNum: String? = null,
     onBack: () -> Unit,
-    taskViewModel: TaskViewModel = hiltViewModel()
+    taskViewModelOverride: TaskViewModel? = null,
 ) {
+    // Activity 作用域：同进程进出飞行页保留已上传送达凭证（DS-DJIFLY-002）。
+    // 换单由 TaskViewModel.bindDeliverablesToTask 清空，避免串单。
+    val activity = LocalContext.current as ComponentActivity
+    val taskViewModel = taskViewModelOverride ?: hiltViewModel(viewModelStoreOwner = activity)
+
     // 退出飞行页（含进程级返回/页面销毁）时受控停止推流并回执 LIVE_STOPPED（t12/FLY 高-3）
     DisposableEffect(Unit) {
         onDispose {
@@ -202,7 +208,7 @@ fun FlightScreen(
     }
 
     LaunchedEffect(taskNum) {
-        taskViewModel.retainUploadedDeliverablesOnly()
+        taskViewModel.bindDeliverablesToTask(taskNum)
         if (!taskNum.isNullOrBlank()) {
             taskViewModel.loadTaskDetail(taskNum)
         }
