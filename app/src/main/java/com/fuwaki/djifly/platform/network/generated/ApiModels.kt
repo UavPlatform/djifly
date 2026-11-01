@@ -1,7 +1,7 @@
 // GENERATED — DO NOT EDIT.
 // 契约模型：后端 components.schemas 中「被调用端点可达」的传递闭包。
 // 生成器：tools/openapi-gen.mjs
-// 事实源：openapi/drone-backend.openapi.json (sha256: cbc74454037169ac9cb026ed32b18807e0d107cfb3f1946401b3de62780aa112)
+// 事实源：openapi/drone-backend.openapi.json (sha256: f4585791fcc7a9b3ddeedfd6ab6a363cd57668d5d86dce0629f3f29b186a7394)
 // 生成命令：cd djifly && node tools/openapi-gen.mjs
 
 package com.fuwaki.djifly.platform.network.generated
@@ -33,7 +33,8 @@ data class ApiDispatchBillVO(
 /** 契约 components.schemas.DispatchDeliveryDTO。 */
 data class ApiDispatchDeliveryDTO(
     val assignmentVersion: Long,
-    val materialIds: List<String>
+    val materialIds: List<String>,
+    val note: String? = null
 )
 
 /** 契约 components.schemas.DispatchExecutedDroneVO。 */

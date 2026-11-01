@@ -11,6 +11,7 @@ import com.fuwaki.djifly.platform.attachment.DeliverableItemPhase
 import com.fuwaki.djifly.platform.attachment.DeliverableItemUi
 import com.fuwaki.djifly.platform.attachment.DeliverableRules
 import com.fuwaki.djifly.platform.attachment.DeliverableUploadOutcome
+import com.fuwaki.djifly.platform.attachment.DeliverableRetention
 import com.fuwaki.djifly.platform.attachment.DeliverableUploader
 import com.fuwaki.djifly.platform.attachment.PendingDeliverable
 import com.fuwaki.djifly.platform.live.RiderLiveRequestMapper
@@ -61,6 +62,8 @@ class TaskViewModel @Inject constructor(
     val attachments: StateFlow<List<com.fuwaki.djifly.platform.network.AttachmentItem>> = _attachments
 
     private var deliverableSeq = 0
+    /** 当前交付物列表绑定的订单；切换订单时清空，避免 Activity 作用域串单。 */
+    private var deliverablesBoundTaskNum: String? = null
 
     // -----------------------------------------------------------------------
     // Task Detail
@@ -108,12 +111,14 @@ class TaskViewModel @Inject constructor(
             val materialIds = _deliverables.value
                 .mapNotNull { it.objectKey }
                 .filter { it.isNotBlank() }
+            val trimmedNote = note?.trim()?.takeIf { it.isNotEmpty() }?.take(500)
             val response = runCatching {
                 api.deliverOrder(
                     orderId = taskNum,
                     body = com.fuwaki.djifly.platform.network.generated.ApiDispatchDeliveryDTO(
                         assignmentVersion = assignmentVersion,
-                        materialIds = materialIds
+                        materialIds = materialIds,
+                        note = trimmedNote
                     )
                 )
             }.getOrNull()
@@ -215,6 +220,27 @@ class TaskViewModel @Inject constructor(
         _deliverables.value = emptyList()
     }
 
+    /** 离页后已上传凭证仍保留（DS-DJIFLY-002）；只清未完成项。 */
+    fun retainUploadedDeliverablesOnly() {
+        val keep = DeliverableRetention.keepUploadedOnly(_deliverables.value)
+        _deliverables.value.filter { DeliverableRetention.shouldDiscardLocalCache(it.phase) }
+            .forEach { it.item.onDiscard() }
+        _deliverables.value = keep
+    }
+
+    /**
+     * 飞行页聚焦某单时调用：同单只保留已上传项；换单则清空，避免串单污染。
+     * 与 Activity 作用域 TaskViewModel 配合，保证本单已上传凭证不因离页作废。
+     */
+    fun bindDeliverablesToTask(taskNum: String?) {
+        if (deliverablesBoundTaskNum != taskNum) {
+            clearDeliverables()
+            deliverablesBoundTaskNum = taskNum
+        } else {
+            retainUploadedDeliverablesOnly()
+        }
+    }
+
     /** 是否存在阻塞完成任务状态的项目（待传/上传中/失败） */
     fun hasBlockingDeliverables(): Boolean =
         _deliverables.value.any {
@@ -282,7 +308,9 @@ class TaskViewModel @Inject constructor(
     }
 
     override fun onCleared() {
-        _deliverables.value.forEach { it.item.onDiscard() }
+        // DS-DJIFLY-002：已 UPLOADED 的送达凭证不因 ViewModel 清理作废；
+        // 只 discard 未上传项的本地缓存。列表中保留 UPLOADED（含 objectKey/materialId）。
+        retainUploadedDeliverablesOnly()
         super.onCleared()
     }
 

@@ -159,7 +159,6 @@ fun StarterScreen(
                 // 携任务进入（1B-8）：FreeFlight 时传 null 保持自由飞行语义
                 onEnterFlight((taskContext as? FlightTaskContext.Ready)?.taskNum)
             },
-            onStartLiveStream = { taskViewModel.requestRiderLiveStream() },
             cloudControlAvailable = serverPanel.cloudControlAvailable,
             aircraftConnected = sdkStatus.isProductConnected
         )
@@ -291,7 +290,6 @@ private fun FlightEntryCard(
     gateReason: String? = null,
     gateVerifying: Boolean = false,
     onEnterFlight: () -> Unit,
-    onStartLiveStream: () -> Unit = {},
     cloudControlAvailable: Boolean,
     aircraftConnected: Boolean
 ) {
@@ -323,18 +321,6 @@ private fun FlightEntryCard(
             loading = gateVerifying,
             loadingText = "正在校验任务状态…"
         )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        OutlinedButton(
-            onClick = onStartLiveStream,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Text("开播图传")
-        }
 
         Spacer(modifier = Modifier.height(8.dp))
 

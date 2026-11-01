@@ -13,6 +13,8 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -173,8 +175,13 @@ fun FlightScreen(
     liveStopCoordinator: LiveStopCoordinator,
     taskNum: String? = null,
     onBack: () -> Unit,
-    taskViewModel: TaskViewModel = hiltViewModel()
+    taskViewModelOverride: TaskViewModel? = null,
 ) {
+    // Activity 作用域：同进程进出飞行页保留已上传送达凭证（DS-DJIFLY-002）。
+    // 换单由 TaskViewModel.bindDeliverablesToTask 清空，避免串单。
+    val activity = LocalContext.current as ComponentActivity
+    val taskViewModel = taskViewModelOverride ?: hiltViewModel(viewModelStoreOwner = activity)
+
     // 退出飞行页（含进程级返回/页面销毁）时受控停止推流并回执 LIVE_STOPPED（t12/FLY 高-3）
     DisposableEffect(Unit) {
         onDispose {
@@ -201,7 +208,7 @@ fun FlightScreen(
     }
 
     LaunchedEffect(taskNum) {
-        taskViewModel.clearDeliverables()
+        taskViewModel.bindDeliverablesToTask(taskNum)
         if (!taskNum.isNullOrBlank()) {
             taskViewModel.loadTaskDetail(taskNum)
         }
@@ -248,7 +255,19 @@ fun FlightScreen(
         }
     }
 
-    val connectionStateFlow = remember(sdkManager) {
+    var showLeaveConfirm by remember { mutableStateOf(false) }
+    val requestLeave: () -> Unit = {
+        showLeaveConfirm = true
+    }
+    val confirmLeave: () -> Unit = {
+        showLeaveConfirm = false
+        liveStopCoordinator.stopStreamingAndNotify()
+        onBack()
+    }
+
+    BackHandler { requestLeave() }
+
+        val connectionStateFlow = remember(sdkManager) {
         sdkManager.sdkStatus
             .map { it.connectionState }
             .distinctUntilChanged()
@@ -278,7 +297,7 @@ fun FlightScreen(
                 wsConnectionState = wsConnectionState,
                 wsMessages = wsMessages,
                 taskContext = readyTask,
-                onBack = onBack
+                onBack = requestLeave
             )
             if (readyTask != null) {
                 PlatformOpsBar(
@@ -317,10 +336,11 @@ fun FlightScreen(
             }
         }
     } else {
-        ConnectionRequiredScreen(
+        // 断连留在飞行页等飞机回来（DS-DJIFLY-002），不踢回「回首页」死页
+        ConnectionWaitingScreen(
             registrationState = registrationState,
             wsConnectionState = wsConnectionState,
-            onBack = onBack
+            onBack = requestLeave
         )
     }
 
@@ -347,6 +367,32 @@ fun FlightScreen(
                 awaitingCompleteResult = true
                 taskViewModel.completeTask(taskContext.taskNum, note)
             }
+        )
+    }
+
+    if (showLeaveConfirm) {
+        AlertDialog(
+            onDismissRequest = { showLeaveConfirm = false },
+            title = { Text("离开飞行页？", color = Color.White) },
+            text = {
+                Text(
+                    "返回将停止推流。已上传送达凭证不会作废。",
+                    color = Color.White.copy(alpha = 0.8f)
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = confirmLeave) {
+                    Text("确认离开并停播", color = AccentBlue)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLeaveConfirm = false }) {
+                    Text("继续飞行", color = Color.White.copy(alpha = 0.6f))
+                }
+            },
+            containerColor = Color(0xFF1E293B),
+            titleContentColor = Color.White,
+            textContentColor = Color.White
         )
     }
 }
@@ -421,7 +467,7 @@ private fun FlightGateBlockedScreen(
 }
 
 @Composable
-private fun ConnectionRequiredScreen(
+private fun ConnectionWaitingScreen(
     registrationState: PlatformRegistrationState,
     wsConnectionState: WsConnectionState,
     onBack: () -> Unit
@@ -457,14 +503,14 @@ private fun ConnectionRequiredScreen(
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
                 Text(
-                    text = "飞控页暂不可用",
+                    text = "等待飞机重新连接",
                     color = Color.White,
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
-                    text = "当前没有检测到飞机连接，已退化为稳定模式页面。",
+                    text = "飞行作业仍保留在本页。请检查飞机与遥控器连接，恢复后会自动回到图传。",
                     color = Color.White.copy(alpha = 0.72f),
                     style = MaterialTheme.typography.bodyMedium
                 )
@@ -484,7 +530,7 @@ private fun ConnectionRequiredScreen(
                 }
                 Spacer(modifier = Modifier.height(20.dp))
                 OutlinedButton(onClick = onBack) {
-                    Text("返回首页")
+                    Text("离开飞行页")
                 }
             }
         }

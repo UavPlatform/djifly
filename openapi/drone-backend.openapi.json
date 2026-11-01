@@ -1474,6 +1474,11 @@
             "maxItems" : 20,
             "minItems" : 0,
             "type" : "array"
+          },
+          "note" : {
+            "description" : "可选完成说明（送达说明），最长 500 字",
+            "maxLength" : 500,
+            "type" : "string"
           }
         },
         "required" : [ "assignmentVersion", "materialIds" ],

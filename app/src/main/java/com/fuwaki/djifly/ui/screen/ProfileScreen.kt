@@ -55,7 +55,6 @@ import com.fuwaki.djifly.ui.viewmodel.ProfileViewModel
 
 @Composable
 fun ProfileScreen(
-    onNavigateToDroneManage: () -> Unit,
     onNavigateToConnectionTest: () -> Unit,
     onLogout: () -> Unit,
     viewModel: ProfileViewModel = hiltViewModel()
@@ -113,25 +112,10 @@ fun ProfileScreen(
         ) {
             Column {
                 MenuItemRow(
-                    icon = Icons.Filled.Flight,
-                    title = "无人机管理",
-                    subtitle = "查看与绑定执飞机型",
-                    onClick = onNavigateToDroneManage
-                )
-                MenuDivider()
-                MenuItemRow(
                     icon = Icons.Filled.Link,
                     title = "连接测试",
                     subtitle = "检测飞机能否连上平台（不关联订单）",
                     onClick = onNavigateToConnectionTest
-                )
-                MenuDivider()
-                MenuItemRow(
-                    icon = Icons.Filled.Settings,
-                    title = "设置",
-                    onClick = {
-                        Toast.makeText(context, "即将上线", Toast.LENGTH_SHORT).show()
-                    }
                 )
             }
         }
