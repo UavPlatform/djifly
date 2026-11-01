@@ -98,7 +98,7 @@ fun GlobalErrorEffect(
         AlertDialog(
             onDismissRequest = { droneDialogMessage = null },
             title = {
-                Text("需要绑定无人机", color = Color.White)
+                Text("需要连接飞机", color = Color.White)
             },
             text = {
                 Text(droneDialogMessage!!, color = Color.White.copy(alpha = 0.8f))
@@ -106,9 +106,8 @@ fun GlobalErrorEffect(
             confirmButton = {
                 TextButton(onClick = {
                     droneDialogMessage = null
-                    onNavigateToDroneManage()
                 }) {
-                    Text("去绑定", color = AccentBlue)
+                    Text("知道了", color = AccentBlue)
                 }
             },
             dismissButton = {

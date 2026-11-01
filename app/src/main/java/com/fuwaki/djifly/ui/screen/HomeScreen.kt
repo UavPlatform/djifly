@@ -1,8 +1,6 @@
 package com.fuwaki.djifly.ui.screen
 
-import android.widget.Toast
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -16,11 +14,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.TaskAlt
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -28,36 +26,48 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.fuwaki.djifly.platform.dispatch.DispatchStages
+import com.fuwaki.djifly.ui.components.AircraftBar
 import com.fuwaki.djifly.ui.components.DispatchOrderCard
+import com.fuwaki.djifly.ui.viewmodel.HomeOrdersLoad
 import com.fuwaki.djifly.ui.viewmodel.HomeViewModel
 
 /**
- * 待执飞任务首页（REQ-DJIFLY-001 场景 1/3）。
+ * 作业壳（DS-DJIFLY-002）：飞机条 + 至多一单 + 一个主按钮；状态说真话。
  */
 @Composable
 fun HomeScreen(
-    onNavigateToTaskDetail: (String) -> Unit,
     onNavigateToStarter: (String?) -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val dispatchState by viewModel.dispatchState.collectAsState()
-    val context = LocalContext.current
+    val aircraftBar by viewModel.aircraftBar.collectAsState()
+    val lifecycleOwner = LocalLifecycleOwner.current
 
-    LaunchedEffect(Unit) {
-        viewModel.loadHomeData()
+    // 从飞行页回到作业页必须重拉列表
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.loadHomeData()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     LazyColumn(
@@ -71,55 +81,83 @@ fun HomeScreen(
             HomeHeader(userName = uiState.userName)
         }
 
-        if (dispatchState.currentOrder != null) {
-            item {
-                DispatchOrderCard(
-                    state = dispatchState,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                )
-            }
-        }
-
         item {
-            SectionHeader(
-                title = "待执飞订单",
-                subtitle = "双方已确认、可进入作业的任务"
+            AircraftBar(
+                ui = aircraftBar,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
             )
         }
 
-        when {
-            uiState.isLoading -> item {
+        item {
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
+        when (val load = uiState.load) {
+            HomeOrdersLoad.Loading -> item {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(32.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    CircularProgressIndicator(
-                        color = MaterialTheme.colorScheme.primary,
-                        strokeWidth = 2.dp,
-                        modifier = Modifier.size(32.dp)
-                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator(
+                            color = MaterialTheme.colorScheme.primary,
+                            strokeWidth = 2.dp,
+                            modifier = Modifier.size(32.dp)
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "正在加载可飞订单…",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        OutlinedButton(onClick = { viewModel.loadHomeData() }) {
+                            Text("重试")
+                        }
+                    }
                 }
             }
-            uiState.pendingOrders.isEmpty() -> item {
-                EmptyPendingTasks(
-                    onGoToApp = {
-                        Toast.makeText(
-                            context,
-                            "接单在 app：请打开业务 App（app/）发单接单；双方确认后回到本应用执飞。",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    }
+            is HomeOrdersLoad.Failed -> item {
+                ShellStateCard(
+                    title = "网络异常，拉不到订单",
+                    body = load.message,
+                    actionLabel = "重试",
+                    onAction = { viewModel.loadHomeData() }
                 )
             }
-            else -> items(uiState.pendingOrders, key = { it.orderId.orEmpty() }) { order ->
-                DispatchOrderCard(
-                    state = com.fuwaki.djifly.platform.telemetry.DispatchFlightState(currentOrder = order),
-                    onOpen = { onNavigateToTaskDetail(order.orderId.orEmpty()) },
-                    onStart = { onNavigateToStarter(order.orderId) },
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                )
+            HomeOrdersLoad.Ready -> {
+                val order = uiState.currentOrder
+                if (order == null) {
+                    item {
+                        ShellStateCard(
+                            title = "没有可飞的单",
+                            body = "当前没有可执飞订单。确认后可飞的订单会出现在这里。",
+                            actionLabel = "重试刷新",
+                            onAction = { viewModel.loadHomeData() }
+                        )
+                    }
+                } else {
+                    val cardState = dispatchState.copy(currentOrder = order)
+                    val canEnter = aircraftBar.connected
+                    item {
+                        DispatchOrderCard(
+                            state = cardState,
+                            uploadPhrase = aircraftBar.uploadStatus.phrase,
+                            primaryEnabled = canEnter,
+                            primaryDisabledReason = if (!canEnter) {
+                                aircraftBar.nextStepHint ?: "未确认飞机，不能进入飞行页"
+                            } else null,
+                            onStart = { onNavigateToStarter(order.orderId) },
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                        )
+                    }
+                    // 订单摘要就在本页：阶段标签已在卡片内；补充起降/货物摘要
+                    item {
+                        OrderSummaryBlock(orderStage = DispatchStages.label(order.stage))
+                    }
+                }
             }
         }
     }
@@ -152,31 +190,12 @@ private fun HomeHeader(userName: String?) {
 }
 
 @Composable
-private fun SectionHeader(title: String, subtitle: String? = null) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-    ) {
-        Text(
-            text = title,
-            color = MaterialTheme.colorScheme.onBackground,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold
-        )
-        if (subtitle != null) {
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = subtitle,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodySmall
-            )
-        }
-    }
-}
-
-@Composable
-private fun EmptyPendingTasks(onGoToApp: () -> Unit) {
+private fun ShellStateCard(
+    title: String,
+    body: String,
+    actionLabel: String,
+    onAction: () -> Unit,
+) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -199,24 +218,33 @@ private fun EmptyPendingTasks(onGoToApp: () -> Unit) {
             )
             Spacer(modifier = Modifier.height(12.dp))
             Text(
-                text = "暂无待执飞任务",
+                text = title,
                 color = MaterialTheme.colorScheme.onSurface,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "请打开飞翼通 App 接单：用户下单并双方确认后，订单会出现在这里。\n" +
-                    "本应用仅负责执飞，不提供大厅与抢单。",
+                text = body,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodySmall,
                 textAlign = TextAlign.Center,
                 lineHeight = 20.sp
             )
             Spacer(modifier = Modifier.height(16.dp))
-            OutlinedButton(onClick = onGoToApp) {
-                Text("前往 App 接单", color = MaterialTheme.colorScheme.primary)
+            Button(onClick = onAction) {
+                Text(actionLabel)
             }
         }
     }
+}
+
+@Composable
+private fun OrderSummaryBlock(orderStage: String) {
+    Text(
+        text = "当前阶段：$orderStage（详情已收在本页，不再跳旧任务详情）",
+        modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = MaterialTheme.typography.bodySmall
+    )
 }

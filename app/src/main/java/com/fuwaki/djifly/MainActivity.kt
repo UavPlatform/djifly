@@ -112,9 +112,6 @@ class MainActivity : FragmentActivity() {
                     GlobalErrorEffect(
                         handler = errorHandler,
                         snackbarHostState = snackbarHostState,
-                        onNavigateToDroneManage = {
-                            navController.navigate(Routes.DRONE_MANAGE)
-                        },
                         onNavigateToLogin = {
                             authViewModel.logout()
                             navController.navigate(Routes.LOGIN) {
@@ -156,9 +153,6 @@ class MainActivity : FragmentActivity() {
                             MainScreen(
                                 homeContent = {
                                     HomeScreen(
-                                        onNavigateToTaskDetail = { taskNum ->
-                                            navController.navigate(Routes.taskDetail(taskNum))
-                                        },
                                         onNavigateToStarter = { taskNum ->
                                             navController.navigate(Routes.starter(taskNum))
                                         }
@@ -166,9 +160,6 @@ class MainActivity : FragmentActivity() {
                                 },
                                 profileContent = {
                                     ProfileScreen(
-                                        onNavigateToDroneManage = {
-                                            navController.navigate(Routes.DRONE_MANAGE)
-                                        },
                                         onNavigateToConnectionTest = {
                                             navController.navigate(Routes.starter(null))
                                         },
@@ -236,7 +227,12 @@ class MainActivity : FragmentActivity() {
                                 }
                             )
                         ) { backStackEntry ->
-                            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+                            androidx.compose.runtime.DisposableEffect(Unit) {
+                                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+                                onDispose {
+                                    requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                                }
+                            }
                             DjiflyTheme(darkTheme = true) {
                                 FlightScreen(
                                     sdkManager = sdkManager,
@@ -245,7 +241,6 @@ class MainActivity : FragmentActivity() {
                                     liveStopCoordinator = liveStopCoordinator,
                                     taskNum = backStackEntry.arguments?.getString("taskNum"),
                                     onBack = {
-                                        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
                                         navController.popBackStack()
                                     }
                                 )

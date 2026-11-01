@@ -215,6 +215,14 @@ class TaskViewModel @Inject constructor(
         _deliverables.value = emptyList()
     }
 
+    /** 离页后已上传凭证仍保留（DS-DJIFLY-002）；只清未完成项。 */
+    fun retainUploadedDeliverablesOnly() {
+        val keep = _deliverables.value.filter { it.phase == DeliverableItemPhase.UPLOADED }
+        _deliverables.value.filter { it.phase != DeliverableItemPhase.UPLOADED }
+            .forEach { it.item.onDiscard() }
+        _deliverables.value = keep
+    }
+
     /** 是否存在阻塞完成任务状态的项目（待传/上传中/失败） */
     fun hasBlockingDeliverables(): Boolean =
         _deliverables.value.any {
