@@ -12,7 +12,6 @@ import com.fuwaki.djifly.platform.ws.command.handler.StopLiveHandler
 import com.fuwaki.djifly.platform.ws.command.handler.WsMessageHandler
 import com.fuwaki.djifly.platform.ws.protocol.PlatformStartLivePayload
 import com.google.gson.Gson
-import com.tencent.trtc.TRTCCloudDef
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -35,8 +34,7 @@ object WsHandlerModule {
                         sdkAppId = BuildConfig.TRTC_SDK_APP_ID.toInt(),
                         userId = payload.userId,
                         userSig = payload.userSig,
-                        roomId = payload.roomId,
-                        rotation = TRTCCloudDef.TRTC_VIDEO_ROTATION_270
+                        roomId = payload.roomId
                     )
                 )
                 WsCommandCallbackResult.Success(payload.roomId)
