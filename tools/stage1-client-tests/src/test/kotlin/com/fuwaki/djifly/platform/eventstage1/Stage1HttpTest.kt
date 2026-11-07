@@ -213,7 +213,8 @@ class Stage1HttpTest {
         val next=Fixture.packet(2);uploader.enqueue("work",first);uploader.enqueue("work",next)
         server.enqueue(MockResponse().setResponseCode(429).setHeader("Retry-After","999999999999999999999999999999"))
         val result=uploader.attempt("work",first.link.packetId) as Stage1UploadResult.RetryAfter
-        assertEquals(Long.MAX_VALUE,result.delayMillis)
+        // A huge Retry-After is clamped: an overflow sentinel would pause this endpoint forever with no recovery path.
+        assertEquals(3_600_000L,result.delayMillis)
         assertTrue(uploader.attempt("work",next.link.packetId) is Stage1UploadResult.NotDue);assertEquals(1,server.requestCount)
         assertNotNull(row(next).body)
     }
@@ -350,6 +351,79 @@ class Stage1HttpTest {
         reject { Stage1Uploader(server.url("/api"),http,store,7,auth) }
         reject { Stage1Uploader(server.url("/api/"),http.newBuilder().addInterceptor { it.proceed(it.request()) }.build(),store,7,auth) }
         assertEquals(0,server.requestCount)
+    }
+    @Test fun inFlightRequestDoesNotBlockProgressReadsOrOtherPackets() {
+        val next=Fixture.packet(2);uploader.enqueue("work",first);uploader.enqueue("work",next)
+        val release=java.util.concurrent.CountDownLatch(1)
+        val seen=java.util.concurrent.atomic.AtomicInteger(0)
+        server.dispatcher=object:okhttp3.mockwebserver.Dispatcher() {
+            override fun dispatch(request:okhttp3.mockwebserver.RecordedRequest):MockResponse {
+                if(seen.incrementAndGet()==1) { check(release.await(5,TimeUnit.SECONDS));return MockResponse().setBody(Fixture.ack(first).toString()) }
+                return MockResponse().setBody(Fixture.ack(next).toString())
+            }
+        }
+        val pool=java.util.concurrent.Executors.newFixedThreadPool(3)
+        try {
+            val slow=pool.submit<Stage1UploadResult>{uploader.attempt("work",first.link.packetId)}
+            while(seen.get()==0) Thread.sleep(5)
+            // These two local-only paths must not wait for the in-flight response.
+            assertNull(pool.submit<Stage1Progress?>{uploader.latestProgress(first.link.identity.chainId)}.get(500,TimeUnit.MILLISECONDS))
+            assertTrue(pool.submit<Stage1UploadResult>{uploader.attempt("work",next.link.packetId)}.get(2,TimeUnit.SECONDS) is Stage1UploadResult.Durable)
+            assertNotNull(uploader.latestProgress(next.link.identity.chainId))
+            release.countDown();assertTrue(slow.get(3,TimeUnit.SECONDS) is Stage1UploadResult.Durable)
+        } finally {release.countDown();pool.shutdownNow()}
+    }
+    @Test fun changeAssignmentConflictParksOnlyThatPacketAndCanBeClearedExplicitly() {
+        val next=Fixture.packet(2);uploader.enqueue("work",first);uploader.enqueue("work",next)
+        server.enqueue(MockResponse().setResponseCode(409).setBody("{\"success\":false,\"code\":409,\"errorCode\":\"DISPATCH_ASSIGNMENT_CHANGED\",\"message\":\"reassign\"}"))
+        assertEquals(Stage1UploadResult.HttpRejected(409),uploader.attempt("work",first.link.packetId))
+        // A 409 that is not a chain conflict must not freeze the rest of the operation.
+        respond(Fixture.ack(next));assertTrue(uploader.attempt("work",next.link.packetId) is Stage1UploadResult.Durable)
+        // The parked packet reports an explicit intervention instead of pretending to be a malformed response.
+        val parked=uploader.attempt("work",first.link.packetId) as Stage1UploadResult.InterventionRequired
+        assertEquals(409,parked.status);assertEquals("DISPATCH_ASSIGNMENT_CHANGED",parked.errorCode)
+        assertEquals(2,server.requestCount)
+        uploader.clearIntervention(first.link.packetId)
+        respond(Fixture.ack(first));assertTrue(uploader.attempt("work",first.link.packetId) is Stage1UploadResult.Durable)
+        assertEquals(3,server.requestCount)
+        assertEquals(listOf(1,2),listOf(1,2))
+    }
+    @Test fun unusableSuccessBodyParksOnlyThatPacketUntilExplicitIntervention() {
+        uploader.enqueue("work",first)
+        server.enqueue(MockResponse().setBody("<html>captive portal</html>"))
+        assertTrue(uploader.attempt("work",first.link.packetId) is Stage1UploadResult.InvalidResponse)
+        assertArrayEquals(first.originalBytes(),row().body);assertEquals(1,server.requestCount)
+        // No silent resend loop, and the reason is preserved rather than reported as a transport retry.
+        val parked=uploader.attempt("work",first.link.packetId) as Stage1UploadResult.InterventionRequired
+        assertTrue(parked.reason.isNotBlank());assertEquals(1,server.requestCount)
+        respond(Fixture.ack(first));uploader.clearIntervention(first.link.packetId)
+        assertTrue(uploader.attempt("work",first.link.packetId) is Stage1UploadResult.Durable)
+        assertEquals(2,server.requestCount)
+    }
+    @Test fun chainForkPauseIsLiftedOnlyByExplicitAction() {
+        val next=Fixture.packet(2);uploader.enqueue("work",first);uploader.enqueue("work",next)
+        respond(Fixture.ack(first,integrity="FORKED"))
+        assertTrue(uploader.attempt("work",first.link.packetId) is Stage1UploadResult.Durable)
+        assertEquals(Stage1UploadResult.ChainForked,uploader.attempt("work",next.link.packetId))
+        uploader.clearChainFork(next.link.identity.chainId)
+        respond(Fixture.ack(next));assertTrue(uploader.attempt("work",next.link.packetId) is Stage1UploadResult.Durable)
+        assertEquals(2,server.requestCount)
+    }
+    @Test fun multipleAirframeChainsShareOneOperationWithoutRebinding() {
+        val other=Stage1Codec().create(first.link.identity.copy(chainId="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",serialNumber="OTHERSN",serialSource="PRODUCT"),
+            "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",Fixture.wire(Stage1Json.obj(Stage1Json.parse(first.originalBytes()))["events"]))
+        uploader.enqueue("work",first);uploader.enqueue("work",other)
+        assertEquals(listOf("FC30SN1","OTHERSN"),store.pending("work").map{it.serialNumber})
+        respond(Fixture.ack(other));assertTrue(uploader.attempt("work",other.link.packetId) is Stage1UploadResult.Durable)
+        respond(Fixture.ack(first));assertTrue(uploader.attempt("work",first.link.packetId) is Stage1UploadResult.Durable)
+        assertTrue(store.pending("work").isEmpty())
+    }
+    @Test fun unusableProgressStillProvesDurabilityButIsFlagged() {
+        uploader.enqueue("work",first);val ack=Fixture.ack(first)
+        ack.getAsJsonObject("data").addProperty("progress","not-an-object")
+        respond(ack);val result=uploader.attempt("work",first.link.packetId) as Stage1UploadResult.Durable
+        assertTrue(result.progressInvalid);assertNull(result.progress);assertNull(row().body)
+        assertNotNull(row().durableReceipt);assertNull(uploader.latestProgress(first.link.identity.chainId))
     }
     @Test fun fixedReceiptCannotBeOverwrittenAfterDurableRelease() {
         uploader.enqueue("work",first);respond(Fixture.ack(first));uploader.attempt("work",first.link.packetId)

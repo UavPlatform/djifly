@@ -116,7 +116,12 @@ data class ApiDispatchUploadTicketVO(
     val uploadUrl: String? = null
 )
 
-/** 契约 components.schemas.EventDraftDTO。 */
+/**
+ * 契约 components.schemas.EventDraftDTO。
+ *
+ * 仅用于读取响应/参考，禁止作为 event-packets 请求体编码器：该端点接收原始字节，
+ * 必填/nullable 由 Stage1Codec 严格校验，生成 DTO 的可空性不代表契约。
+ */
 data class ApiEventDraftDTO(
     val capturedAt: Long? = null,
     val eventId: String? = null,
@@ -124,14 +129,24 @@ data class ApiEventDraftDTO(
     val type: String? = null
 )
 
-/** 契约 components.schemas.EventPacketAckVO。 */
+/**
+ * 契约 components.schemas.EventPacketAckVO。
+ *
+ * 仅用于读取响应/参考，禁止作为 event-packets 请求体编码器：该端点接收原始字节，
+ * 必填/nullable 由 Stage1Codec 严格校验，生成 DTO 的可空性不代表契约。
+ */
 data class ApiEventPacketAckVO(
     val progress: ApiEventProgressVO? = null,
     val receipt: ApiEventReceiptVO? = null,
     val schemaVersion: Int? = null
 )
 
-/** 契约 components.schemas.EventPacketDraftDTO。 */
+/**
+ * 契约 components.schemas.EventPacketDraftDTO。
+ *
+ * 仅用于读取响应/参考，禁止作为 event-packets 请求体编码器：该端点接收原始字节，
+ * 必填/nullable 由 Stage1Codec 严格校验，生成 DTO 的可空性不代表契约。
+ */
 data class ApiEventPacketDraftDTO(
     val assignmentVersion: Long? = null,
     val chainHash: String? = null,
@@ -150,7 +165,12 @@ data class ApiEventPacketDraftDTO(
     val serialSource: String? = null
 )
 
-/** 契约 components.schemas.EventProgressVO。 */
+/**
+ * 契约 components.schemas.EventProgressVO。
+ *
+ * 仅用于读取响应/参考，禁止作为 event-packets 请求体编码器：该端点接收原始字节，
+ * 必填/nullable 由 Stage1Codec 严格校验，生成 DTO 的可空性不代表契约。
+ */
 data class ApiEventProgressVO(
     val contiguousHash: String? = null,
     val contiguousHeight: Long? = null,
@@ -162,7 +182,12 @@ data class ApiEventProgressVO(
     val validationVersion: Long? = null
 )
 
-/** 契约 components.schemas.EventReceiptVO。 */
+/**
+ * 契约 components.schemas.EventReceiptVO。
+ *
+ * 仅用于读取响应/参考，禁止作为 event-packets 请求体编码器：该端点接收原始字节，
+ * 必填/nullable 由 Stage1Codec 严格校验，生成 DTO 的可空性不代表契约。
+ */
 data class ApiEventReceiptVO(
     val chainHash: String? = null,
     val contentDigest: String? = null,
@@ -173,7 +198,12 @@ data class ApiEventReceiptVO(
     val results: List<ApiEventResultVO>? = null
 )
 
-/** 契约 components.schemas.EventResultVO。 */
+/**
+ * 契约 components.schemas.EventResultVO。
+ *
+ * 仅用于读取响应/参考，禁止作为 event-packets 请求体编码器：该端点接收原始字节，
+ * 必填/nullable 由 Stage1Codec 严格校验，生成 DTO 的可空性不代表契约。
+ */
 data class ApiEventResultVO(
     val eventId: String? = null,
     val outcome: String? = null,
@@ -241,7 +271,12 @@ data class ApiLiveStartVO(
     val roomId: String? = null
 )
 
-/** 契约 components.schemas.MissingRangeVO。 */
+/**
+ * 契约 components.schemas.MissingRangeVO。
+ *
+ * 仅用于读取响应/参考，禁止作为 event-packets 请求体编码器：该端点接收原始字节，
+ * 必填/nullable 由 Stage1Codec 严格校验，生成 DTO 的可空性不代表契约。
+ */
 data class ApiMissingRangeVO(
     val fromHeight: Long? = null,
     val toHeight: Long? = null
@@ -274,7 +309,12 @@ data class ApiResultDispatchUploadTicketVO(
     val success: Boolean? = null
 )
 
-/** 契约 components.schemas.ResultEventPacketAckVO。 */
+/**
+ * 契约 components.schemas.ResultEventPacketAckVO。
+ *
+ * 仅用于读取响应/参考，禁止作为 event-packets 请求体编码器：该端点接收原始字节，
+ * 必填/nullable 由 Stage1Codec 严格校验，生成 DTO 的可空性不代表契约。
+ */
 data class ApiResultEventPacketAckVO(
     val code: Int? = null,
     val data: ApiEventPacketAckVO? = null,

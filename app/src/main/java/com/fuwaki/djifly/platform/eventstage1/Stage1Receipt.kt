@@ -11,7 +11,9 @@ data class Stage1MissingRange(val fromHeight: Long, val toHeight: Long)
 data class Stage1Progress(val validationVersion: Long, val contiguousHeight: Long, val contiguousHash: String?,
     val highestReceivedHeight: Long, val missingRanges: List<Stage1MissingRange>, val missingCursor: Long?,
     val integrity: String, val projectionRevision: Long)
-internal data class ValidatedAck(val fixedReceipt: ByteArray, val progress: Stage1Progress?, val chainConflict: Boolean = false)
+internal data class ValidatedAck(val fixedReceipt: ByteArray, val progress: Stage1Progress?, val chainConflict: Boolean = false,
+    /** The fixed receipt is valid but the dynamic progress block was absent or unusable. Never treated as sync proof. */
+    val progressInvalid: Boolean = false)
 
 internal object Stage1Receipt {
     fun expected(packet: Stage1Packet) = ExpectedPacket(packet.link, packet.contentDigest, packet.eventIds)
@@ -43,10 +45,13 @@ internal object Stage1Receipt {
         val data = Stage1Json.obj(envelope["data"]); require(Stage1Json.long(data["schemaVersion"]) == 1L)
         val receipt = validate(Stage1Json.obj(data["receipt"]), expected)
         // Fixed durability does not depend on dynamic progress. Malformed/missing progress is not synchronization proof.
-        val progress = try { progress(Stage1Json.obj(data["progress"]), expected) } catch (_: RuntimeException) { null }
+        val progressRaw = data["progress"]
+        var progressInvalid = progressRaw == null || progressRaw.isJsonNull
+        val progress = if (progressInvalid) null else try { progress(Stage1Json.obj(progressRaw), expected) }
+            catch (_: RuntimeException) { progressInvalid = true; null }
         val conflict = progress != null && ((progress.contiguousHeight == expected.link.height && progress.contiguousHash != expected.link.chainHash) ||
             (progress.contiguousHeight == 0L && progress.contiguousHash != null && progress.contiguousHash != Stage1Codec().anchor(expected.link.identity)))
-        return ValidatedAck(receipt, if (conflict) null else progress, conflict)
+        return ValidatedAck(receipt, if (conflict) null else progress, conflict, progressInvalid || conflict)
     }
     fun stored(bytes: ByteArray, expected: ExpectedPacket): ByteArray = validate(Stage1Json.obj(Stage1Json.parse(bytes)), expected)
     private fun validate(receipt: JsonObject, expected: ExpectedPacket): ByteArray {
