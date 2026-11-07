@@ -1,7 +1,7 @@
 // GENERATED — DO NOT EDIT.
 // 契约模型：后端 components.schemas 中「被调用端点可达」的传递闭包。
 // 生成器：tools/openapi-gen.mjs
-// 事实源：openapi/drone-backend.openapi.json (sha256: 2ba6bb1a876ac4d131c77031aa5e286f1e4585bc0a47004ad2dfe866f7f9193e)
+// 事实源：openapi/drone-backend.openapi.json (sha256: edfe5679aec6b08dd53ced48af32d2b306f2c3872d4a8b1ff2982bc4c7cea9bc)
 // 生成命令：cd djifly && node tools/openapi-gen.mjs
 
 package com.fuwaki.djifly.platform.network.generated
@@ -43,6 +43,39 @@ data class ApiDispatchExecutedDroneVO(
     val modelCode: String? = null,
     val modelName: String? = null,
     val serialNumber: String? = null
+)
+
+/** 契约 components.schemas.DispatchLiveCredentialsVO。 */
+data class ApiDispatchLiveCredentialsVO(
+    val connectionId: String? = null,
+    val expiresAt: Long? = null,
+    val leaseExpiresAt: Long? = null,
+    val liveId: String? = null,
+    val privateMapKey: String? = null,
+    val publisherUserId: String? = null,
+    val roomId: String? = null,
+    val sdkAppId: Long? = null,
+    val userId: String? = null,
+    val userSig: String? = null
+)
+
+/** 契约 components.schemas.DispatchLiveHeartbeatDTO。 */
+data class ApiDispatchLiveHeartbeatDTO(
+    val state: String
+)
+
+/** 契约 components.schemas.DispatchLiveStartDTO。 */
+data class ApiDispatchLiveStartDTO(
+    val requestKey: String
+)
+
+/** 契约 components.schemas.DispatchLiveStatusVO。 */
+data class ApiDispatchLiveStatusVO(
+    val configured: Boolean? = null,
+    val connectionId: String? = null,
+    val leaseExpiresAt: Long? = null,
+    val liveId: String? = null,
+    val state: String? = null
 )
 
 /** 契约 components.schemas.DispatchMaterialUploadDTO。 */
@@ -174,6 +207,24 @@ data class ApiLiveStartVO(
     val liveState: String? = null,
     val requestId: String? = null,
     val roomId: String? = null
+)
+
+/** 契约 components.schemas.ResultDispatchLiveCredentialsVO。 */
+data class ApiResultDispatchLiveCredentialsVO(
+    val code: Int? = null,
+    val data: ApiDispatchLiveCredentialsVO? = null,
+    val errorCode: String? = null,
+    val message: String? = null,
+    val success: Boolean? = null
+)
+
+/** 契约 components.schemas.ResultDispatchLiveStatusVO。 */
+data class ApiResultDispatchLiveStatusVO(
+    val code: Int? = null,
+    val data: ApiDispatchLiveStatusVO? = null,
+    val errorCode: String? = null,
+    val message: String? = null,
+    val success: Boolean? = null
 )
 
 /** 契约 components.schemas.ResultDispatchMaterialVO。 */

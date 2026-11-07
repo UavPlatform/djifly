@@ -4,10 +4,10 @@ import com.fuwaki.djifly.data.models.ApiResult
 import com.fuwaki.djifly.data.models.LiveStartVo
 import com.fuwaki.djifly.data.models.LoginResponse
 import com.fuwaki.djifly.data.models.RefreshResponse
-import com.fuwaki.djifly.platform.livestream.DispatchLiveHeartbeat
-import com.fuwaki.djifly.platform.livestream.DispatchLiveStart
-import com.fuwaki.djifly.platform.livestream.DispatchLiveStatus
-import com.fuwaki.djifly.platform.livestream.DispatchLiveTicket
+import com.fuwaki.djifly.platform.network.generated.ApiDispatchLiveHeartbeatDTO
+import com.fuwaki.djifly.platform.network.generated.ApiDispatchLiveStartDTO
+import com.fuwaki.djifly.platform.network.generated.ApiResultDispatchLiveStatusVO
+import com.fuwaki.djifly.platform.network.generated.ApiResultDispatchLiveCredentialsVO
 import com.fuwaki.djifly.platform.network.generated.ApiDispatchAssignmentDTO
 import com.fuwaki.djifly.platform.network.generated.ApiDispatchDeliveryDTO
 import com.fuwaki.djifly.platform.network.generated.ApiDispatchMaterialUploadDTO
@@ -55,22 +55,22 @@ interface PlatformApiService {
     @POST(ApiPaths.LIVE_RIDER_REQ)
     suspend fun requestRiderLive(@Query("deviceId") deviceId: String): Response<ApiResult<LiveStartVo>>
 
-    @POST("dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/live")
+    @POST(ApiPaths.DISPATCH_PILOT_ORDERS_FLIGHT_CONNECTIONS_LIVE)
     suspend fun startDispatchLive(
         @Path("orderId") orderId: String,
         @Path("connectionId") connectionId: String,
-        @Body request: DispatchLiveStart
-    ): Response<ApiResult<DispatchLiveTicket>>
+        @Body request: ApiDispatchLiveStartDTO
+    ): Response<ApiResultDispatchLiveCredentialsVO>
 
-    @POST("dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/live/{liveId}/heartbeat")
+    @POST(ApiPaths.DISPATCH_PILOT_ORDERS_FLIGHT_CONNECTIONS_LIVE_HEARTBEAT)
     suspend fun heartbeatDispatchLive(
         @Path("orderId") orderId: String,
         @Path("connectionId") connectionId: String,
         @Path("liveId") liveId: String,
-        @Body request: DispatchLiveHeartbeat
-    ): Response<ApiResult<DispatchLiveStatus>>
+        @Body request: ApiDispatchLiveHeartbeatDTO
+    ): Response<ApiResultDispatchLiveStatusVO>
 
-    @POST("dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/live/{liveId}/stop")
+    @POST(ApiPaths.DISPATCH_PILOT_ORDERS_FLIGHT_CONNECTIONS_LIVE_STOP)
     suspend fun stopDispatchLive(
         @Path("orderId") orderId: String,
         @Path("connectionId") connectionId: String,

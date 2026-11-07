@@ -44,6 +44,9 @@ const calledEndpoints = [
   ['post', 'dispatch/pilot/orders/{orderId}/flight-connections'],
   ['post', 'dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/samples/batch'],
   ['post', 'dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/close'],
+  ['post', 'dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/live'],
+  ['post', 'dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/live/{liveId}/heartbeat'],
+  ['post', 'dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/live/{liveId}/stop'],
 ]
 
 const endpoints = calledEndpoints

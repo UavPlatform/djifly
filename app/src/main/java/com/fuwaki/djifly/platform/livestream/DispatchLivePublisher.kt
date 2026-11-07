@@ -4,6 +4,8 @@ import android.os.SystemClock
 import android.util.Log
 import com.fuwaki.djifly.di.ApplicationScope
 import com.fuwaki.djifly.platform.network.PlatformApiService
+import com.fuwaki.djifly.platform.network.generated.ApiDispatchLiveHeartbeatDTO
+import com.fuwaki.djifly.platform.network.generated.ApiDispatchLiveStartDTO
 import com.fuwaki.djifly.platform.telemetry.DispatchTelemetryService
 import com.fuwaki.djifly.sdk.DjiSdkManager
 import java.io.IOException
@@ -81,7 +83,7 @@ class DispatchLivePublisher @Inject constructor(
         val requestKey = UUID.randomUUID().toString()
         val response = try {
             withTimeoutOrNull(START_TIMEOUT_MS) {
-                api.startDispatchLive(orderId, connectionId, DispatchLiveStart(requestKey))
+                api.startDispatchLive(orderId, connectionId, ApiDispatchLiveStartDTO(requestKey))
             }
         } catch (_: IOException) {
             null
@@ -98,7 +100,7 @@ class DispatchLivePublisher @Inject constructor(
 
         val current = Session(orderId, connectionId, liveId, ticket.roomId.orEmpty())
         session = current
-        val appId = ticket.sdkAppId ?: 0
+        val appId = ticket.sdkAppId?.takeIf { it in 1..Int.MAX_VALUE.toLong() }?.toInt() ?: 0
         val userId = ticket.userId.orEmpty()
         val userSig = ticket.userSig.orEmpty()
         val roomKey = ticket.privateMapKey.orEmpty()
@@ -144,7 +146,7 @@ class DispatchLivePublisher @Inject constructor(
             val response = try {
                 withTimeoutOrNull(HEARTBEAT_TIMEOUT_MS) {
                     api.heartbeatDispatchLive(
-                        current.orderId, current.connectionId, current.liveId, DispatchLiveHeartbeat("RUNNING")
+                        current.orderId, current.connectionId, current.liveId, ApiDispatchLiveHeartbeatDTO("RUNNING")
                     )
                 }
             } catch (_: IOException) {

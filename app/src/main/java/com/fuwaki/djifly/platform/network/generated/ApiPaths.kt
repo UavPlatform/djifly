@@ -1,7 +1,7 @@
 // GENERATED — DO NOT EDIT.
 // 契约路径表：调用点只允许引用 ApiPaths 常量，禁止散落路径字面量。
 // 生成器：tools/openapi-gen.mjs
-// 事实源：openapi/drone-backend.openapi.json (sha256: 2ba6bb1a876ac4d131c77031aa5e286f1e4585bc0a47004ad2dfe866f7f9193e)
+// 事实源：openapi/drone-backend.openapi.json (sha256: edfe5679aec6b08dd53ced48af32d2b306f2c3872d4a8b1ff2982bc4c7cea9bc)
 // 生成命令：cd djifly && node tools/openapi-gen.mjs
 
 package com.fuwaki.djifly.platform.network.generated
@@ -56,6 +56,15 @@ object ApiPaths {
     /** POST dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/close */
     const val DISPATCH_PILOT_ORDERS_FLIGHT_CONNECTIONS_CLOSE = "dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/close"
 
+    /** POST dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/live */
+    const val DISPATCH_PILOT_ORDERS_FLIGHT_CONNECTIONS_LIVE = "dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/live"
+
+    /** POST dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/live/{liveId}/heartbeat */
+    const val DISPATCH_PILOT_ORDERS_FLIGHT_CONNECTIONS_LIVE_HEARTBEAT = "dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/live/{liveId}/heartbeat"
+
+    /** POST dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/live/{liveId}/stop */
+    const val DISPATCH_PILOT_ORDERS_FLIGHT_CONNECTIONS_LIVE_STOP = "dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/live/{liveId}/stop"
+
     /** 事实源规格 openapi/drone-backend.openapi.json 的 sha256（门禁测试对账）。 */
-    const val GENERATED_FROM_SHA256 = "2ba6bb1a876ac4d131c77031aa5e286f1e4585bc0a47004ad2dfe866f7f9193e"
+    const val GENERATED_FROM_SHA256 = "edfe5679aec6b08dd53ced48af32d2b306f2c3872d4a8b1ff2982bc4c7cea9bc"
 }
