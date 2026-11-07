@@ -41,6 +41,8 @@ const calledEndpoints = [
   ['get', 'dispatch/orders/{orderId}/materials'],
   ['post', 'dispatch/orders/{orderId}/materials/upload-ticket'],
   ['post', 'dispatch/orders/{orderId}/materials/{materialId}/confirm'],
+  // Stage1 raw-byte adapter; this registers a new consumer, not a second contract sync.
+  ['post', 'dispatch/pilot/orders/{orderId}/event-packets'],
   ['post', 'dispatch/pilot/orders/{orderId}/flight-connections'],
   ['post', 'dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/samples/batch'],
   ['post', 'dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/close'],
@@ -255,6 +257,11 @@ function kotlinType(schema, nullable) {
   }
 }
 
+const RAW_BYTE_SCHEMAS = new Set([
+  'EventDraftDTO', 'EventPacketDraftDTO', 'EventPacketAckVO', 'EventProgressVO',
+  'EventReceiptVO', 'EventResultVO', 'MissingRangeVO', 'ResultEventPacketAckVO',
+])
+
 function buildModels() {
   collect()
   const names = [...needed].sort()
@@ -266,7 +273,18 @@ function buildModels() {
     const requiredSet = new Set(shape.required)
     const entries = Object.entries(shape.properties)
     body.push('')
-    body.push('/** 契约 components.schemas.' + name + '。 */')
+    // The event-packet POST body is raw bytes validated by Stage1Codec; these DTOs are response-only shapes.
+    // OpenAPI does not yet express required/nullable for them, so they MUST NOT be used to encode a request.
+    if (RAW_BYTE_SCHEMAS.has(name)) {
+      body.push('/**')
+      body.push(' * 契约 components.schemas.' + name + '。')
+      body.push(' *')
+      body.push(' * 仅用于读取响应/参考，禁止作为 event-packets 请求体编码器：该端点接收原始字节，')
+      body.push(' * 必填/nullable 由 Stage1Codec 严格校验，生成 DTO 的可空性不代表契约。')
+      body.push(' */')
+    } else {
+      body.push('/** 契约 components.schemas.' + name + '。 */')
+    }
     if (entries.length === 0) {
       body.push('data class Api' + name + '(val placeholder: Any? = null)')
       continue

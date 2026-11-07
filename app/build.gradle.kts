@@ -171,6 +171,8 @@ dependencies {
     implementation(libs.retrofit)
     implementation(libs.retrofit.converter.gson)
     implementation(libs.okhttp)
+    // Explicit-opt-in Stage1 codec only; not wired to collection/DI while contract remains a draft.
+    implementation("io.github.erdtman:java-json-canonicalization:1.1")
     implementation(libs.okhttp.logging.interceptor)
     implementation(libs.hilt.android)
     kapt(libs.hilt.compiler)

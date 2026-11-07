@@ -116,6 +116,101 @@ data class ApiDispatchUploadTicketVO(
     val uploadUrl: String? = null
 )
 
+/**
+ * 契约 components.schemas.EventDraftDTO。
+ *
+ * 仅用于读取响应/参考，禁止作为 event-packets 请求体编码器：该端点接收原始字节，
+ * 必填/nullable 由 Stage1Codec 严格校验，生成 DTO 的可空性不代表契约。
+ */
+data class ApiEventDraftDTO(
+    val capturedAt: Long? = null,
+    val eventId: String? = null,
+    val payload: Any? = null,
+    val type: String? = null
+)
+
+/**
+ * 契约 components.schemas.EventPacketAckVO。
+ *
+ * 仅用于读取响应/参考，禁止作为 event-packets 请求体编码器：该端点接收原始字节，
+ * 必填/nullable 由 Stage1Codec 严格校验，生成 DTO 的可空性不代表契约。
+ */
+data class ApiEventPacketAckVO(
+    val progress: ApiEventProgressVO? = null,
+    val receipt: ApiEventReceiptVO? = null,
+    val schemaVersion: Int? = null
+)
+
+/**
+ * 契约 components.schemas.EventPacketDraftDTO。
+ *
+ * 仅用于读取响应/参考，禁止作为 event-packets 请求体编码器：该端点接收原始字节，
+ * 必填/nullable 由 Stage1Codec 严格校验，生成 DTO 的可空性不代表契约。
+ */
+data class ApiEventPacketDraftDTO(
+    val assignmentVersion: Long? = null,
+    val chainHash: String? = null,
+    val chainId: String? = null,
+    val events: List<ApiEventDraftDTO>? = null,
+    val hashVersion: Int? = null,
+    val height: Long? = null,
+    val modelCode: String? = null,
+    val orderId: String? = null,
+    val packetId: String? = null,
+    val prevChainHash: String? = null,
+    val prevPacketId: String? = null,
+    val recordingSourceId: String? = null,
+    val schemaVersion: Int? = null,
+    val serialNumber: String? = null,
+    val serialSource: String? = null
+)
+
+/**
+ * 契约 components.schemas.EventProgressVO。
+ *
+ * 仅用于读取响应/参考，禁止作为 event-packets 请求体编码器：该端点接收原始字节，
+ * 必填/nullable 由 Stage1Codec 严格校验，生成 DTO 的可空性不代表契约。
+ */
+data class ApiEventProgressVO(
+    val contiguousHash: String? = null,
+    val contiguousHeight: Long? = null,
+    val highestReceivedHeight: Long? = null,
+    val integrity: String? = null,
+    val missingCursor: Long? = null,
+    val missingRanges: List<ApiMissingRangeVO>? = null,
+    val projectionRevision: Long? = null,
+    val validationVersion: Long? = null
+)
+
+/**
+ * 契约 components.schemas.EventReceiptVO。
+ *
+ * 仅用于读取响应/参考，禁止作为 event-packets 请求体编码器：该端点接收原始字节，
+ * 必填/nullable 由 Stage1Codec 严格校验，生成 DTO 的可空性不代表契约。
+ */
+data class ApiEventReceiptVO(
+    val chainHash: String? = null,
+    val contentDigest: String? = null,
+    val decidedAt: Long? = null,
+    val durability: String? = null,
+    val packetId: String? = null,
+    val receiptVersion: Int? = null,
+    val results: List<ApiEventResultVO>? = null
+)
+
+/**
+ * 契约 components.schemas.EventResultVO。
+ *
+ * 仅用于读取响应/参考，禁止作为 event-packets 请求体编码器：该端点接收原始字节，
+ * 必填/nullable 由 Stage1Codec 严格校验，生成 DTO 的可空性不代表契约。
+ */
+data class ApiEventResultVO(
+    val eventId: String? = null,
+    val outcome: String? = null,
+    val reason: String? = null,
+    val sourcePacketId: String? = null
+)
+
 /** 契约 components.schemas.FlightConnectDTO。 */
 data class ApiFlightConnectDTO(
     val assignmentVersion: Long? = null,
@@ -176,6 +271,17 @@ data class ApiLiveStartVO(
     val roomId: String? = null
 )
 
+/**
+ * 契约 components.schemas.MissingRangeVO。
+ *
+ * 仅用于读取响应/参考，禁止作为 event-packets 请求体编码器：该端点接收原始字节，
+ * 必填/nullable 由 Stage1Codec 严格校验，生成 DTO 的可空性不代表契约。
+ */
+data class ApiMissingRangeVO(
+    val fromHeight: Long? = null,
+    val toHeight: Long? = null
+)
+
 /** 契约 components.schemas.ResultDispatchMaterialVO。 */
 data class ApiResultDispatchMaterialVO(
     val code: Int? = null,
@@ -198,6 +304,20 @@ data class ApiResultDispatchOrderVO(
 data class ApiResultDispatchUploadTicketVO(
     val code: Int? = null,
     val data: ApiDispatchUploadTicketVO? = null,
+    val errorCode: String? = null,
+    val message: String? = null,
+    val success: Boolean? = null
+)
+
+/**
+ * 契约 components.schemas.ResultEventPacketAckVO。
+ *
+ * 仅用于读取响应/参考，禁止作为 event-packets 请求体编码器：该端点接收原始字节，
+ * 必填/nullable 由 Stage1Codec 严格校验，生成 DTO 的可空性不代表契约。
+ */
+data class ApiResultEventPacketAckVO(
+    val code: Int? = null,
+    val data: ApiEventPacketAckVO? = null,
     val errorCode: String? = null,
     val message: String? = null,
     val success: Boolean? = null

@@ -6,6 +6,7 @@
 #   1. vendored OpenAPI sha256 对账
 #   2. node tools/openapi-gen.mjs --check
 #   3. ./gradlew :app:testDebugUnitTest（含 OpenApiContractTest 等 JVM 单测）
+#   4. 独立 Maven Stage1 codec/HTTP/SQLite/JCS 门禁（不依赖 Android / DJI）
 #
 # 不在 CI 跑：instrumented（需真机/模拟器）、DJI 真机联调、TRTC 推流。
 name: CI
@@ -76,5 +77,33 @@ jobs:
           path: |
             app/build/reports/tests/
             app/build/test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  stage1:
+    name: stage1-contract-http
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+      - name: Actual codec, loopback OkHttp, SQLite recovery, and generated contract tests
+        run: mvn -B -ntp -f tools/stage1-client-tests/pom.xml clean test
+      - name: Independent JCS parser/hash regressions
+        run: mvn -B -ntp -f tools/jcs-probe/pom.xml clean test
+      - name: Upload bounded JVM test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage1-jvm-test-reports
+          path: |
+            tools/stage1-client-tests/target/surefire-reports/
+            tools/jcs-probe/target/surefire-reports/
           if-no-files-found: ignore
           retention-days: 14
