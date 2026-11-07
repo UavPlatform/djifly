@@ -13,21 +13,29 @@ import javax.inject.Singleton
  * LIVE_STOPPED 事件（{"type":"event","name":"LIVE_STOPPED","deviceId":...}），
  * 作为后端 /live/close 等待设备确认的兜底/补发。
  *
+ * 订单直播（[DispatchLivePublisher]）有独立的服务端会话与 lease，必须走它自己的 stop 接口；
+ * 只停 TRTC 会让后端侧 lease 继续有效到自然过期，货主端仍看到可观看状态。
+ *
  * 收到 STOP_LIVE 命令的路径（StopLiveHandler）走自己的同步 ack + 事件回执，不经本类。
  */
 @Singleton
 class LiveStopCoordinator @Inject constructor(
     private val liveService: DjiTrtcLiveService,
-    private val eventPublisher: WsEventPublisher
+    private val eventPublisher: WsEventPublisher,
+    private val dispatchLivePublisher: DispatchLivePublisher
 ) {
 
     /**
-     * 停止推流并回执 LIVE_STOPPED。
-     * @return true = 存在推流会话且已执行停止+回执；false = 本就未在推流（无动作）。
+     * 停止推流并回执 LIVE_STOPPED，同时结束订单直播会话。
+     * @return true = 存在推流会话或订单直播会话且已执行停止；false = 本就未在推流（无动作）。
      */
     fun stopStreamingAndNotify(): Boolean {
+        // Order live owns both the TRTC session and a server-side lease; stop it first so its own
+        // heartbeat loop terminates the session through the API rather than expiring on the server.
+        val orderLiveStopped = dispatchLivePublisher.stopNow()
+
         if (!liveService.isSessionActive) {
-            return false
+            return orderLiveStopped
         }
 
         liveService.stop()
