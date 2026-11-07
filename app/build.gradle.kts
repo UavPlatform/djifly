@@ -193,6 +193,7 @@ dependencies {
     implementation("com.tencent.liteav:LiteAVSDK_TRTC:13.2.0.20058")
 
     testImplementation(libs.junit)
+    testImplementation("org.xerial:sqlite-jdbc:3.46.1.0")
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
