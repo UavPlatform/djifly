@@ -1,7 +1,7 @@
 // GENERATED — DO NOT EDIT.
 // 契约模型：后端 components.schemas 中「被调用端点可达」的传递闭包。
 // 生成器：tools/openapi-gen.mjs
-// 事实源：openapi/drone-backend.openapi.json (sha256: f4585791fcc7a9b3ddeedfd6ab6a363cd57668d5d86dce0629f3f29b186a7394)
+// 事实源：openapi/drone-backend.openapi.json (sha256: 2ba6bb1a876ac4d131c77031aa5e286f1e4585bc0a47004ad2dfe866f7f9193e)
 // 生成命令：cd djifly && node tools/openapi-gen.mjs
 
 package com.fuwaki.djifly.platform.network.generated
@@ -76,6 +76,7 @@ data class ApiDispatchOrderVO(
     val createdAt: String? = null,
     val currency: String? = null,
     val deliveredAt: String? = null,
+    val deliveryNote: String? = null,
     val depositAmount: Double? = null,
     val depositPaidAt: String? = null,
     val executedDrone: ApiDispatchExecutedDroneVO? = null,
