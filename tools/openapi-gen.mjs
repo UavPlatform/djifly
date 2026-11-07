@@ -41,6 +41,8 @@ const calledEndpoints = [
   ['get', 'dispatch/orders/{orderId}/materials'],
   ['post', 'dispatch/orders/{orderId}/materials/upload-ticket'],
   ['post', 'dispatch/orders/{orderId}/materials/{materialId}/confirm'],
+  // Stage1 raw-byte adapter; this registers a new consumer, not a second contract sync.
+  ['post', 'dispatch/pilot/orders/{orderId}/event-packets'],
   ['post', 'dispatch/pilot/orders/{orderId}/flight-connections'],
   ['post', 'dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/samples/batch'],
   ['post', 'dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/close'],

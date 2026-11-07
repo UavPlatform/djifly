@@ -139,6 +139,38 @@ class EventPacketStore(private val sql: SqlSession, val recordingSourceId: Strin
             ORDER BY local_position ASC LIMIT ?""", operationId, afterPosition, limit).map { storedPacket(it) }
     }
 
+    /** Bounded lookup APIs for isolated upload adapters; never recover full operation history to send one packet. */
+    @Synchronized fun operationOrderId(operationId: String): String = sql.transaction { operationRow(operationId)[0] as String }
+
+    @Synchronized fun packet(operationId: String, packetId: String): StoredPacket = sql.transaction {
+        operationRow(operationId)
+        sql.query("SELECT packet_id, serial, body, summary, receipt, local_position FROM packet WHERE operation_id=? AND packet_id=?",
+            operationId, packetId).singleOrNull()?.let(::storedPacket) ?: error("Packet not in local operation")
+    }
+
+    @Synchronized fun firstSummary(operationId: String): ByteArray? = sql.transaction {
+        operationRow(operationId)
+        firstSummaryRow(operationId)?.copyOf()
+    }
+
+    /** Atomic first-writer guard for adapter-owned operation attribution in the immutable first summary. */
+    @Synchronized fun appendGuarded(operationId: String, packet: PacketInput, expectedFirstSummary: ByteArray?) {
+        val expected = expectedFirstSummary?.copyOf()
+        val fixed = freeze(packet)
+        sql.transaction {
+            requireActive(operationId)
+            val actual = firstSummaryRow(operationId)
+            check(if (expected == null) actual == null else actual != null && actual.contentEquals(expected)) {
+                "Operation attribution changed; re-read before append"
+            }
+            insert(operationId, fixed)
+        }
+    }
+
+    private fun firstSummaryRow(operationId: String): ByteArray? = sql.query(
+        "SELECT summary FROM packet WHERE operation_id=? ORDER BY local_position LIMIT 1", operationId
+    ).singleOrNull()?.single() as ByteArray?
+
     private fun requireActive(operationId: String) {
         check(operationRow(operationId)[1] == null) { "Operation recording already sealed" }
     }
