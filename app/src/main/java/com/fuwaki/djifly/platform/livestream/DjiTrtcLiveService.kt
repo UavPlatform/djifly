@@ -33,6 +33,8 @@ data class DjiTrtcLiveStatus(
     val streamType: Int = TRTCCloudDef.TRTC_VIDEO_STREAM_TYPE_BIG,
     val videoWidth: Int = 0,
     val videoHeight: Int = 0,
+    /** 编码方向是否跟随帧尺寸（Landscape/Portrait），用于排查观众端画面方向。 */
+    val encoderPortrait: Boolean? = null,
     val firstVideoFrameSent: Boolean = false,
     val enterRoomResult: Long? = null,
     val lastErrorCode: Int? = null,
@@ -49,7 +51,11 @@ data class DjiTrtcLiveConfig(
     val streamType: Int = TRTCCloudDef.TRTC_VIDEO_STREAM_TYPE_BIG,
     val appScene: Int = TRTCCloudDef.TRTC_APP_SCENE_LIVE,
     val role: Int = TRTCCloudDef.TRTCRoleAnchor,
-    val rotation: Int = TRTCCloudDef.TRTC_VIDEO_ROTATION_270,
+    /**
+     * 逐帧像素旋转。DJI 解码帧已是显示方向，必须保持 0：
+     * 非零值会让 TRTC 再转一次，观众端看到「竖着的横屏画面」。
+     */
+    val rotation: Int = TRTCCloudDef.TRTC_VIDEO_ROTATION_0,
     val enableMicrophoneAudio: Boolean = false,
     val audioQuality: Int = TRTCCloudDef.TRTC_AUDIO_QUALITY_DEFAULT,
     val keepAliveDecoding: Boolean = true,
@@ -149,6 +155,30 @@ class DjiTrtcLiveService @Inject constructor(
         ) {
             val cloud = trtcCloud ?: return
             val config = currentConfig ?: return
+            val current = _status.value
+            if (current.videoWidth != width || current.videoHeight != height) {
+                // 首帧（或换镜头后尺寸变化）先定编码档位：方向/比例必须与真实帧一致，
+                // 否则 SDK 会为迁就编码分辨率把画面转 90°，观众端就是歪的。
+                val encoderParam = DjiTrtcEncoderProfile.forFrame(width, height)
+                runCatching {
+                    cloud.setVideoEncoderParam(encoderParam)
+                }.onFailure { Log.w(tag, "Failed to apply encoder profile for ${width}x$height", it) }
+                updateStatus {
+                    copy(
+                        videoWidth = width,
+                        videoHeight = height,
+                        frameFormat = format,
+                        encoderPortrait =
+                            encoderParam.videoResolutionMode == TRTCCloudDef.TRTC_VIDEO_RESOLUTION_MODE_PORTRAIT,
+                        lastMessage = "Sending DJI frames to TRTC"
+                    )
+                }
+            } else if (current.frameFormat != format) {
+                updateStatus {
+                    copy(frameFormat = format, lastMessage = "Sending DJI frames to TRTC")
+                }
+            }
+
             val videoFrame = TRTCCloudDef.TRTCVideoFrame().apply {
                 pixelFormat = mapFrameFormat(format)
                 bufferType = TRTCCloudDef.TRTC_VIDEO_BUFFER_TYPE_BYTE_ARRAY
@@ -160,18 +190,6 @@ class DjiTrtcLiveService @Inject constructor(
             }
 
             cloud.sendCustomVideoData(config.streamType, videoFrame)
-
-            val current = _status.value
-            if (current.videoWidth != width || current.videoHeight != height || current.frameFormat != format) {
-                updateStatus {
-                    copy(
-                        videoWidth = width,
-                        videoHeight = height,
-                        frameFormat = format,
-                        lastMessage = "Sending DJI frames to TRTC"
-                    )
-                }
-            }
         }
     }
 
@@ -198,6 +216,7 @@ class DjiTrtcLiveService @Inject constructor(
             trtcCloud = cloud
             cloud.setListener(trtcListener)
             cloud.enableCustomVideoCapture(config.streamType, true)
+            applyStreamEncoderProfile(cloud, config.cameraIndex)
 
             if (config.enableMicrophoneAudio) {
                 cloud.muteLocalAudio(false)
@@ -222,6 +241,21 @@ class DjiTrtcLiveService @Inject constructor(
             }
             stopInternal()
         }
+    }
+
+    /**
+     * 用 DJI 已报告的码流尺寸预置编码方向，让首帧就带正确朝向；
+     * 取不到尺寸时留空，等 [frameListener] 首帧再按真实宽高设置。
+     */
+    private fun applyStreamEncoderProfile(cloud: TRTCCloud, cameraIndex: ComponentIndexType) {
+        val info = runCatching { cameraStreamManager.getAircraftStreamFrameInfo(cameraIndex) }.getOrNull()
+            ?: return
+        if (info.width <= 0 || info.height <= 0) {
+            return
+        }
+        runCatching {
+            cloud.setVideoEncoderParam(DjiTrtcEncoderProfile.forFrame(info.width, info.height))
+        }.onFailure { Log.w(tag, "Failed to preset encoder profile for ${info.width}x${info.height}", it) }
     }
 
     @Synchronized
