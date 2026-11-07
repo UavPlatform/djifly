@@ -47,6 +47,9 @@ object ApiPaths {
     /** POST dispatch/orders/{orderId}/materials/{materialId}/confirm */
     const val DISPATCH_ORDERS_MATERIALS_CONFIRM = "dispatch/orders/{orderId}/materials/{materialId}/confirm"
 
+    /** POST dispatch/pilot/orders/{orderId}/event-packets */
+    const val DISPATCH_PILOT_ORDERS_EVENT_PACKETS = "dispatch/pilot/orders/{orderId}/event-packets"
+
     /** POST dispatch/pilot/orders/{orderId}/flight-connections */
     const val DISPATCH_PILOT_ORDERS_FLIGHT_CONNECTIONS = "dispatch/pilot/orders/{orderId}/flight-connections"
 
