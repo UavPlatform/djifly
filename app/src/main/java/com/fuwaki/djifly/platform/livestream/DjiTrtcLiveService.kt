@@ -74,6 +74,17 @@ class DjiTrtcLiveService @Inject constructor(
     private val cameraStreamManager: ICameraStreamManager = MediaDataCenter.getInstance().cameraStreamManager
     private val _status = MutableStateFlow(DjiTrtcLiveStatus())
 
+    @Volatile
+    private var lastSubmittedFrameAt = 0L
+
+    fun isSendingVideo(roomId: String): Boolean {
+        val current = status.value
+        val lastFrame = lastSubmittedFrameAt
+        return current.roomId == roomId && current.phase == DjiTrtcLivePhase.Streaming &&
+            current.firstVideoFrameSent && lastFrame > 0 &&
+            SystemClock.elapsedRealtime() - lastFrame < 5_000L
+    }
+
     val status: StateFlow<DjiTrtcLiveStatus> = _status.asStateFlow()
 
     /** 是否存在未清理的推流会话（Starting/Streaming/Error 但未退房都算），供受控停止判断 */
@@ -117,6 +128,9 @@ class DjiTrtcLiveService @Inject constructor(
 
         override fun onExitRoom(reason: Int) {
             Log.i(tag, "Exited TRTC room, reason=$reason")
+            if (currentConfig != null) {
+                updateStatus { copy(phase = DjiTrtcLivePhase.Error, lastMessage = "TRTC room exited") }
+            }
         }
 
         override fun onWarning(code: Int, message: String?, extraInfo: Bundle?) {
@@ -190,6 +204,7 @@ class DjiTrtcLiveService @Inject constructor(
             }
 
             cloud.sendCustomVideoData(config.streamType, videoFrame)
+            if (currentConfig === config) lastSubmittedFrameAt = SystemClock.elapsedRealtime()
         }
     }
 
@@ -198,6 +213,7 @@ class DjiTrtcLiveService @Inject constructor(
         validateConfig(config)
         stop()
 
+        lastSubmittedFrameAt = 0L
         currentConfig = config
         updateStatus {
             DjiTrtcLiveStatus(

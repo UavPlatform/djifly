@@ -4,6 +4,10 @@ import com.fuwaki.djifly.data.models.ApiResult
 import com.fuwaki.djifly.data.models.LiveStartVo
 import com.fuwaki.djifly.data.models.LoginResponse
 import com.fuwaki.djifly.data.models.RefreshResponse
+import com.fuwaki.djifly.platform.livestream.DispatchLiveHeartbeat
+import com.fuwaki.djifly.platform.livestream.DispatchLiveStart
+import com.fuwaki.djifly.platform.livestream.DispatchLiveStatus
+import com.fuwaki.djifly.platform.livestream.DispatchLiveTicket
 import com.fuwaki.djifly.platform.network.generated.ApiDispatchAssignmentDTO
 import com.fuwaki.djifly.platform.network.generated.ApiDispatchDeliveryDTO
 import com.fuwaki.djifly.platform.network.generated.ApiDispatchMaterialUploadDTO
@@ -50,6 +54,28 @@ interface PlatformApiService {
 
     @POST(ApiPaths.LIVE_RIDER_REQ)
     suspend fun requestRiderLive(@Query("deviceId") deviceId: String): Response<ApiResult<LiveStartVo>>
+
+    @POST("dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/live")
+    suspend fun startDispatchLive(
+        @Path("orderId") orderId: String,
+        @Path("connectionId") connectionId: String,
+        @Body request: DispatchLiveStart
+    ): Response<ApiResult<DispatchLiveTicket>>
+
+    @POST("dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/live/{liveId}/heartbeat")
+    suspend fun heartbeatDispatchLive(
+        @Path("orderId") orderId: String,
+        @Path("connectionId") connectionId: String,
+        @Path("liveId") liveId: String,
+        @Body request: DispatchLiveHeartbeat
+    ): Response<ApiResult<DispatchLiveStatus>>
+
+    @POST("dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/live/{liveId}/stop")
+    suspend fun stopDispatchLive(
+        @Path("orderId") orderId: String,
+        @Path("connectionId") connectionId: String,
+        @Path("liveId") liveId: String
+    ): Response<ApiResult<Unit>>
 
     @GET(ApiPaths.DISPATCH_PILOT_ORDERS)
     suspend fun getMyDispatchOrders(): Response<ApiResultListDispatchOrderVO>
