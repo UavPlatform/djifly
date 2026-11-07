@@ -226,6 +226,10 @@ fun FlightScreen(
 
     val deliverables = taskViewModel.deliverables.collectAsState()
     val liveRequestState by taskViewModel.liveRequestState.collectAsState()
+    val dispatchLive by taskViewModel.dispatchLiveState.collectAsState()
+    LaunchedEffect(dispatchLive.error) {
+        dispatchLive.error?.let { Toast.makeText(toastContext, it, Toast.LENGTH_LONG).show() }
+    }
 
     LaunchedEffect(liveRequestState) {
         when (val state = liveRequestState) {
@@ -327,7 +331,9 @@ fun FlightScreen(
                         }
                     },
                     onConfirmDelivery = { showConfirmDeliveryDialog = true },
-                    onStartLive = { taskViewModel.requestRiderLiveStream() },
+                    onStartLive = { taskViewModel.toggleDispatchLive(readyTask.taskNum) },
+                    liveActive = dispatchLive.orderId == readyTask.taskNum,
+                    liveStreaming = dispatchLive.streaming,
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .navigationBarsPadding()

@@ -45,6 +45,39 @@ data class ApiDispatchExecutedDroneVO(
     val serialNumber: String? = null
 )
 
+/** 契约 components.schemas.DispatchLiveCredentialsVO。 */
+data class ApiDispatchLiveCredentialsVO(
+    val connectionId: String? = null,
+    val expiresAt: Long? = null,
+    val leaseExpiresAt: Long? = null,
+    val liveId: String? = null,
+    val privateMapKey: String? = null,
+    val publisherUserId: String? = null,
+    val roomId: String? = null,
+    val sdkAppId: Long? = null,
+    val userId: String? = null,
+    val userSig: String? = null
+)
+
+/** 契约 components.schemas.DispatchLiveHeartbeatDTO。 */
+data class ApiDispatchLiveHeartbeatDTO(
+    val state: String
+)
+
+/** 契约 components.schemas.DispatchLiveStartDTO。 */
+data class ApiDispatchLiveStartDTO(
+    val requestKey: String
+)
+
+/** 契约 components.schemas.DispatchLiveStatusVO。 */
+data class ApiDispatchLiveStatusVO(
+    val configured: Boolean? = null,
+    val connectionId: String? = null,
+    val leaseExpiresAt: Long? = null,
+    val liveId: String? = null,
+    val state: String? = null
+)
+
 /** 契约 components.schemas.DispatchMaterialUploadDTO。 */
 data class ApiDispatchMaterialUploadDTO(
     val contentType: String,
@@ -280,6 +313,24 @@ data class ApiLiveStartVO(
 data class ApiMissingRangeVO(
     val fromHeight: Long? = null,
     val toHeight: Long? = null
+)
+
+/** 契约 components.schemas.ResultDispatchLiveCredentialsVO。 */
+data class ApiResultDispatchLiveCredentialsVO(
+    val code: Int? = null,
+    val data: ApiDispatchLiveCredentialsVO? = null,
+    val errorCode: String? = null,
+    val message: String? = null,
+    val success: Boolean? = null
+)
+
+/** 契约 components.schemas.ResultDispatchLiveStatusVO。 */
+data class ApiResultDispatchLiveStatusVO(
+    val code: Int? = null,
+    val data: ApiDispatchLiveStatusVO? = null,
+    val errorCode: String? = null,
+    val message: String? = null,
+    val success: Boolean? = null
 )
 
 /** 契约 components.schemas.ResultDispatchMaterialVO。 */

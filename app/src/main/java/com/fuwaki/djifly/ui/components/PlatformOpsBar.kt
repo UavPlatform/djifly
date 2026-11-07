@@ -65,6 +65,8 @@ fun PlatformOpsBar(
     onStartLive: () -> Unit,
     modifier: Modifier = Modifier,
     captureProgress: String = "",
+    liveActive: Boolean = false,
+    liveStreaming: Boolean = false,
 ) {
     val uploading = deliverables.any {
         it.phase == DeliverableItemPhase.UPLOADING || it.phase == DeliverableItemPhase.PENDING
@@ -86,9 +88,10 @@ fun PlatformOpsBar(
         ) {
             OpsIconWithCaption(
                 icon = Icons.Default.Videocam,
-                caption = "开播",
+                caption = if (liveActive) "停播" else "开播",
                 onClick = onStartLive,
-                enabled = true
+                enabled = true,
+                highlighted = liveActive && liveStreaming
             )
             OpsIconWithCaption(
                 icon = Icons.Default.PhotoCamera,

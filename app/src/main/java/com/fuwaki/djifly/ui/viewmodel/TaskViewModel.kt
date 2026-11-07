@@ -15,6 +15,7 @@ import com.fuwaki.djifly.platform.attachment.DeliverableRetention
 import com.fuwaki.djifly.platform.attachment.DeliverableUploader
 import com.fuwaki.djifly.platform.attachment.PendingDeliverable
 import com.fuwaki.djifly.platform.live.RiderLiveRequestMapper
+import com.fuwaki.djifly.platform.livestream.DispatchLivePublisher
 import com.fuwaki.djifly.platform.live.RiderLiveRequestState
 import com.fuwaki.djifly.platform.registration.PlatformRegistrationStore
 import com.fuwaki.djifly.platform.network.PlatformApiService
@@ -37,6 +38,7 @@ class TaskViewModel @Inject constructor(
     private val api: PlatformApiService,
     private val registrationStore: PlatformRegistrationStore,
     private val deliverableUploader: DeliverableUploader,
+    private val dispatchLivePublisher: DispatchLivePublisher,
     val errorHandler: GlobalErrorHandler // 暴露给 UI 层的 GlobalErrorEffect 使用
 ) : ViewModel() {
 
@@ -53,6 +55,9 @@ class TaskViewModel @Inject constructor(
     // 飞手主动开播（1B-4b，Q3=C）
     private val _liveRequestState = MutableStateFlow<RiderLiveRequestState>(RiderLiveRequestState.Idle)
     val liveRequestState: StateFlow<RiderLiveRequestState> = _liveRequestState
+    val dispatchLiveState = dispatchLivePublisher.state
+
+    fun toggleDispatchLive(orderId: String) = dispatchLivePublisher.toggle(orderId)
 
     // 交付物上传（1B-9b）：完成对话框内选择 → 串行直传 → 与任务关联
     private val _deliverables = MutableStateFlow<List<DeliverableItemUi>>(emptyList())
