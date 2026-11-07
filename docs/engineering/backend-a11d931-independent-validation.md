@@ -1,5 +1,7 @@
 # Backend a11d931：Kotlin 独立合同验证（未冻结）
 
+> 历史阶段报告；backend当前main d924e345 的实质语义变化、同步PR范围与测试修正，见 [Stage1同步报告](stage1-contract-sync-d924e345.md)。
+
 2026-11-07，北京时间。仅测试/反馈；无生产请求编码器、API、SDK、持久化实现或 app 依赖改动。后端仓库未克隆。
 
 ## 固定来源与复现

@@ -46,6 +46,14 @@ const calledEndpoints = [
   ['post', 'dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/close'],
 ]
 
+// Contract-only staging: generate DTO shapes for these real backend operations without
+// pretending they are Retrofit call sites. Do not serialize packets with these draft DTOs.
+// Move entries into calledEndpoints only with the separate HTTP-adapter implementation.
+const modelOnlyEndpoints = [
+  ['post', 'dispatch/pilot/orders/{orderId}/event-packets'],
+  ['post', 'dispatch/pilot/orders/{orderId}/event-reconciliation'],
+]
+
 const endpoints = calledEndpoints
 
 const check = process.argv.includes('--check')
@@ -187,8 +195,8 @@ function jsonSchemaOf(content) {
 }
 
 function collect() {
-  // 闭包只取「本端真正调用」的端点清单。
-  for (const [method, localPath] of calledEndpoints) {
+  // 生成已调用与显式待接入的模型闭包；待接入端点不进入调用表/路径表。
+  for (const [method, localPath] of [...calledEndpoints, ...modelOnlyEndpoints]) {
     const op = operation(specPathFor(localPath), method)
     if (Array.isArray(op.parameters)) {
       for (const param of op.parameters) visit(param?.schema)
@@ -290,7 +298,7 @@ function buildModels() {
 
   const lines = []
   lines.push('// GENERATED — DO NOT EDIT.')
-  lines.push('// 契约模型：后端 components.schemas 中「被调用端点可达」的传递闭包。')
+  lines.push('// 契约模型：后端 components.schemas 中已调用/显式待接入端点的传递闭包。')
   lines.push('// 生成器：' + generatorName)
   lines.push('// 事实源：openapi/drone-backend.openapi.json (sha256: ' + sha + ')')
   lines.push('// 生成命令：' + generateCommand)
@@ -306,6 +314,7 @@ function buildModels() {
   lines.push(' * 因此正常无需 @SerializedName；仅当键名不是合法 Kotlin 标识符时才生成注解）。')
   lines.push(' *')
   lines.push(' * 可空性取自契约 required 列表：required 字段非空，其余可空（默认 null）。')
+  lines.push(' * Draft event DTOs are structural snapshots only, not strict raw-byte packet codecs.')
   lines.push(' * 本文件由生成器维护，禁止手改。')
   lines.push(' */')
   for (const line of body) lines.push(line)

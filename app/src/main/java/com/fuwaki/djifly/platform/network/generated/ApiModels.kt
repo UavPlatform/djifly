@@ -1,7 +1,7 @@
 // GENERATED — DO NOT EDIT.
-// 契约模型：后端 components.schemas 中「被调用端点可达」的传递闭包。
+// 契约模型：后端 components.schemas 中已调用/显式待接入端点的传递闭包。
 // 生成器：tools/openapi-gen.mjs
-// 事实源：openapi/drone-backend.openapi.json (sha256: f4585791fcc7a9b3ddeedfd6ab6a363cd57668d5d86dce0629f3f29b186a7394)
+// 事实源：openapi/drone-backend.openapi.json (sha256: 2ba6bb1a876ac4d131c77031aa5e286f1e4585bc0a47004ad2dfe866f7f9193e)
 // 生成命令：cd djifly && node tools/openapi-gen.mjs
 
 package com.fuwaki.djifly.platform.network.generated
@@ -11,6 +11,7 @@ package com.fuwaki.djifly.platform.network.generated
  * 因此正常无需 @SerializedName；仅当键名不是合法 Kotlin 标识符时才生成注解）。
  *
  * 可空性取自契约 required 列表：required 字段非空，其余可空（默认 null）。
+ * Draft event DTOs are structural snapshots only, not strict raw-byte packet codecs.
  * 本文件由生成器维护，禁止手改。
  */
 
@@ -76,6 +77,7 @@ data class ApiDispatchOrderVO(
     val createdAt: String? = null,
     val currency: String? = null,
     val deliveredAt: String? = null,
+    val deliveryNote: String? = null,
     val depositAmount: Double? = null,
     val depositPaidAt: String? = null,
     val executedDrone: ApiDispatchExecutedDroneVO? = null,
@@ -113,6 +115,111 @@ data class ApiDispatchUploadTicketVO(
     val method: String? = null,
     val sizeBytes: Long? = null,
     val uploadUrl: String? = null
+)
+
+/** 契约 components.schemas.EventDraftDTO。 */
+data class ApiEventDraftDTO(
+    val capturedAt: Long? = null,
+    val eventId: String? = null,
+    val payload: Any? = null,
+    val type: String? = null
+)
+
+/** 契约 components.schemas.EventHeightVO。 */
+data class ApiEventHeightVO(
+    val chainHash: String? = null,
+    val contentDigest: String? = null,
+    val height: Long? = null,
+    val packetId: String? = null
+)
+
+/** 契约 components.schemas.EventPacketAckVO。 */
+data class ApiEventPacketAckVO(
+    val progress: ApiEventProgressVO? = null,
+    val receipt: ApiEventReceiptVO? = null,
+    val schemaVersion: Int? = null
+)
+
+/** 契约 components.schemas.EventPacketDraftDTO。 */
+data class ApiEventPacketDraftDTO(
+    val assignmentVersion: Long? = null,
+    val chainHash: String? = null,
+    val chainId: String? = null,
+    val events: List<ApiEventDraftDTO>? = null,
+    val hashVersion: Int? = null,
+    val height: Long? = null,
+    val modelCode: String? = null,
+    val orderId: String? = null,
+    val packetId: String? = null,
+    val prevChainHash: String? = null,
+    val prevPacketId: String? = null,
+    val recordingSourceId: String? = null,
+    val schemaVersion: Int? = null,
+    val serialNumber: String? = null,
+    val serialSource: String? = null
+)
+
+/** 契约 components.schemas.EventProgressVO。 */
+data class ApiEventProgressVO(
+    val contiguousHash: String? = null,
+    val contiguousHeight: Long? = null,
+    val highestReceivedHeight: Long? = null,
+    val integrity: String? = null,
+    val missingCursor: Long? = null,
+    val missingRanges: List<ApiMissingRangeVO>? = null,
+    val projectionRevision: Long? = null,
+    val validationVersion: Long? = null
+)
+
+/** 契约 components.schemas.EventReceiptVO。 */
+data class ApiEventReceiptVO(
+    val chainHash: String? = null,
+    val contentDigest: String? = null,
+    val decidedAt: Long? = null,
+    val durability: String? = null,
+    val packetId: String? = null,
+    val receiptVersion: Int? = null,
+    val results: List<ApiEventResultVO>? = null
+)
+
+/** 契约 components.schemas.EventReconciliationDraftDTO。 */
+data class ApiEventReconciliationDraftDTO(
+    val chainId: String? = null,
+    val cursor: Long? = null,
+    val fromHeight: Long? = null,
+    val limit: Int? = null,
+    val missingCursor: Long? = null,
+    val prefix: Any? = null,
+    val schemaVersion: Int? = null,
+    val toHeight: Long? = null,
+    val validationVersion: Long? = null
+)
+
+/** 契约 components.schemas.EventReconciliationVO。 */
+data class ApiEventReconciliationVO(
+    val chainId: String? = null,
+    val commonPrefixHeight: Long? = null,
+    val contiguousHash: String? = null,
+    val contiguousHeight: Long? = null,
+    val entries: List<ApiEventHeightVO>? = null,
+    val fromHeight: Long? = null,
+    val highestReceivedHeight: Long? = null,
+    val integrity: String? = null,
+    val missingCursor: Long? = null,
+    val missingRanges: List<ApiMissingRangeVO>? = null,
+    val nextCursor: Long? = null,
+    val projectionRevision: Long? = null,
+    val schemaVersion: Int? = null,
+    val toHeight: Long? = null,
+    val validationVersion: Long? = null
+)
+
+/** 契约 components.schemas.EventResultVO。 */
+data class ApiEventResultVO(
+    val eventId: String? = null,
+    val outcome: String? = null,
+    val reason: String? = null,
+    val sourcePacketId: String? = null
 )
 
 /** 契约 components.schemas.FlightConnectDTO。 */
@@ -175,6 +282,12 @@ data class ApiLiveStartVO(
     val roomId: String? = null
 )
 
+/** 契约 components.schemas.MissingRangeVO。 */
+data class ApiMissingRangeVO(
+    val fromHeight: Long? = null,
+    val toHeight: Long? = null
+)
+
 /** 契约 components.schemas.ResultDispatchMaterialVO。 */
 data class ApiResultDispatchMaterialVO(
     val code: Int? = null,
@@ -197,6 +310,24 @@ data class ApiResultDispatchOrderVO(
 data class ApiResultDispatchUploadTicketVO(
     val code: Int? = null,
     val data: ApiDispatchUploadTicketVO? = null,
+    val errorCode: String? = null,
+    val message: String? = null,
+    val success: Boolean? = null
+)
+
+/** 契约 components.schemas.ResultEventPacketAckVO。 */
+data class ApiResultEventPacketAckVO(
+    val code: Int? = null,
+    val data: ApiEventPacketAckVO? = null,
+    val errorCode: String? = null,
+    val message: String? = null,
+    val success: Boolean? = null
+)
+
+/** 契约 components.schemas.ResultEventReconciliationVO。 */
+data class ApiResultEventReconciliationVO(
+    val code: Int? = null,
+    val data: ApiEventReconciliationVO? = null,
     val errorCode: String? = null,
     val message: String? = null,
     val success: Boolean? = null

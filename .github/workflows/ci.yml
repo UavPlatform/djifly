@@ -5,7 +5,8 @@
 # 执行内容：
 #   1. vendored OpenAPI sha256 对账
 #   2. node tools/openapi-gen.mjs --check
-#   3. ./gradlew :app:testDebugUnitTest（含 OpenApiContractTest 等 JVM 单测）
+#   3. mvn -B -f tools/jcs-probe/pom.xml test（固定 Stage1 共享向量/严格入口与模型门禁）
+#   4. ./gradlew :app:testDebugUnitTest（含 OpenApiContractTest 等 JVM 单测）
 #
 # 不在 CI 跑：instrumented（需真机/模拟器）、DJI 真机联调、TRTC 推流。
 name: CI
@@ -64,6 +65,9 @@ jobs:
 
       - name: OpenAPI generated code is up to date
         run: node tools/openapi-gen.mjs --check
+
+      - name: Stage1 pinned shared vectors and strict contract probes (JVM only)
+        run: mvn -B -f tools/jcs-probe/pom.xml test
 
       - name: Unit tests (incl. OpenApiContractTest)
         run: ./gradlew :app:testDebugUnitTest --no-daemon --stacktrace

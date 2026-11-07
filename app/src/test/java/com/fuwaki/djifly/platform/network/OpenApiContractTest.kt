@@ -2,6 +2,10 @@ package com.fuwaki.djifly.platform.network
 
 import com.fuwaki.djifly.platform.network.generated.ApiPaths
 import com.fuwaki.djifly.platform.network.generated.ApiDispatchOrderVO
+import com.fuwaki.djifly.platform.network.generated.ApiEventPacketDraftDTO
+import com.fuwaki.djifly.platform.network.generated.ApiEventReconciliationDraftDTO
+import com.google.gson.GsonBuilder
+import com.google.gson.JsonParser
 import com.google.gson.Gson
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -134,6 +138,48 @@ class OpenApiContractTest {
         assertEquals("ord-1", order.orderId)
         assertEquals("IN_TRANSIT", order.stage)
         assertEquals(3L, order.assignmentVersion)
+    }
+
+    /** Structural mapping only; does not approve DTO round-trip as the raw-byte packet codec. */
+    @Test
+    fun generated_stage1_packet_shape_reads_current_shared_vector() {
+        val packet = Gson().fromJson(firstStage1Vector(), ApiEventPacketDraftDTO::class.java)
+        assertEquals(1L, packet.assignmentVersion)
+        assertEquals(1L, packet.height)
+        assertEquals(1710000000000L, packet.events!!.single().capturedAt)
+        assertEquals("POSITION", packet.events.single().type)
+        assertEquals(null, packet.prevPacketId)
+    }
+
+    @Test
+    fun generated_default_gson_packet_roundtrip_loses_required_explicit_null() {
+        val packet = Gson().fromJson(firstStage1Vector(), ApiEventPacketDraftDTO::class.java)
+        val original = JsonParser.parseString(firstStage1Vector()).asJsonObject
+        val roundTrip = Gson().toJsonTree(packet).asJsonObject
+        assertTrue(original.has("prevPacketId") && original["prevPacketId"].isJsonNull)
+        assertTrue("Known hazard: default Gson omits the required null; do not ship this as a packet codec",
+            !roundTrip.has("prevPacketId"))
+    }
+
+    @Test
+    fun generated_reconciliation_nullable_shapes_do_not_enforce_all_keys_contract() {
+        val dto = ApiEventReconciliationDraftDTO(chainId = "33333333-3333-4333-8333-333333333333",
+            fromHeight = 1, toHeight = 500, limit = 64, schemaVersion = 1)
+        val absent = Gson().toJsonTree(dto).asJsonObject
+        val explicit = GsonBuilder().serializeNulls().create().toJsonTree(dto).asJsonObject
+        val requiredNulls = setOf("validationVersion", "cursor", "missingCursor", "prefix")
+        requiredNulls.forEach { key ->
+            assertTrue(!absent.has(key))
+            assertTrue(explicit.has(key) && explicit[key].isJsonNull)
+        }
+        assertEquals(9, explicit.size())
+    }
+
+    private fun firstStage1Vector(): String {
+        val fixture = File(repoRoot, "spec/event-contract/golden-vectors.json")
+        val hex = JsonParser.parseString(fixture.readText()).asJsonObject.getAsJsonArray("vectors")[0]
+            .asJsonObject["inputUtf8Hex"].asString
+        return hex.chunked(2).map { it.toInt(16).toByte() }.toByteArray().toString(Charsets.UTF_8)
     }
 
     // ═══════════════════════════════════════════════════════

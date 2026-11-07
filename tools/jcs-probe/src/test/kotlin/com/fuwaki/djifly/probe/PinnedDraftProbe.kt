@@ -10,7 +10,7 @@ import java.nio.ByteBuffer
 import java.nio.charset.CodingErrorAction
 import java.security.MessageDigest
 
-/** TEST-ONLY interpretation of backend a11d931. No request builder, live API or SDK mapping. */
+/** TEST-ONLY structural subset, aligned to pinned Stage1 schema evidence. Not a production codec. */
 internal class DraftProbeRejected(val layer: String) : IllegalArgumentException(layer)
 internal object PinnedDraftProbe {
     val identityFields = listOf("assignmentVersion", "chainId", "hashVersion", "modelCode", "orderId", "recordingSourceId", "schemaVersion", "serialNumber", "serialSource")
@@ -107,7 +107,10 @@ internal object PinnedDraftProbe {
         insist(p["schemaVersion"].asLong == 1L && p["hashVersion"].asLong == 1L && p["assignmentVersion"].asLong > 0, "SCHEMA")
         insist(p["height"].asLong in 1..1000000, "SCHEMA")
         listOf("orderId", "modelCode", "serialNumber", "serialSource").forEach { string(p[it]) }
-        listOf("recordingSourceId", "chainId", "packetId").forEach { uuid(p[it]) }
+        listOf("orderId", "recordingSourceId", "chainId", "packetId").forEach { uuid(p[it]) }
+        insist(p["serialNumber"].asString.matches(Regex("[A-Za-z0-9][A-Za-z0-9._:-]{0,63}")), "SCHEMA")
+        insist(p["modelCode"].asString.matches(Regex("[A-Za-z0-9][A-Za-z0-9._:-]{0,127}")), "SCHEMA")
+        insist(p["serialSource"].asString.matches(Regex("[A-Z][A-Z0-9_]{0,63}")), "SCHEMA")
         if (p["height"].asLong == 1L) insist(p["prevPacketId"].isJsonNull, "SCHEMA") else uuid(p["prevPacketId"])
         listOf("prevChainHash", "chainHash").forEach { key ->
             string(p[key]); insist(p[key].asString.matches(Regex("[0-9a-f]{64}")), "SCHEMA")
@@ -118,13 +121,14 @@ internal object PinnedDraftProbe {
             insist(event.isJsonObject, "SCHEMA"); val e = event.asJsonObject
             insist(e.keySet() == eventFields, "SCHEMA"); uuid(e["eventId"])
             insist(ids.add(e["eventId"].asString), "SCHEMA")
-            integer(e["capturedAt"]); string(e["type"]); insist(e["payload"].isJsonObject, "SCHEMA")
+            integer(e["capturedAt"]); insist(e["capturedAt"].asLong >= 0, "SCHEMA"); string(e["type"]); insist(e["payload"].isJsonObject, "SCHEMA")
             // Payload type/range/time/authorization is event semantics, NOT decided by this probe.
         }
         return p
     }
     fun binding(packet: JsonObject, pathOrderId: String, knownIdentity: JsonObject) {
-        insist(packet["orderId"].asString == pathOrderId && identity(packet) == knownIdentity, "BINDING")
+        insist(packet["orderId"].asString == pathOrderId, "SCHEMA")
+        insist(identity(packet) == knownIdentity, "BINDING")
     }
     fun selfHash(packet: JsonObject) {
         if (packet["height"].asLong == 1L) insist(packet["prevChainHash"].asString == anchor(packet), "SELF_HASH")

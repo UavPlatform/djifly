@@ -7,8 +7,9 @@ mvn -B -f tools/jcs-probe/pom.xml test
 node tools/jcs-probe/fixture-vectors.cjs
 ```
 
-33 JVM tests: 12 canonicalization/strict-ingress probes, 5 synthetic formula tests,
-and 16 pinned-backend golden/strict-profile checks.
+Original 33-test corpus: 12 canonicalization/strict-ingress probes, 5 synthetic
+formula tests, and 16 old pinned-backend golden/strict-profile checks. The current
+harness runs 59 tests in total; see the actual-main section below.
 The tests deliberately demonstrate published library ingress defects (duplicate null keys,
 leading-zero numbers, lone surrogates, malformed UTF8); green tests do NOT approve the library
 as a standalone production parser. The scanner and its toy root allowlist/limits are test-only.
@@ -34,3 +35,21 @@ The original synthetic probe remains deliberately separate.
 Results, snapshot fingerprints, rejection boundaries, PR19's already-merged state,
 and remaining contract questions:
 [backend-a11d931-independent-validation.md](../../docs/engineering/backend-a11d931-independent-validation.md).
+
+## Actual main Stage1 snapshot
+
+The same independent corpus also runs against `../../spec/event-contract/`, pinned
+to backend main `d924e34522119ae220b48dee03669752f3d8e331`. SOURCE.json records
+the full source commit and Git blob/SHA256 fingerprints. Four current snapshot
+files (including OpenAPI) are checked against remote Git blob identities.
+No current golden values are substituted by the old synthetic oracle.
+
+The harness now compiles the actual generated app model/path files and runs the
+actual app OpenApiContractTest through a target-only source copy. Total: 59 tests
+(17 original probes + 16 old-snapshot checks + 19 current-main checks + 7 app
+contract gates). No app runtime dependencies or Android tests are added.
+
+Known draft gaps are tested, not silently fixed: missing required/nullable OpenAPI
+constraints and default Gson dropping explicit null keys. These DTOs are structural
+snapshots, NOT production packet or reconciliation codecs. See
+[Stage1 synchronization report](../../docs/engineering/stage1-contract-sync-d924e345.md).

@@ -1,0 +1,75 @@
+{
+  "repository": "https://github.com/UavPlatform/backend",
+  "ref": "main",
+  "commit": "d924e34522119ae220b48dee03669752f3d8e331",
+  "clientBase": "8d3c10ad3393306506ec57254306dc2c6ff8b156",
+  "status": "implemented Stage1 draft; NOT contract freeze or HTTP integration",
+  "files": {
+    "spec/event-contract/DRAFT.md": {
+      "gitBlobSha": "0bd9760b110581ed7d17f290afbca2c56be42361",
+      "sha256": "08526bd0396c1fbb50ba314f4e83415bda57d6579df2b586bddb28f7ef479358",
+      "bytes": 12049
+    },
+    "spec/event-contract/golden-vectors.json": {
+      "gitBlobSha": "4517840862976948633598fdd8dcadf08dd7ff4b",
+      "sha256": "08228ecea348d292db2cdf688112b0d2aae8ade3f1ac6daaaccf4e29e1b2a9b4",
+      "bytes": 19028
+    },
+    "spec/event-contract/verify-golden.mjs": {
+      "gitBlobSha": "c9cdea8b53557c6cd59d981cff2cdbe70d4f09aa",
+      "sha256": "8257bbc1aeb5f1b7fd3b7204f07024f21330a1e2d154551e4399dd65387d7e66",
+      "bytes": 3845
+    },
+    "spec/openapi/drone-backend.openapi.json": {
+      "gitBlobSha": "74fa3f8dc2c56dbc2934dff8712b3d145c9ee12d",
+      "sha256": "2ba6bb1a876ac4d131c77031aa5e286f1e4585bc0a47004ad2dfe866f7f9193e",
+      "bytes": 416242
+    }
+  },
+  "implementationEvidence": {
+    "drone-backend/src/main/java/com/uav/flight/controller/EventPacketController.java": {
+      "gitBlobSha": "7159917085349692c22050f8f2667a07ad3387ca",
+      "sha256": "cfe2bda487c2ac04ac7971f65e9901de762c754ea50607645c955f4c350ed5ed"
+    },
+    "drone-backend/src/main/java/com/uav/flight/event/EventPacketSchema.java": {
+      "gitBlobSha": "6f2df6ad4043be7f86de1cd0ae057728d3791af6",
+      "sha256": "edf76c90b77b09d517be3e28f7bf594d9da8453c26c0ea489bf385cad699d653"
+    },
+    "drone-backend/src/main/java/com/uav/flight/event/EventPacketService.java": {
+      "gitBlobSha": "fbe65911c350bb6f8ad705196d98270f37e8f8c3",
+      "sha256": "79c4b14b0d1c9e5e0fca16875df49bd106ad1fb385c1146870f69e02d6eead0a"
+    },
+    "drone-backend/src/main/java/com/uav/flight/event/EventPacketStore.java": {
+      "gitBlobSha": "494960956a76b4a82da23757b082bec4faa4bcd6",
+      "sha256": "4a2551af4de2623aefa038e8ec7257ec941601b91928f30916fb80827d5f5dcd"
+    },
+    "drone-backend/src/main/java/com/uav/flight/event/EventReconciliationSchema.java": {
+      "gitBlobSha": "824193d3b7f392a2b39d624540d4677e8167df28",
+      "sha256": "b31ed5b603072409f8c266174a009df8b3e7673545c56354f4f0273b9c5d04a3"
+    },
+    "drone-backend/src/main/java/com/uav/flight/event/EventReconciliationService.java": {
+      "gitBlobSha": "e47272524dac6ae8009b7534f21b0b3a97cb2f9f",
+      "sha256": "122df466d5209cca68974ea4f8fb345f75609cba4d6851a47c64d51f40308006"
+    },
+    "drone-backend/src/main/java/com/uav/flight/event/EventDecider.java": {
+      "gitBlobSha": "ff09b8e2a24a4145141115af30388aaf041a9903",
+      "sha256": "b882b4584505ed49d1d23164f6cd704cb9030613d9a45ecfadeeb27bf71504e8"
+    },
+    "drone-backend/src/main/java/com/uav/flight/event/AssignmentCaptureWindow.java": {
+      "gitBlobSha": "157b2806735d1f9e86ca71aaca2303e61fb5797c",
+      "sha256": "2be9bb1d263d2884da2fa6fc38e9c3c404dd793d8ccf43dabc875075b9a24b03"
+    },
+    "drone-backend/src/main/java/com/uav/flight/event/EventLimits.java": {
+      "gitBlobSha": "4f8d1aa1572a3f6d85aa57326bed0931a6b81aa5",
+      "sha256": "fb086cd2e76a728206f4f71f169e1f8a59e9f1ed982488afc5d41d43f9d05600"
+    },
+    "drone-backend/src/main/java/com/uav/flight/event/EventTokens.java": {
+      "gitBlobSha": "16dc63f713f008b576ccf7622c8732dc66eac201",
+      "sha256": "41727a253beca7c7bf06a522f1d9975e88ebd1e9bd170ee681b43965864ad742"
+    },
+    "drone-backend/src/main/java/com/uav/flight/event/EventPayloads.java": {
+      "gitBlobSha": "02b96b7f946d68258376ec93ccf6a87661082bc2",
+      "sha256": "a0fd659b0cd3c3952bc6cfcb67e5cf5c719696912c1e05635ec03e2ca3799453"
+    }
+  }
+}
