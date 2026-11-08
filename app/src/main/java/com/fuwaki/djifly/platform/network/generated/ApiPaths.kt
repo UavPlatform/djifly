@@ -1,7 +1,7 @@
 // GENERATED — DO NOT EDIT.
 // 契约路径表：调用点只允许引用 ApiPaths 常量，禁止散落路径字面量。
 // 生成器：tools/openapi-gen.mjs
-// 事实源：openapi/drone-backend.openapi.json (sha256: 7ec87cd38ffd367a84174f871d1f48d9bbc694f59397e96e012650f4d397bf82)
+// 事实源：openapi/drone-backend.openapi.json (sha256: 39ab6d5c22fdae6e99c4dfd3df95f0ef1bf2430247a399b0e1c33f883967ac63)
 // 生成命令：cd djifly && node tools/openapi-gen.mjs
 
 package com.fuwaki.djifly.platform.network.generated
@@ -69,5 +69,5 @@ object ApiPaths {
     const val DISPATCH_ORDERS_LIVE_WATCH = "dispatch/orders/{orderId}/live/{liveId}/watch"
 
     /** 事实源规格 openapi/drone-backend.openapi.json 的 sha256（门禁测试对账）。 */
-    const val GENERATED_FROM_SHA256 = "7ec87cd38ffd367a84174f871d1f48d9bbc694f59397e96e012650f4d397bf82"
+    const val GENERATED_FROM_SHA256 = "39ab6d5c22fdae6e99c4dfd3df95f0ef1bf2430247a399b0e1c33f883967ac63"
 }
