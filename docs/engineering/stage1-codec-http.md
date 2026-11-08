@@ -19,7 +19,7 @@
 - `Stage1Codec`：严格 UTF-8、无 BOM、Unicode 代理项与 ASCII `\\u` hex 检查，解码后重复键（含 null）、整数 token/安全整数、技术上限、根 15 字段与事件 4 字段检查；再使用 JCS 1.1 输出合法对象/数组。JCS 库不是入口校验器。
 - identity 精确九字段；要求实际正数 `assignmentVersion`，不默认 0；调用者必须提供已持久化、稳定的 chain/source/order/机身身份。续包 builder 不允许改变 identity。首包显式保留 `prevPacketId:null`。不自动分配链、不从展示名推断身份，不造 SDK 量纲或未知值。
 - 自哈希、H0、完整包 contentDigest 依当前服务公式。解码保留原始 bytes 的不可变副本，后续不重新序列化请求。
-- `Stage1Uploader`：真正的 OkHttp POST，地址引用现有生成路径常量；只允许 HTTPS（loopback HTTP 测试除外），禁止重定向、cookie 和隐式认证/正文 interceptor；每次调用仅一次 HTTP 尝试，call timeout 最多 30 秒。
+- `Stage1Uploader`：真正的 OkHttp POST，地址引用现有生成路径常量；默认只允许 HTTPS，明文 HTTP 仅限 loopback 测试，或由调用方显式传 `allowCleartextHttp=true`（当前 `debug` 变体经 `BuildConfig.ALLOW_CLEARTEXT_BACKEND` 打开、`release` 恒为 `false`，因为调试后端 `DRONE_BACKEND_BASE_URL` 仍是明文且 8888 无 TLS 监听；该开关不是安全边界，token 与事件包同样走明文，后端切 HTTPS 后应连同 `network_security_config.xml` 一起收紧）；禁止重定向、cookie 和隐式认证/正文 interceptor；每次调用仅一次 HTTP 尝试，call timeout 最多 30 秒。
 - **锁边界**：内部状态锁只覆盖本地簿记与 SQLite 提交，HTTP 请求、响应正文读取、认证回调都在锁外；同一 packet 的重复 `attempt` 由 per-packet gate 串行化，不同 packet/链互不阻塞。回归 `inFlightRequestDoesNotBlockProgressReadsOrOtherPackets` 在旧实现上超时失败（`latestProgress` 与另一 packet 的 `attempt` 被在途响应阻塞），修复后通过。
 - 采集并发：`enqueue` 不受上传锁影响，慢 HTTP 不阻塞本地追加。
 - 发现并修复真实栈行为：仅设置 `retryOnConnectionFailure(false)` **仍会**在 503 + `Retry-After:0` 隐式发第二次请求。回归先失败 `expected 1 / actual 2`，改为每次 HTTP call 的 one-shot RequestBody 后通过；明确重试会从同一持久化 bytes 新建一次 body。

@@ -55,10 +55,16 @@ android {
             // 下面这些保持默认，确保编译速度依然飞快
             isMinifyEnabled = false
             isShrinkResources = false
+
+            // 调试期后端仍是明文 HTTP（见 gradle.properties 的 DRONE_BACKEND_BASE_URL）。
+            // 这只是本构建变体的传输许可，不改变 Stage1Uploader 默认强制 HTTPS 的契约。
+            buildConfigField("boolean", "ALLOW_CLEARTEXT_BACKEND", "true")
         }
         release {
             signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = false
+            // 发布构建永远不接受明文后端；后端切 HTTPS 前 release 包会显式失败而不是静默降级。
+            buildConfigField("boolean", "ALLOW_CLEARTEXT_BACKEND", "false")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

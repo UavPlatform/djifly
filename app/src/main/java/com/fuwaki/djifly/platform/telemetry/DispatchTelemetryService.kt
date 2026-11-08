@@ -4,6 +4,7 @@ package com.fuwaki.djifly.platform.telemetry
 
 import android.content.Context
 import android.util.Log
+import com.fuwaki.djifly.BuildConfig
 import com.fuwaki.djifly.data.auth.TokenStore
 import com.fuwaki.djifly.di.ApplicationScope
 import com.fuwaki.djifly.di.EventUploadClient
@@ -106,8 +107,14 @@ class DispatchTelemetryService @Inject constructor(
                         resetAttribution()
                     } else {
                         coordinator.setPilot(pilotId)
-                        uploader = createUploader(pilotId)
-                        authenticationChanged()
+                        // 传输配置错误只应让上传停摆并暴露原因，不能让整进程闪退。
+                        uploader = runCatching { createUploader(pilotId) }
+                            .onFailure { error ->
+                                lastUploadError = "事件上传未启用：${error.message ?: error::class.java.simpleName}"
+                                Log.e(TAG, "could not create event uploader", error)
+                            }
+                            .getOrNull()
+                        if (uploader != null) authenticationChanged()
                     }
                 }
             }
@@ -117,11 +124,18 @@ class DispatchTelemetryService @Inject constructor(
                     if (!token.isNullOrBlank()) authenticationChanged()
                 }
             }
-            while (isActive) {
-                val now = System.currentTimeMillis()
-                if (now - lastOrderRefresh >= ORDER_REFRESH_MS) refreshOrders()
-                sampleAndUpload(now)
-                delay(intervalMs)
+            launch {
+                while (isActive) {
+                    val now = System.currentTimeMillis()
+                    runCatching {
+                        if (now - lastOrderRefresh >= ORDER_REFRESH_MS) refreshOrders()
+                        sampleAndUpload(now)
+                    }.onFailure { error ->
+                        lastUploadError = "本地事件循环失败：${error.message ?: error::class.java.simpleName}"
+                        Log.e(TAG, "event loop iteration failed", error)
+                    }
+                    delay(intervalMs)
+                }
             }
         }
     }
@@ -281,6 +295,7 @@ class DispatchTelemetryService @Inject constructor(
         store,
         pilotId,
         authentication,
+        allowCleartextHttp = BuildConfig.ALLOW_CLEARTEXT_BACKEND,
     )
 
     private fun authenticationChanged() {

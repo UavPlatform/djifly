@@ -349,6 +349,17 @@ class Stage1HttpTest {
         reject { Stage1Uploader(server.url("/api/"),http.newBuilder().addInterceptor { it.proceed(it.request()) }.build(),store,7,auth) }
         assertEquals(0,server.requestCount)
     }
+    @Test fun cleartextRequiresExplicitOptInAndDefaultStaysHttps() {
+        // The production debug endpoint shape: non-loopback plain HTTP, no TLS listener on the backend.
+        val cleartext="http://120.77.170.101:8888/api/".toHttpUrl()
+        // Default stays fail-closed: construction alone must reject it (this is the constructor that killed the process).
+        reject { Stage1Uploader(cleartext,OkHttpClient(),store,7,auth) }
+        // opt-in accepts the same URL; no request is issued, so this stays offline and deterministic.
+        val optedIn=Stage1Uploader(cleartext,OkHttpClient(),store,7,auth,allowCleartextHttp=true)
+        optedIn.enqueue("work",first)
+        assertNotNull(row().body)
+        assertEquals(0,server.requestCount)
+    }
     @Test fun inFlightRequestDoesNotBlockProgressReadsOrOtherPackets() {
         val next=Fixture.packet(2);uploader.enqueue("work",first);uploader.enqueue("work",next)
         val release=java.util.concurrent.CountDownLatch(1)

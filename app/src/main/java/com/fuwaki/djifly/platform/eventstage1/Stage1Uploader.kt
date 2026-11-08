@@ -60,6 +60,11 @@ sealed class Stage1UploadResult {
 @ExperimentalStage1Api
 class Stage1Uploader(baseUrl: HttpUrl, client: OkHttpClient, private val store: EventPacketStore,
     private val pilotId: Long, private val authentication: Stage1Authentication,
+    /**
+     * Caller-declared transport permission, not a security assumption: plain HTTP only when the deployment really
+     * serves this backend over cleartext (the app also sends bearer tokens there). Release builds pass false.
+     */
+    allowCleartextHttp: Boolean = false,
     private val wallMillis: () -> Long = { System.currentTimeMillis() },
     private val elapsedMillis: () -> Long = { System.nanoTime() / 1000000 }) {
     private companion object {
@@ -70,7 +75,9 @@ class Stage1Uploader(baseUrl: HttpUrl, client: OkHttpClient, private val store: 
     private val codec = Stage1Codec()
     private val base = baseUrl.also {
         require(it.encodedPath.endsWith("/") && it.query == null && it.fragment == null && it.username.isEmpty() && it.password.isEmpty())
-        require(it.isHttps || it.host in setOf("localhost", "127.0.0.1", "::1")) { "HTTPS required outside local HTTP tests" }
+        require(it.isHttps || allowCleartextHttp || it.host in setOf("localhost", "127.0.0.1", "::1")) {
+            "HTTPS required outside local HTTP tests unless allowCleartextHttp is set"
+        }
     }
     private val http = client.newBuilder().authenticator(Authenticator.NONE).proxyAuthenticator(Authenticator.NONE)
         .callTimeout(if (client.callTimeoutMillis == 0) 30000L else minOf(client.callTimeoutMillis.toLong(), 30000L), java.util.concurrent.TimeUnit.MILLISECONDS)
