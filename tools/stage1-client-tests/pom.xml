@@ -18,6 +18,7 @@
         <sourceDir>${project.basedir}/../../app/src/main/java/com/fuwaki/djifly/platform/eventstore/core</sourceDir>
         <sourceDir>${project.basedir}/../../app/src/main/java/com/fuwaki/djifly/platform/eventstream</sourceDir>
         <sourceDir>${project.basedir}/../../app/src/main/java/com/fuwaki/djifly/platform/network/generated</sourceDir>
+        <sourceDir>${project.basedir}/../../app/src/main/java/com/fuwaki/djifly/platform/attachment/DeliverableRules.kt</sourceDir>
         <sourceDir>${project.basedir}/../../app/src/test/java/com/fuwaki/djifly/platform/network/OpenApiContractTest.kt</sourceDir>
         <sourceDir>${project.basedir}/../../app/src/test/java/com/fuwaki/djifly/platform/eventstore</sourceDir>
         <sourceDir>${project.basedir}/../../app/src/test/java/com/fuwaki/djifly/platform/eventstream</sourceDir>
