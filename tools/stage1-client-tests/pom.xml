@@ -16,9 +16,11 @@
         <sourceDir>${project.basedir}/src/test/kotlin</sourceDir>
         <sourceDir>${project.basedir}/../../app/src/main/java/com/fuwaki/djifly/platform/eventstage1</sourceDir>
         <sourceDir>${project.basedir}/../../app/src/main/java/com/fuwaki/djifly/platform/eventstore/core</sourceDir>
+        <sourceDir>${project.basedir}/../../app/src/main/java/com/fuwaki/djifly/platform/eventstream</sourceDir>
         <sourceDir>${project.basedir}/../../app/src/main/java/com/fuwaki/djifly/platform/network/generated</sourceDir>
         <sourceDir>${project.basedir}/../../app/src/test/java/com/fuwaki/djifly/platform/network/OpenApiContractTest.kt</sourceDir>
         <sourceDir>${project.basedir}/../../app/src/test/java/com/fuwaki/djifly/platform/eventstore</sourceDir>
+        <sourceDir>${project.basedir}/../../app/src/test/java/com/fuwaki/djifly/platform/eventstream</sourceDir>
       </sourceDirs></configuration>
       <executions><execution><id>test-compile</id><phase>test-compile</phase><goals><goal>test-compile</goal></goals></execution></executions>
     </plugin>

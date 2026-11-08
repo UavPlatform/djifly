@@ -59,14 +59,14 @@ object ApiPaths {
     /** POST dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/close */
     const val DISPATCH_PILOT_ORDERS_FLIGHT_CONNECTIONS_CLOSE = "dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/close"
 
-    /** POST dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/live */
-    const val DISPATCH_PILOT_ORDERS_FLIGHT_CONNECTIONS_LIVE = "dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/live"
+    /** POST dispatch/pilot/orders/{orderId}/live */
+    const val DISPATCH_PILOT_ORDERS_LIVE = "dispatch/pilot/orders/{orderId}/live"
 
-    /** POST dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/live/{liveId}/heartbeat */
-    const val DISPATCH_PILOT_ORDERS_FLIGHT_CONNECTIONS_LIVE_HEARTBEAT = "dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/live/{liveId}/heartbeat"
+    /** POST dispatch/pilot/orders/{orderId}/live/{liveId}/heartbeat */
+    const val DISPATCH_PILOT_ORDERS_LIVE_HEARTBEAT = "dispatch/pilot/orders/{orderId}/live/{liveId}/heartbeat"
 
-    /** POST dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/live/{liveId}/stop */
-    const val DISPATCH_PILOT_ORDERS_FLIGHT_CONNECTIONS_LIVE_STOP = "dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/live/{liveId}/stop"
+    /** POST dispatch/pilot/orders/{orderId}/live/{liveId}/stop */
+    const val DISPATCH_PILOT_ORDERS_LIVE_STOP = "dispatch/pilot/orders/{orderId}/live/{liveId}/stop"
 
     /** 事实源规格 openapi/drone-backend.openapi.json 的 sha256（门禁测试对账）。 */
     const val GENERATED_FROM_SHA256 = "2ba6bb1a876ac4d131c77031aa5e286f1e4585bc0a47004ad2dfe866f7f9193e"

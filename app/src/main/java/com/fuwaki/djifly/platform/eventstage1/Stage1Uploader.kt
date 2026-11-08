@@ -123,7 +123,7 @@ class Stage1Uploader(baseUrl: HttpUrl, client: OkHttpClient, private val store: 
         val first = store.firstSummary(operationId)
         if (first != null) {
             val original = Stage1Receipt.readSummary(first, pilotId).link.identity
-            require(original.orderId == order && original.assignmentVersion == validated.link.identity.assignmentVersion &&
+            require(original.orderId == order &&
                 original.recordingSourceId == validated.link.identity.recordingSourceId) { "Cannot rewrite the operation assignment/source" }
         }
         val summary = Stage1Receipt.summary(Stage1Receipt.expected(validated), pilotId)

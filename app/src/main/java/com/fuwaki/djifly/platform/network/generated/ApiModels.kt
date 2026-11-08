@@ -47,7 +47,6 @@ data class ApiDispatchExecutedDroneVO(
 
 /** 契约 components.schemas.DispatchLiveCredentialsVO。 */
 data class ApiDispatchLiveCredentialsVO(
-    val connectionId: String? = null,
     val expiresAt: Long? = null,
     val leaseExpiresAt: Long? = null,
     val liveId: String? = null,
@@ -72,7 +71,6 @@ data class ApiDispatchLiveStartDTO(
 /** 契约 components.schemas.DispatchLiveStatusVO。 */
 data class ApiDispatchLiveStatusVO(
     val configured: Boolean? = null,
-    val connectionId: String? = null,
     val leaseExpiresAt: Long? = null,
     val liveId: String? = null,
     val state: String? = null

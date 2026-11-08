@@ -55,25 +55,22 @@ interface PlatformApiService {
     @POST(ApiPaths.LIVE_RIDER_REQ)
     suspend fun requestRiderLive(@Query("deviceId") deviceId: String): Response<ApiResult<LiveStartVo>>
 
-    @POST(ApiPaths.DISPATCH_PILOT_ORDERS_FLIGHT_CONNECTIONS_LIVE)
+    @POST(ApiPaths.DISPATCH_PILOT_ORDERS_LIVE)
     suspend fun startDispatchLive(
         @Path("orderId") orderId: String,
-        @Path("connectionId") connectionId: String,
         @Body request: ApiDispatchLiveStartDTO
     ): Response<ApiResultDispatchLiveCredentialsVO>
 
-    @POST(ApiPaths.DISPATCH_PILOT_ORDERS_FLIGHT_CONNECTIONS_LIVE_HEARTBEAT)
+    @POST(ApiPaths.DISPATCH_PILOT_ORDERS_LIVE_HEARTBEAT)
     suspend fun heartbeatDispatchLive(
         @Path("orderId") orderId: String,
-        @Path("connectionId") connectionId: String,
         @Path("liveId") liveId: String,
         @Body request: ApiDispatchLiveHeartbeatDTO
     ): Response<ApiResultDispatchLiveStatusVO>
 
-    @POST(ApiPaths.DISPATCH_PILOT_ORDERS_FLIGHT_CONNECTIONS_LIVE_STOP)
+    @POST(ApiPaths.DISPATCH_PILOT_ORDERS_LIVE_STOP)
     suspend fun stopDispatchLive(
         @Path("orderId") orderId: String,
-        @Path("connectionId") connectionId: String,
         @Path("liveId") liveId: String
     ): Response<ApiResult<Unit>>
 

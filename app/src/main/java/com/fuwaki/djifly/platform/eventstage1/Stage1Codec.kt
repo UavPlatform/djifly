@@ -4,18 +4,17 @@ import com.google.gson.*
 import java.util.Collections
 
 @ExperimentalStage1Api
-data class Stage1Identity(val orderId: String, val assignmentVersion: Long, val recordingSourceId: String,
+data class Stage1Identity(val orderId: String, val recordingSourceId: String,
     val chainId: String, val serialNumber: String, val serialSource: String, val modelCode: String) {
     init {
         Stage1Json.uuid(orderId); Stage1Json.uuid(recordingSourceId); Stage1Json.uuid(chainId)
-        require(assignmentVersion in 1..Stage1Json.SAFE) { "Real assignmentVersion is required; never default to zero" }
         require(serialNumber.matches(Regex("[A-Za-z0-9][A-Za-z0-9._:-]{0,63}")))
         require(modelCode.matches(Regex("[A-Za-z0-9][A-Za-z0-9._:-]{0,127}")))
         require(serialSource.matches(Regex("[A-Z][A-Z0-9_]{0,63}")))
     }
     internal fun json() = JsonObject().also {
-        it.addProperty("schemaVersion", 1); it.addProperty("hashVersion", 1)
-        it.addProperty("orderId", orderId); it.addProperty("assignmentVersion", assignmentVersion)
+        it.addProperty("schemaVersion", 2); it.addProperty("hashVersion", 2)
+        it.addProperty("orderId", orderId)
         it.addProperty("recordingSourceId", recordingSourceId); it.addProperty("chainId", chainId)
         it.addProperty("serialNumber", serialNumber); it.addProperty("serialSource", serialSource); it.addProperty("modelCode", modelCode)
     }
@@ -35,7 +34,7 @@ class Stage1Packet internal constructor(val link: Stage1Link, val prevPacketId: 
 /** Implemented Stage1 only. No SDK scaling, assignment synthesis, cutoff workflow or production DI. */
 @ExperimentalStage1Api
 class Stage1Codec {
-    private val rootFields = setOf("schemaVersion", "hashVersion", "orderId", "assignmentVersion", "recordingSourceId", "chainId",
+    private val rootFields = setOf("schemaVersion", "hashVersion", "orderId", "recordingSourceId", "chainId",
         "serialNumber", "serialSource", "modelCode", "packetId", "prevPacketId", "height", "prevChainHash", "chainHash", "events")
     fun create(identity: Stage1Identity, packetId: String, eventsJson: ByteArray, previous: Stage1Link? = null): Stage1Packet {
         Stage1Json.uuid(packetId)
@@ -55,7 +54,7 @@ class Stage1Codec {
     fun decode(original: ByteArray, pathOrderId: String): Stage1Packet {
         val bytes = original.copyOf(); val root = Stage1Json.obj(Stage1Json.parse(bytes))
         require(root.keySet() == rootFields) { "Packet fields" }
-        require(Stage1Json.long(root["schemaVersion"]) == 1L && Stage1Json.long(root["hashVersion"]) == 1L)
+        require(Stage1Json.long(root["schemaVersion"]) == 2L && Stage1Json.long(root["hashVersion"]) == 2L)
         val identity = identity(root); require(identity.orderId == pathOrderId) { "SCHEMA_ORDER" }
         val packetId = Stage1Json.uuid(Stage1Json.text(root["packetId"]))
         val height = Stage1Json.long(root["height"]); require(height in 1..1000000)
@@ -77,10 +76,10 @@ class Stage1Codec {
         return Stage1Packet(Stage1Link(identity, height, packetId, claimed), prevId, prevHash,
             Stage1Json.sha(Stage1Json.canonical(root)), ids, bytes)
     }
-    fun anchor(identity: Stage1Identity) = Stage1Json.sha("UAV-EVENT-ANCHOR-v1\n".toByteArray(Charsets.UTF_8), Stage1Json.canonical(identity.json()))
-    private fun chain(withoutHash: JsonObject) = Stage1Json.sha("UAV-EVENT-PACKET-v1\n".toByteArray(Charsets.UTF_8),
+    fun anchor(identity: Stage1Identity) = Stage1Json.sha("UAV-EVENT-ANCHOR-v2\n".toByteArray(Charsets.UTF_8), Stage1Json.canonical(identity.json()))
+    private fun chain(withoutHash: JsonObject) = Stage1Json.sha("UAV-EVENT-PACKET-v2\n".toByteArray(Charsets.UTF_8),
         Stage1Json.unhex(Stage1Json.text(withoutHash["prevChainHash"])), Stage1Json.canonical(withoutHash))
-    internal fun identity(root: JsonObject) = Stage1Identity(Stage1Json.text(root["orderId"]), Stage1Json.long(root["assignmentVersion"]),
+    internal fun identity(root: JsonObject) = Stage1Identity(Stage1Json.text(root["orderId"]),
         Stage1Json.text(root["recordingSourceId"]), Stage1Json.text(root["chainId"]), Stage1Json.text(root["serialNumber"]),
         Stage1Json.text(root["serialSource"]), Stage1Json.text(root["modelCode"]))
 }

@@ -7,8 +7,6 @@ import com.fuwaki.djifly.platform.network.PlatformApiService
 import com.fuwaki.djifly.platform.network.generated.ApiDispatchLiveHeartbeatDTO
 import com.fuwaki.djifly.platform.network.generated.ApiDispatchLiveStartDTO
 import com.fuwaki.djifly.platform.network.generated.ApiResultDispatchLiveCredentialsVO
-import com.fuwaki.djifly.platform.telemetry.DispatchTelemetryService
-import com.fuwaki.djifly.sdk.DjiSdkManager
 import java.io.IOException
 import java.util.UUID
 import javax.inject.Inject
@@ -59,14 +57,11 @@ data class DispatchPublisherState(
 @Singleton
 class DispatchLivePublisher @Inject constructor(
     private val api: PlatformApiService,
-    private val telemetry: DispatchTelemetryService,
-    private val sdkManager: DjiSdkManager,
     private val video: DjiTrtcLiveService,
     @ApplicationScope private val scope: CoroutineScope
 ) {
     private data class Session(
         val orderId: String,
-        val connectionId: String,
         val liveId: String,
         val roomId: String
     )
@@ -118,14 +113,6 @@ class DispatchLivePublisher @Inject constructor(
     }
 
     private suspend fun start(orderId: String) {
-        val connection = telemetry.state.value.connection
-        val connectionId = connection?.serverId
-        if (connection?.orderId != orderId || connectionId.isNullOrBlank() ||
-            !isCurrentConnection(orderId, connectionId)
-        ) {
-            fail("当前订单的飞行连接尚未登记，请稍后重试")
-            return
-        }
         if (video.isSessionActive) {
             fail("已有设备直播正在运行，请先关闭后再开启订单直播")
             return
@@ -134,11 +121,11 @@ class DispatchLivePublisher @Inject constructor(
         // One requestKey per start attempt. The server treats a repeat as the same session, so a start that
         // timed out after the server committed is resolved instead of creating a duplicate session.
         val requestKey = UUID.randomUUID().toString()
-        var response = requestStart(orderId, connectionId, requestKey)
+        var response = requestStart(orderId, requestKey)
         val timedOut = response == null
         if (timedOut) {
             Log.w(TAG, "start timed out; retrying once with the same requestKey")
-            response = requestStart(orderId, connectionId, requestKey)
+            response = requestStart(orderId, requestKey)
         }
         val body = response?.body()
         val ticket = body?.data
@@ -156,19 +143,19 @@ class DispatchLivePublisher @Inject constructor(
             return
         }
 
-        val current = Session(orderId, connectionId, liveId, ticket.roomId.orEmpty())
+        val current = Session(orderId, liveId, ticket.roomId.orEmpty())
         mutex.withLock { session = current }
         val appId = ticket.sdkAppId?.takeIf { it in 1..Int.MAX_VALUE.toLong() }?.toInt() ?: 0
         val userId = ticket.userId.orEmpty()
         val userSig = ticket.userSig.orEmpty()
         val roomKey = ticket.privateMapKey.orEmpty()
-        if (ticket.connectionId != connectionId || appId <= 0 || current.roomId.isBlank() ||
+        if (appId <= 0 || current.roomId.isBlank() ||
             userId.isBlank() || userSig.isBlank() || roomKey.isBlank()
         ) {
             finish(current, "平台返回的直播凭证不完整")
             return
         }
-        if (!isCurrentConnection(orderId, connectionId) || video.isSessionActive) {
+        if (video.isSessionActive) {
             finish(current, "飞行连接或直播状态已变化，请重新开播")
             return
         }
@@ -180,11 +167,10 @@ class DispatchLivePublisher @Inject constructor(
 
     private suspend fun requestStart(
         orderId: String,
-        connectionId: String,
         requestKey: String
     ): Response<ApiResultDispatchLiveCredentialsVO>? = try {
         withTimeoutOrNull(START_TIMEOUT_MS) {
-            api.startDispatchLive(orderId, connectionId, ApiDispatchLiveStartDTO(requestKey))
+            api.startDispatchLive(orderId, ApiDispatchLiveStartDTO(requestKey))
         }
     } catch (_: IOException) {
         null
@@ -199,7 +185,6 @@ class DispatchLivePublisher @Inject constructor(
             val now = SystemClock.elapsedRealtime()
             val running = video.isSendingVideo(current.roomId)
             val error = when {
-                !isCurrentConnection(current.orderId, current.connectionId) -> "飞行连接已结束，直播已停止"
                 video.status.value.roomId != current.roomId ||
                     video.status.value.phase == DjiTrtcLivePhase.Error -> "图传已中断，请重新开播"
                 !running && (_state.value.streaming || now - lastLease >= LEASE_SAFETY_MS) -> "未收到持续图传画面，直播已停止"
@@ -217,9 +202,7 @@ class DispatchLivePublisher @Inject constructor(
             lastHeartbeat = now
             val response = try {
                 withTimeoutOrNull(HEARTBEAT_TIMEOUT_MS) {
-                    api.heartbeatDispatchLive(
-                        current.orderId, current.connectionId, current.liveId, ApiDispatchLiveHeartbeatDTO("RUNNING")
-                    )
+                    api.heartbeatDispatchLive(current.orderId, current.liveId, ApiDispatchLiveHeartbeatDTO("RUNNING"))
                 }
             } catch (_: IOException) {
                 null
@@ -248,13 +231,6 @@ class DispatchLivePublisher @Inject constructor(
         }
     }
 
-    private fun isCurrentConnection(orderId: String, connectionId: String): Boolean {
-        val current = telemetry.state.value
-        val connection = current.connection
-        return sdkManager.sdkStatus.value.isProductConnected && current.currentOrder?.orderId == orderId &&
-            connection?.orderId == orderId && connection.serverId == connectionId && connection.endedAt == null
-    }
-
     /** Fast, lock-bounded transition. Returns false when [current] is no longer the live session. */
     private suspend fun detach(current: Session, error: String?): Boolean = mutex.withLock {
         if (session !== current) return@withLock false
@@ -273,7 +249,7 @@ class DispatchLivePublisher @Inject constructor(
         if (video.status.value.roomId == current.roomId && current.roomId.isNotBlank()) video.stop()
         try {
             val response = withTimeoutOrNull(HEARTBEAT_TIMEOUT_MS) {
-                api.stopDispatchLive(current.orderId, current.connectionId, current.liveId)
+                api.stopDispatchLive(current.orderId, current.liveId)
             }
             Log.i(TAG, "order live stopped: HTTP ${response?.code()}")
         } catch (_: IOException) {
