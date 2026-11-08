@@ -44,6 +44,9 @@ object ApiPaths {
     /** POST dispatch/pilot/orders/{orderId}/event-reconciliation */
     const val DISPATCH_PILOT_ORDERS_EVENT_RECONCILIATION = "dispatch/pilot/orders/{orderId}/event-reconciliation"
 
+    /** GET dispatch/pilot/orders/{orderId}/event-chains */
+    const val DISPATCH_PILOT_ORDERS_EVENT_CHAINS = "dispatch/pilot/orders/{orderId}/event-chains"
+
     /** GET dispatch/orders/{orderId}/flight */
     const val DISPATCH_ORDERS_FLIGHT = "dispatch/orders/{orderId}/flight"
 

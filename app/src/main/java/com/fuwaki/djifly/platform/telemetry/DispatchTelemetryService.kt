@@ -11,6 +11,7 @@ import com.fuwaki.djifly.di.EventUploadClient
 import com.fuwaki.djifly.platform.dispatch.DispatchStages
 import com.fuwaki.djifly.platform.eventstage1.EventStreamPacketEncoder
 import com.fuwaki.djifly.platform.eventstage1.Stage1Authentication
+import com.fuwaki.djifly.platform.eventstage1.Stage1Identity
 import com.fuwaki.djifly.platform.eventstage1.Stage1Link
 import com.fuwaki.djifly.platform.eventstage1.Stage1Receipt
 import com.fuwaki.djifly.platform.eventstage1.Stage1UploadResult
@@ -26,6 +27,7 @@ import com.fuwaki.djifly.platform.eventstream.RecordingOperation
 import com.fuwaki.djifly.platform.network.PlatformApiService
 import com.fuwaki.djifly.platform.network.PlatformEndpointResolver
 import com.fuwaki.djifly.platform.network.generated.ApiDispatchOrderVO
+import com.fuwaki.djifly.platform.network.generated.ApiEventChainRefVO
 import com.fuwaki.djifly.sdk.DjiSdkManager
 import com.fuwaki.djifly.sdk.DjiSdkStatus
 import com.google.gson.Gson
@@ -162,7 +164,7 @@ class DispatchTelemetryService @Inject constructor(
         _state.value = _state.value.copy(currentOrder = order)
     }
 
-    private fun sampleAndUpload(capturedAt: Long) {
+    private suspend fun sampleAndUpload(capturedAt: Long) {
         val status = sdkManager.sdkStatus.value
         val order = _state.value.currentOrder
         val pilotId = authentication.pilotId
@@ -193,6 +195,9 @@ class DispatchTelemetryService @Inject constructor(
             coordinator.beginOperation(RecordingOperation(pilotId, orderId, store.recordingSourceId))
             lastPacketContext = null
             lastFlying = null
+            // Local journal has no chain for this order: ask the platform whether this order+airframe already owns
+            // one. Without this a reinstall silently starts a second chain the platform cannot relate to the first.
+            if (recoveredExpected == null) adoptExistingChain(orderId, serial, model, pilotId)
         }
 
         val aircraft = AircraftIdentity(serial, SERIAL_SOURCE, model)
@@ -309,6 +314,73 @@ class DispatchTelemetryService @Inject constructor(
         )
     }
 
+    /**
+     * Finds a chain this order+airframe already owns and continues it instead of starting a second one.
+     *
+     * Only the chain recorded by this same terminal is adopted: another recording source means another device's chain,
+     * and silently appending to it would attribute one terminal's events to another. The backend flags that case via
+     * terminalMismatch, and we surface it as a visible condition instead of guessing.
+     */
+    private suspend fun adoptExistingChain(orderId: String, serial: String, model: String, pilotId: Long) {
+        val response = runCatching {
+            api.listEventChains(orderId, serial, SERIAL_SOURCE, model, store.recordingSourceId)
+        }.getOrNull()
+        val chains = response?.takeIf { it.isSuccessful }?.body()?.data.orEmpty()
+        if (chains.isEmpty()) return
+
+        val own = chains.firstOrNull { it.terminalMismatch != true && !it.contiguousHash.isNullOrBlank() }
+        if (own == null) {
+            // Chains exist but none belongs to this terminal (other device / other install). Do not adopt silently.
+            val heights = chains.joinToString(", ") { "${it.contiguousHeight}" }
+            lastUploadError = "该订单与机身在平台已有其它终端的记录（高度 $heights），本机将从新链开始"
+            Log.w(TAG, "chain lookup: no chain recorded by this terminal for $orderId")
+            return
+        }
+        val chainId = own.chainId ?: return
+        val contiguousHeight = own.contiguousHeight ?: return
+        val contiguousHash = own.contiguousHash ?: return
+        if (contiguousHeight <= 0L) return
+
+        // Continue from the platform's contiguous tip; continuation requires the tip's packetId, which the reference
+        // view does not carry, so adopt the identity and let reconciliation resolve the exact link.
+        chainIdForContext = chainId
+        previousLink = null
+        lastPacketContext = null
+        lastUploadError = null
+        Log.i(TAG, "chain lookup: adopting existing chain=$chainId height=$contiguousHeight for $orderId")
+        reconcileChainFor(chainId, contiguousHeight, contiguousHash, pilotId)
+    }
+
+    /** Resolves the local link matching the platform's contiguous tip so capture continues the real chain. */
+    private fun reconcileChainFor(chainId: String, contiguousHeight: Long, contiguousHash: String, pilotId: Long) {
+        val snapshot = runCatching { store.recoverOperation(operationId ?: return) }.getOrNull() ?: return
+        val match = snapshot.packets.firstOrNull { stored ->
+            val summary = runCatching { Stage1Receipt.readSummary(stored.summary, pilotId) }.getOrNull()
+            summary != null && summary.link.identity.chainId == chainId &&
+                summary.link.height == contiguousHeight && summary.link.chainHash == contiguousHash
+        }
+        val adopted = match?.let {
+            runCatching { Stage1Receipt.readSummary(it.summary, pilotId) }.getOrNull()?.link
+        }
+        if (adopted != null) {
+            previousLink = adopted
+            Log.i(TAG, "chain lookup: local packet matches platform tip, resuming at height=$contiguousHeight")
+        } else {
+            Log.i(TAG, "chain lookup: platform tip height=$contiguousHeight not in local journal yet")
+        }
+    }
+
+    /** Chains the platform already holds for this order+airframe, or empty when the lookup is unavailable. */
+    private suspend fun chainsForAirframe(identity: Stage1Identity): List<ApiEventChainRefVO> {
+        val orderId = operationOrderId ?: return emptyList()
+        val response = runCatching {
+            api.listEventChains(
+                orderId, identity.serialNumber, identity.serialSource, identity.modelCode, store.recordingSourceId
+            )
+        }.getOrNull()
+        return response?.takeIf { it.isSuccessful }?.body()?.data.orEmpty()
+    }
+
     private fun uploadPending(orderId: String) {
         val activeUploader = uploader ?: return
         store.operations().filter { it.orderId == orderId }.forEach { operation ->
@@ -380,8 +452,16 @@ class DispatchTelemetryService @Inject constructor(
         }
         val contiguousHeight = data.contiguousHeight ?: 0L
         if (contiguousHeight == 0L) {
-            // Backend holds nothing for this chain id, so the local anchor is a legal continuation point. Packets the
-            // journal already recorded at height 1 remain unconfirmed and are left parked rather than resent.
+            // This chain id is empty on the platform. That does NOT mean the order+airframe has no history: a reinstall
+            // mints a new recording source and therefore a new chain id, while the previous chain still exists. Check
+            // before restarting from the anchor, otherwise the new chain silently shadows the old one.
+            val others = chainsForAirframe(identity)
+            val foreign = others.filter { it.chainId != identity.chainId && (it.contiguousHeight ?: 0L) > 0L }
+            if (foreign.isNotEmpty()) {
+                lastUploadError = "平台已有该订单+机身的其它事件链（高度 ${foreign.joinToString(", ") { "${it.contiguousHeight}" }}），本链为空，需人工决定是否归并"
+                Log.w(TAG, "reconcile: empty chain ${identity.chainId} but ${foreign.size} non-empty chains exist")
+                return
+            }
             previousLink = null
             lastPacketContext = null
             activeUploader.clearChainFork(identity.chainId)

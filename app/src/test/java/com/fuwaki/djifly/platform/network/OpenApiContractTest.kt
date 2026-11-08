@@ -34,6 +34,7 @@ class OpenApiContractTest {
         listOf("post", "dispatch/orders/{orderId}/materials/{materialId}/confirm"),
         listOf("post", "dispatch/pilot/orders/{orderId}/event-packets"),
         listOf("post", "dispatch/pilot/orders/{orderId}/event-reconciliation"),
+        listOf("get", "dispatch/pilot/orders/{orderId}/event-chains"),
         listOf("get", "dispatch/orders/{orderId}/flight"),
         listOf("get", "dispatch/orders/{orderId}/flight/track"),
         listOf("get", "dispatch/orders/{orderId}/flight/history"),
@@ -90,7 +91,7 @@ class OpenApiContractTest {
             val item = paths[specPath] as? Map<*, *>
             assertTrue("契约 " + specPath + " 缺少 " + method.uppercase() + " 方法", item?.containsKey(method) == true)
         }
-        assertEquals("端点登记表应覆盖本端全部调用（新增调用点需同步登记）", 18, calledEndpoints.size)
+        assertEquals("端点登记表应覆盖本端全部调用（新增调用点需同步登记）", 19, calledEndpoints.size)
     }
 
     // ═══════════════════════════════════════════════════════

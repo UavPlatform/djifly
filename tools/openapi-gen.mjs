@@ -41,6 +41,9 @@ const calledEndpoints = [
   // Stage1 raw-byte adapter; this registers a new consumer, not a second contract sync.
   ['post', 'dispatch/pilot/orders/{orderId}/event-packets'],
   ['post', 'dispatch/pilot/orders/{orderId}/event-reconciliation'],
+  // Chain discovery: a reinstall mints a new recordingSourceId, so the client must be able to find the chain its own
+  // order and airframe already own instead of starting a second one.
+  ['get', 'dispatch/pilot/orders/{orderId}/event-chains'],
   ['get', 'dispatch/orders/{orderId}/flight'],
   ['get', 'dispatch/orders/{orderId}/flight/track'],
   ['get', 'dispatch/orders/{orderId}/flight/history'],

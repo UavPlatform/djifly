@@ -156,6 +156,19 @@ data class ApiDispatchUploadTicketVO(
     val uploadUrl: String? = null
 )
 
+/** 契约 components.schemas.EventChainRefVO。 */
+data class ApiEventChainRefVO(
+    val chainId: String? = null,
+    val contiguousHash: String? = null,
+    val contiguousHeight: Long? = null,
+    val highestReceivedHeight: Long? = null,
+    val integrity: String? = null,
+    val projectionRevision: Long? = null,
+    val recordingSourceId: String? = null,
+    val terminalMismatch: Boolean? = null,
+    val validationVersion: Long? = null
+)
+
 /**
  * 契约 components.schemas.EventDraftDTO。
  *
@@ -440,6 +453,15 @@ data class ApiResultListDispatchMaterialVO(
 data class ApiResultListDispatchOrderVO(
     val code: Int? = null,
     val data: List<ApiDispatchOrderVO>? = null,
+    val errorCode: String? = null,
+    val message: String? = null,
+    val success: Boolean? = null
+)
+
+/** 契约 components.schemas.ResultListEventChainRefVO。 */
+data class ApiResultListEventChainRefVO(
+    val code: Int? = null,
+    val data: List<ApiEventChainRefVO>? = null,
     val errorCode: String? = null,
     val message: String? = null,
     val success: Boolean? = null

@@ -21,6 +21,7 @@ import com.fuwaki.djifly.platform.network.generated.ApiResultFlightEventPageVO
 import com.fuwaki.djifly.platform.network.generated.ApiResultFlightProjectionVO
 import com.fuwaki.djifly.platform.network.generated.ApiResultListDispatchMaterialVO
 import com.fuwaki.djifly.platform.network.generated.ApiResultListDispatchOrderVO
+import com.fuwaki.djifly.platform.network.generated.ApiResultListEventChainRefVO
 import com.fuwaki.djifly.platform.network.generated.ApiUserLoginDto
 import okhttp3.RequestBody
 import retrofit2.Response
@@ -86,6 +87,19 @@ interface PlatformApiService {
         @Path("orderId") orderId: String,
         @Body request: RequestBody
     ): Response<ApiResultEventReconciliationVO>
+
+    /**
+     * Chains already bound to this order+airframe, regardless of recording source. A reinstall mints a new
+     * recordingSourceId, so this is the only way the client can find the chain its own airframe already owns.
+     */
+    @GET(ApiPaths.DISPATCH_PILOT_ORDERS_EVENT_CHAINS)
+    suspend fun listEventChains(
+        @Path("orderId") orderId: String,
+        @Query("serialNumber") serialNumber: String,
+        @Query("serialSource") serialSource: String,
+        @Query("modelCode") modelCode: String,
+        @Query("recordingSourceId") recordingSourceId: String
+    ): Response<ApiResultListEventChainRefVO>
 
     @GET(ApiPaths.DISPATCH_ORDERS_FLIGHT)
     suspend fun getFlightProjection(
