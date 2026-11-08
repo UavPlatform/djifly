@@ -57,6 +57,33 @@ class EventStreamPacketEncoderTest {
         assertNotEquals(first.link.chainHash, second.link.chainHash)
     }
 
+    /**
+     * Guards the encoder side of chain continuity: a reconnect that only bumps recordingGeneration must still be
+     * able to continue the same chain. The service layer must actually pass the recovered link for this to happen;
+     * that wiring is covered by the on-device check, not by this offline test.
+     */
+    @Test
+    fun chain_identity_ignores_recording_generation_so_a_reconnect_can_continue_the_chain() {
+        var next = 0
+        val encoder = EventStreamPacketEncoder(packetIdFactory = {
+            if (next++ == 0) "44444444-4444-4444-8444-444444444444"
+            else "55555555-5555-4555-8555-555555555555"
+        })
+        val first = encoder.encode(context, listOf(draft("BATTERY", 1L, mapOf("chargePermille" to 900L))))
+        // A reconnect rebuilds the context and bumps recordingGeneration; the chain identity is unchanged, so the
+        // next packet must still link to the previous one instead of restarting at height 1.
+        val reconnected = context.copy(recordingGeneration = context.recordingGeneration + 1)
+        val second = encoder.encode(
+            reconnected,
+            listOf(draft("BATTERY", 2L, mapOf("chargePermille" to 800L), context = reconnected)),
+            first.link
+        )
+
+        assertEquals(2L, second.link.height)
+        assertEquals(first.link.packetId, second.prevPacketId)
+        assertEquals(first.link.chainHash, second.prevChainHash)
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun rejects_drafts_from_a_different_context() {
         val other = context.copy(chainId = "66666666-6666-4666-8666-666666666666")

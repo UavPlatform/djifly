@@ -312,10 +312,12 @@ private fun TelemetryEventItem(log: TelemetryMessageLog) {
         val directionColor = when (log.direction) {
             TelemetryMessageDirection.SENT -> Color(0xFF4CAF50)
             TelemetryMessageDirection.RECEIVED -> Color(0xFF2196F3)
+            TelemetryMessageDirection.LOCAL -> Color(0xFFFFB300)
         }
         val directionText = when (log.direction) {
             TelemetryMessageDirection.SENT -> "↑"
             TelemetryMessageDirection.RECEIVED -> "↓"
+            TelemetryMessageDirection.LOCAL -> "·"
         }
         Row(
             modifier = Modifier.fillMaxWidth(),

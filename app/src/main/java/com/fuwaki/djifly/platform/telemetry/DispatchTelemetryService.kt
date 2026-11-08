@@ -17,6 +17,7 @@ import com.fuwaki.djifly.platform.eventstage1.Stage1UploadResult
 import com.fuwaki.djifly.platform.eventstage1.Stage1Uploader
 import com.fuwaki.djifly.platform.eventstore.core.EventPacketStore
 import com.fuwaki.djifly.platform.eventstream.AircraftIdentity
+import com.fuwaki.djifly.platform.eventstream.EventCaptureResult
 import com.fuwaki.djifly.platform.eventstream.EventDraft
 import com.fuwaki.djifly.platform.eventstream.EventInput
 import com.fuwaki.djifly.platform.eventstream.EventRateClass
@@ -25,6 +26,7 @@ import com.fuwaki.djifly.platform.eventstream.RecordingOperation
 import com.fuwaki.djifly.platform.network.PlatformApiService
 import com.fuwaki.djifly.platform.network.PlatformEndpointResolver
 import com.fuwaki.djifly.platform.network.generated.ApiDispatchOrderVO
+import com.fuwaki.djifly.platform.network.generated.ApiEventReconciliationDraftDTO
 import com.fuwaki.djifly.sdk.DjiSdkManager
 import com.fuwaki.djifly.sdk.DjiSdkStatus
 import com.google.gson.Gson
@@ -64,6 +66,7 @@ class DispatchTelemetryService @Inject constructor(
     private val tokenStore: TokenStore,
     private val store: EventPacketStore,
     private val endpointResolver: PlatformEndpointResolver,
+    private val telemetryUiState: TelemetryUiState,
     @EventUploadClient private val eventUploadClient: OkHttpClient,
     @ApplicationScope private val scope: CoroutineScope,
 ) {
@@ -93,6 +96,8 @@ class DispatchTelemetryService @Inject constructor(
     private var previousLink: Stage1Link? = null
     private var lastFlying: Boolean? = null
     private var lastUploadError: String? = null
+    private var lastGateReason: String? = null
+    private var lastReconcileAt = 0L
 
     @Synchronized
     fun start() {
@@ -163,6 +168,7 @@ class DispatchTelemetryService @Inject constructor(
             if (aircraftGeneration != null) coordinator.aircraftDisconnected(aircraftGeneration!!)
             resetAttribution()
             publishLocalState(status)
+            publishGateReason(pilotId, order?.orderId, serial, model, status)
             return
         }
 
@@ -187,12 +193,14 @@ class DispatchTelemetryService @Inject constructor(
         val aircraft = AircraftIdentity(serial, SERIAL_SOURCE, model)
         if (aircraftGeneration == null || lastAircraft != aircraft) {
             if (lastAircraft != null && lastAircraft != aircraft) {
+                // A different airframe is a different chain: drop the recovered link with it.
                 chainIdForContext = null
                 previousLink = null
             }
             aircraftGeneration = coordinator.aircraftConnected(aircraft)
             lastAircraft = aircraft
-            previousLink = null
+            // previousLink is NOT reset here: a recovered link belongs to this same chain, and dropping it while
+            // keeping chainIdForContext would re-send height=1 against a chain the backend already holds.
             lastPacketContext = null
             lastFlying = null
         }
@@ -201,6 +209,10 @@ class DispatchTelemetryService @Inject constructor(
         val inputs = buildInputs(status, capturedAt)
         if (inputs.isNotEmpty()) {
             runCatching { coordinator.record(inputs, generation) }
+                .onSuccess { result ->
+                    // Only drafts that actually reached the journal are shown; throttled/ignored input is not an event.
+                    if (result is EventCaptureResult.Recorded) publishCaptured(result.events)
+                }
                 .onFailure { error -> lastUploadError = "本地事件记录失败：${error.message ?: "未知错误"}" }
         }
         uploadPending(orderId)
@@ -239,15 +251,57 @@ class DispatchTelemetryService @Inject constructor(
     private fun appendDrafts(drafts: List<EventDraft>) {
         val operation = operationId ?: error("No local recording operation")
         val context = drafts.first().context
-        if (context != lastPacketContext) {
+        // Chain continuity depends on the chain identity, not on recordingGeneration: that generation bumps on every
+        // reconnect/rebuild, so comparing whole contexts would drop the link and restart the chain at height 1.
+        if (context.chainId != lastPacketContext?.chainId) {
             previousLink = null
-            lastPacketContext = context
         }
+        lastPacketContext = context
         val packet = encoder.encode(context, drafts, previousLink)
         val activeUploader = uploader ?: error("No pilot authentication snapshot")
         activeUploader.enqueue(operation, packet)
         previousLink = packet.link
         scheduleAttempt(activeUploader, operation, packet.link.packetId)
+    }
+
+    /**
+     * The panel is otherwise a silent empty list; state exactly which precondition is missing so an operator can act
+     * on it. Never invent events to fill the panel.
+     */
+    private fun publishGateReason(
+        pilotId: Long?,
+        orderId: String?,
+        serial: String?,
+        model: String?,
+        status: DjiSdkStatus,
+    ) {
+        val reason = when {
+            pilotId == null -> "未登录，本地事件记录未启用"
+            orderId == null -> "暂无执飞订单，本地事件记录未启用"
+            !status.isProductConnected -> "飞机未连接，本地事件记录未启用"
+            serial == null -> "未读取到飞机序列号，本地事件记录未启用"
+            model == null -> "未识别机型（${status.productInfo.type.name}），本地事件记录未启用"
+            else -> return
+        }
+        if (reason != lastGateReason) {
+            lastGateReason = reason
+            Log.i(TAG, "event capture gated: $reason")
+        }
+        telemetryUiState.updateStreamState(TelemetryStreamState.Disconnected(reason))
+    }
+
+    private fun publishCaptured(drafts: List<EventDraft>) {
+        telemetryUiState.record(
+            drafts.map { draft ->
+                TelemetryMessageLog(
+                    timestamp = draft.capturedAt,
+                    direction = TelemetryMessageDirection.LOCAL,
+                    type = draft.type,
+                    name = draft.context.aircraft.modelCode,
+                    content = draft.payload.entries.joinToString(", ") { (key, value) -> "$key=$value" },
+                )
+            }
+        )
     }
 
     private fun uploadPending(orderId: String) {
@@ -270,11 +324,93 @@ class DispatchTelemetryService @Inject constructor(
                 is Stage1UploadResult.InvalidResponse -> lastUploadError = "上传响应无效：${result.detail}"
                 is Stage1UploadResult.InterventionRequired -> lastUploadError = "上传需要处理：${result.reason}"
                 Stage1UploadResult.AuthenticationRequired -> lastUploadError = "等待登录凭证"
-                Stage1UploadResult.ChainForked -> lastUploadError = "事件链发生冲突，需要对账"
+                Stage1UploadResult.ChainForked -> reconcileChain(activeUploader, operation, packetId)
                 is Stage1UploadResult.Durable, Stage1UploadResult.AlreadyDurable -> lastUploadError = null
                 is Stage1UploadResult.NotDue, is Stage1UploadResult.RetryAfter -> Unit
             }
         }
+    }
+
+    /**
+     * A fork means the local chain disagrees with what the backend already holds. The backend can state the height and
+     * hash of its contiguous prefix; adopt exactly that as the new local link so the next packet continues the real
+     * chain instead of restarting at height 1. Anything less certain (no usable prefix, or a prefix the local journal
+     * cannot corroborate) stays parked and visible: this never invents chain content.
+     *
+     * Packets already recorded on the old link are NOT resent: their prevChainHash is now wrong and would fork again.
+     * They stay in the journal for later explicit reconciliation, while live capture continues from the adopted link.
+     */
+    private suspend fun reconcileChain(activeUploader: Stage1Uploader, operation: String, packetId: String) {
+        val orderId = operationOrderId ?: return
+        val now = System.currentTimeMillis()
+        if (now - lastReconcileAt < RECONCILE_INTERVAL_MS) return
+        lastReconcileAt = now
+        val local = runCatching { store.packet(operation, packetId) }.getOrNull() ?: return
+        val expected = runCatching { Stage1Receipt.readSummary(local.summary, authentication.pilotId ?: return) }
+            .getOrNull() ?: return
+        val identity = expected.link.identity
+        val response = runCatching {
+            api.reconcileEventChain(
+                orderId,
+                ApiEventReconciliationDraftDTO(
+                    chainId = identity.chainId,
+                    schemaVersion = 2,
+                    fromHeight = 1L,
+                    toHeight = expected.link.height,
+                ),
+            )
+        }.getOrNull()
+        val data = response?.takeIf { it.isSuccessful }?.body()?.data
+        val contiguousHeight = data?.contiguousHeight
+        val contiguousHash = data?.contiguousHash
+        if (data == null || data.integrity != "OPEN" || contiguousHeight == null) {
+            lastUploadError = "事件链冲突，对账未取得可用共同前缀，上传暂停"
+            Log.w(TAG, "reconcile unusable: ${response?.code()} ${response?.body()?.errorCode}")
+            return
+        }
+        if (contiguousHeight == 0L) {
+            // Backend holds no prefix for this chain, so the local anchor is a legal continuation point. Packets the
+            // journal already recorded at height 1 remain unconfirmed and are left parked rather than resent.
+            previousLink = null
+            lastPacketContext = null
+            activeUploader.clearChainFork(identity.chainId)
+            lastUploadError = "事件链已按后端空链重置，历史未确认包保留待人工处理"
+            Log.i(TAG, "reconcile: backend has no prefix for ${identity.chainId}, continuing from anchor")
+            return
+        }
+        if (contiguousHash.isNullOrBlank()) {
+            lastUploadError = "事件链冲突，对账返回缺少哈希，上传暂停"
+            Log.w(TAG, "reconcile: non-zero height without contiguousHash")
+            return
+        }
+        val adopted = localLinkFor(operation, identity.chainId, contiguousHeight, contiguousHash)
+        if (adopted == null) {
+            lastUploadError = "事件链冲突，后端前缀在本地无对应记录，需人工对账"
+            Log.w(TAG, "reconcile: no local packet matches height=$contiguousHeight")
+            return
+        }
+        previousLink = adopted
+        lastPacketContext = null
+        activeUploader.clearChainFork(identity.chainId)
+        lastUploadError = null
+        Log.i(TAG, "reconcile: adopted backend prefix height=$contiguousHeight, live capture continues")
+    }
+
+    /** Local packet at the backend's contiguous height, used as the trusted continuation point. */
+    private fun localLinkFor(
+        operation: String,
+        chainId: String,
+        height: Long,
+        hash: String,
+    ): Stage1Link? {
+        val pilotId = authentication.pilotId ?: return null
+        val snapshot = runCatching { store.recoverOperation(operation) }.getOrNull() ?: return null
+        val match = snapshot.packets.firstOrNull { stored ->
+            val summary = runCatching { Stage1Receipt.readSummary(stored.summary, pilotId) }.getOrNull()
+            summary != null && summary.link.identity.chainId == chainId &&
+                summary.link.height == height && summary.link.chainHash == hash
+        } ?: return null
+        return runCatching { Stage1Receipt.readSummary(match.summary, pilotId) }.getOrNull()?.link
     }
 
     private fun publishLocalState(status: DjiSdkStatus) {
@@ -286,6 +422,17 @@ class DispatchTelemetryService @Inject constructor(
             pendingPackets = pending,
             cacheWarning = null,
             lastError = lastUploadError,
+        )
+        telemetryUiState.updateStreamState(
+            when {
+                // Capture can be healthy while upload is stuck; a fork/error must not be masked by "Connected".
+                lastUploadError != null -> TelemetryStreamState.Error(lastUploadError!!)
+                active -> TelemetryStreamState.Connected
+                authentication.pilotId == null -> TelemetryStreamState.Disconnected("未登录，本地事件记录未启用")
+                _state.value.currentOrder?.orderId == null -> TelemetryStreamState.Disconnected("暂无执飞订单，本地事件记录未启用")
+                !status.isProductConnected -> TelemetryStreamState.Disconnected("飞机未连接，本地事件记录未启用")
+                else -> TelemetryStreamState.Connecting
+            }
         )
     }
 
@@ -333,5 +480,7 @@ class DispatchTelemetryService @Inject constructor(
         const val ORDER_REFRESH_MS = 30_000L
         const val DEFAULT_INTERVAL_MS = 2_000L
         const val MIN_INTERVAL_MS = 1_000L
+        /** Reconciliation is a repair step, not a polling loop: at most one attempt per minute per process. */
+        const val RECONCILE_INTERVAL_MS = 60_000L
     }
 }
