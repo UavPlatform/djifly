@@ -5,6 +5,7 @@ import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import com.fuwaki.djifly.platform.eventstore.core.EventPacketStore
 import com.fuwaki.djifly.platform.eventstore.core.RecordingSourceFiles
+import com.fuwaki.djifly.platform.eventstore.core.RecordingSourceIdentity
 import com.fuwaki.djifly.platform.eventstore.core.SqlSession
 import java.io.File
 
@@ -12,9 +13,25 @@ import java.io.File
 object AndroidEventStore {
     private fun files(context: Context) = RecordingSourceFiles(File(context.noBackupFilesDir, "event-packets"))
 
+    /**
+     * Stable across reinstalls of the same device: the backend binds an event chain to
+     * orderId + recordingSourceId + airframe, so a fresh random id per install makes every reinstall look like a new
+     * terminal and strands the chain the order already owns.
+     *
+     * ANDROID_ID is per-app-signing-key and per-user, and survives app reinstall (a factory reset changes it, which is
+     * a genuinely new device). See [RecordingSourceIdentity] for the derivation itself.
+     */
+    private fun stableSourceId(context: Context): String {
+        val androidId = android.provider.Settings.Secure.getString(
+            context.contentResolver, android.provider.Settings.Secure.ANDROID_ID
+        )
+        // No stable platform id: fall back to a random one rather than inventing stability we do not have.
+        return RecordingSourceIdentity.derive(androidId) ?: java.util.UUID.randomUUID().toString()
+    }
+
     fun initializeNew(context: Context): EventPacketStore {
         val files = files(context)
-        val id = files.createNew()
+        val id = files.createNew(stableSourceId(context))
         return open(files.databaseFile) { EventPacketStore.initializeNew(it, id) }
     }
 
