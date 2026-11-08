@@ -31,9 +31,6 @@ const generateCommand = 'cd djifly && node tools/openapi-gen.mjs'
 const calledEndpoints = [
   ['post', 'user/login'],
   ['post', 'user/refresh'],
-  ['post', 'appUav/add'],
-  ['post', 'api/ws/request'],
-  ['post', 'live/rider/req'],
   // 派单执行与遥测（ADR-0009）+ 送达/物料（替代旧 rider/complete 与 tasks/attachments）
   ['get', 'dispatch/pilot/orders'],
   ['post', 'dispatch/orders/{orderId}/start-transport'],
@@ -43,17 +40,24 @@ const calledEndpoints = [
   ['post', 'dispatch/orders/{orderId}/materials/{materialId}/confirm'],
   // Stage1 raw-byte adapter; this registers a new consumer, not a second contract sync.
   ['post', 'dispatch/pilot/orders/{orderId}/event-packets'],
-  ['post', 'dispatch/pilot/orders/{orderId}/flight-connections'],
-  ['post', 'dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/samples/batch'],
-  ['post', 'dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/close'],
+  ['post', 'dispatch/pilot/orders/{orderId}/event-reconciliation'],
+  ['get', 'dispatch/orders/{orderId}/flight'],
+  ['get', 'dispatch/orders/{orderId}/flight/track'],
+  ['get', 'dispatch/orders/{orderId}/flight/history'],
   ['post', 'dispatch/pilot/orders/{orderId}/live'],
   ['post', 'dispatch/pilot/orders/{orderId}/live/{liveId}/heartbeat'],
   ['post', 'dispatch/pilot/orders/{orderId}/live/{liveId}/stop'],
+  ['get', 'dispatch/orders/{orderId}/live'],
+  ['post', 'dispatch/orders/{orderId}/live/{liveId}/watch'],
 ]
 
 const endpoints = calledEndpoints
 
 const check = process.argv.includes('--check')
+
+/** `--report <file>`：把「本端调用点已从契约中消失」的清单写成 Markdown，供同步 PR 正文引用。 */
+const reportIndex = process.argv.indexOf('--report')
+const reportPath = reportIndex >= 0 ? process.argv[reportIndex + 1] : null
 
 if (!existsSync(specPath)) {
   console.error('[openapi] 缺少 vendored 规格 ' + relative(root, specPath))
@@ -75,12 +79,19 @@ const schemas = (spec.components ?? {}).schemas ?? {}
 
 const normalizeTemplate = (path) => path.replace(/\{[^}]*\}/g, '{}')
 
+/**
+ * 已登记但新契约里不再存在的调用点。
+ *
+ * 契约删除接口时要让同步 PR 仍然产出（PR 是「工单」：先带进新契约，业务适配随后在 PR 里做），
+ * 因此生成阶段降级为跳过 + 汇总；清单由 `--report` 输出、`--check` 判失败，
+ * 保证「登记表过期」不会静默通过本仓 CI。
+ */
+const missingEndpoints = new Map()
+
 function specPathFor(localPath) {
   const wanted = normalizeTemplate('/' + localPath)
   const matches = Object.keys(specPaths).filter((p) => normalizeTemplate(p) === wanted)
-  if (matches.length === 0) {
-    throw new Error('契约里没有与 ' + localPath + ' 结构一致的路径（本端调用点与契约不一致）')
-  }
+  if (matches.length === 0) return null
   if (matches.length > 1) {
     throw new Error('契约里有多条路径与 ' + localPath + ' 结构一致：' + matches.join(', '))
   }
@@ -88,12 +99,15 @@ function specPathFor(localPath) {
 }
 
 function operation(specPath, method) {
-  const item = specPaths[specPath]
-  const op = item?.[method]
-  if (!op) {
-    throw new Error('契约里 ' + specPath + ' 没有 ' + method.toUpperCase() + ' 方法（本端调用点与契约不一致）')
-  }
-  return op
+  return specPaths[specPath]?.[method] ?? null
+}
+
+/** 解析本端登记的调用点；契约里没有时记入缺失清单并返回 null。 */
+function resolveCall(method, localPath) {
+  const specPath = specPathFor(localPath)
+  if (specPath !== null && operation(specPath, method)) return specPath
+  missingEndpoints.set(method + ' ' + localPath, [method, localPath])
+  return null
 }
 
 function constantName(localPath) {
@@ -127,8 +141,8 @@ function buildPaths() {
   lines.push('object ApiPaths {')
   const used = new Set()
   for (const [method, localPath] of endpoints) {
-    const specPath = specPathFor(localPath)
-    operation(specPath, method)
+    const specPath = resolveCall(method, localPath)
+    if (specPath === null) continue
     const name = constantName(localPath)
     if (used.has(name)) throw new Error('常量名冲突：' + name + '（' + localPath + '）')
     used.add(name)
@@ -194,7 +208,9 @@ function jsonSchemaOf(content) {
 function collect() {
   // 闭包只取「本端真正调用」的端点清单。
   for (const [method, localPath] of calledEndpoints) {
-    const op = operation(specPathFor(localPath), method)
+    const specPath = specPathFor(localPath)
+    if (specPath === null || !operation(specPath, method)) continue
+    const op = operation(specPath, method)
     if (Array.isArray(op.parameters)) {
       for (const param of op.parameters) visit(param?.schema)
     }
@@ -344,6 +360,34 @@ try {
   process.exit(1)
 }
 
+const missing = [...missingEndpoints.values()]
+
+if (reportPath) {
+  const lines = []
+  lines.push('### 本端登记但新契约中已不存在')
+  lines.push('')
+  if (missing.length === 0) {
+    lines.push('无。')
+  } else {
+    lines.push('以下调用点已在 `calledEndpoints`（`tools/openapi-gen.mjs`）登记，但新契约里没有对应路径/方法。')
+    lines.push('生成物已跳过它们；业务代码适配完成后请从登记表删除或改为新路径。')
+    lines.push('')
+    for (const [method, localPath] of missing) {
+      lines.push('- `' + method.toUpperCase() + ' /' + localPath + '`')
+    }
+  }
+  lines.push('')
+  writeFileSync(reportPath, lines.join('\n'))
+}
+
+if (check && missing.length > 0) {
+  console.error('[openapi] FAIL：' + missing.length + ' 个登记调用点在新契约中不存在（登记表已过期）：')
+  for (const [method, localPath] of missing) {
+    console.error('  - ' + method.toUpperCase() + ' /' + localPath)
+  }
+  process.exit(1)
+}
+
 const outputs = [
   [pathsOut, pathsSource],
   [modelsOut, modelsSource],
@@ -372,4 +416,10 @@ if (check) {
   process.exit(0)
 }
 
-console.log('[openapi] sha256=' + sha + ' 端点=' + endpoints.length + ' 变更文件=' + drift)
+if (missing.length > 0) {
+  console.log('[openapi] WARN：' + missing.length + ' 个登记调用点在新契约中不存在，已跳过生成：')
+  for (const [method, localPath] of missing) {
+    console.log('  - ' + method.toUpperCase() + ' /' + localPath)
+  }
+}
+console.log('[openapi] sha256=' + sha + ' 端点=' + (endpoints.length - missing.length) + ' 变更文件=' + drift)

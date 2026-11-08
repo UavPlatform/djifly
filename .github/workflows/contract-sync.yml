@@ -57,77 +57,65 @@ jobs:
         id: download
         env:
           GH_TOKEN: ${{ github.token }}
+          DISPATCH_TAG: ${{ github.event.client_payload.tag }}
+          DISPATCH_SHA256: ${{ github.event.client_payload.sha256 }}
         run: |
-          set -e
-          
+          set -euo pipefail
+          mkdir -p /tmp/contract
           echo "开始下载 OpenAPI 契约..."
-          
-          # 尝试获取最新的 contract-* Release
-          RELEASE_INFO=$(gh release list --repo UavPlatform/backend --limit 30 --json tagName,isPrerelease | \
-            jq -r '[.[] | select(.tagName | startswith("contract-")) | select(.isPrerelease == false)] | first')
-          
-          if [ "$RELEASE_INFO" != "null" ] && [ -n "$RELEASE_INFO" ]; then
-            TAG=$(echo "$RELEASE_INFO" | jq -r '.tagName')
-            echo "找到 Release：$TAG"
-            
-            # 下载契约文件和 sha256
-            mkdir -p /tmp/contract
+
+          # 有 dispatch payload 时按 payload 取同一份契约，避免与 schedule 抢「最新」。
+          TAG="$DISPATCH_TAG"
+          SHA256="$DISPATCH_SHA256"
+
+          if [ -z "$TAG" ]; then
+            TAG=$(gh release list --repo UavPlatform/backend --limit 30 \
+              --json tagName,isPrerelease \
+              --jq '[.[] | select(.isPrerelease == false) | .tagName | select(startswith("contract-"))] | first // ""')
+          fi
+
+          if [ -n "$TAG" ]; then
+            echo "下载 Release 资产：$TAG"
+            # 走 GitHub API 而不是匿名 releases/download（后者 302 到 CDN，实测长期 504）。
             gh release download "$TAG" \
               --repo UavPlatform/backend \
               --pattern "drone-backend.openapi.json" \
               --pattern "*.sha256" \
-              --dir /tmp/contract || {
-                echo "警告：下载 Release 资产失败，回退到后端 main 分支"
-                TAG=""
-              }
-            
-            if [ -n "$TAG" ]; then
-              # 检查文件是否存在
-              if [ -f /tmp/contract/drone-backend.openapi.json ]; then
-                echo "✓ 从 Release $TAG 下载成功"
-                echo "source=release" >> "$GITHUB_OUTPUT"
-                echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-                
-                # 读取 sha256（可能是 drone-backend.openapi.sha256 或 drone-backend.openapi.json.sha256）
-                if [ -f /tmp/contract/drone-backend.openapi.sha256 ]; then
-                  SHA256=$(awk '{print $1}' /tmp/contract/drone-backend.openapi.sha256)
-                elif [ -f /tmp/contract/drone-backend.openapi.json.sha256 ]; then
-                  SHA256=$(awk '{print $1}' /tmp/contract/drone-backend.openapi.json.sha256)
-                else
-                  echo "警告：找不到 sha256 文件，自行计算"
-                  SHA256=$(sha256sum /tmp/contract/drone-backend.openapi.json | awk '{print $1}')
+              --dir /tmp/contract \
+              --clobber
+
+            if [ -z "$SHA256" ]; then
+              for candidate in /tmp/contract/drone-backend.openapi.json.sha256 /tmp/contract/drone-backend.openapi.sha256; do
+                if [ -f "$candidate" ]; then
+                  SHA256=$(awk '{print $1}' "$candidate")
+                  break
                 fi
-                echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
-              else
-                echo "警告：Release 中没有契约文件，回退到后端 main 分支"
-                TAG=""
-              fi
+              done
             fi
+
+            echo "source=release" >> "$GITHUB_OUTPUT"
+            echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           else
-            echo "未找到 contract-* Release"
-            TAG=""
-          fi
-          
-          # 回退：从后端 main 分支下载
-          if [ -z "$TAG" ]; then
-            echo "从后端 main 分支下载契约..."
-            mkdir -p /tmp/contract
+            echo "未找到 contract-* Release，回退到后端 main 分支"
             curl -fsSL \
               -H "Authorization: Bearer $GH_TOKEN" \
               -H "Accept: application/vnd.github.v3.raw" \
               -o /tmp/contract/drone-backend.openapi.json \
               "https://api.github.com/repos/UavPlatform/backend/contents/spec/openapi/drone-backend.openapi.json?ref=main"
-            
             SHA256=$(sha256sum /tmp/contract/drone-backend.openapi.json | awk '{print $1}')
             COMMIT=$(gh api repos/UavPlatform/backend/commits/main --jq '.sha[:7]')
-            
-            echo "✓ 从后端 main@$COMMIT 下载成功"
             echo "source=main" >> "$GITHUB_OUTPUT"
             echo "tag=main@$COMMIT" >> "$GITHUB_OUTPUT"
-            echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
           fi
-          
-          echo "sha256: $SHA256"
+
+          ACTUAL_SHA256=$(sha256sum /tmp/contract/drone-backend.openapi.json | awk '{print $1}')
+          # sha256 不符是真失败：拿到的不是被发布的那份契约，后续生成没有意义。
+          if [ -n "$SHA256" ] && [ "$SHA256" != "$ACTUAL_SHA256" ]; then
+            echo "::error::SHA256 校验失败（预期 $SHA256，实际 $ACTUAL_SHA256）"
+            exit 1
+          fi
+          echo "sha256=$ACTUAL_SHA256" >> "$GITHUB_OUTPUT"
+          echo "sha256: $ACTUAL_SHA256"
 
       - name: 同步契约到 openapi/ 目录
         env:
@@ -137,14 +125,15 @@ jobs:
           echo "运行 tools/openapi-sync.mjs..."
           node tools/openapi-sync.mjs
 
+      # 生成器对「登记过但新契约已删除」的调用点只跳过并汇总（见 tools/openapi-gen.mjs），
+      # 因此生成失败只意味着生成器自身或契约坏了，而不是本端业务代码还没适配。
       - name: 生成契约代码
         id: generate
         run: |
           set -e
           echo "运行 tools/openapi-gen.mjs..."
-          node tools/openapi-gen.mjs
-          
-          # 检查是否有变更
+          node tools/openapi-gen.mjs --report "$RUNNER_TEMP/worklist.md"
+
           if git diff --quiet openapi/ app/src/main/java/com/fuwaki/djifly/platform/network/generated/; then
             echo "契约未变化，无需更新 PR"
             echo "has_changes=false" >> "$GITHUB_OUTPUT"
@@ -153,49 +142,38 @@ jobs:
             echo "has_changes=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: 检查生成物（轻量校验）
+      - name: 汇总待适配调用点
+        id: worklist
+        run: |
+          set -euo pipefail
+          if [ -f "$RUNNER_TEMP/worklist.md" ]; then
+            {
+              echo 'worklist<<EOF'
+              cat "$RUNNER_TEMP/worklist.md"
+              echo 'EOF'
+            } >> "$GITHUB_OUTPUT"
+          else
+            echo 'worklist<<EOF' >> "$GITHUB_OUTPUT"
+            echo '无。' >> "$GITHUB_OUTPUT"
+            echo 'EOF' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 检查生成物形状
         if: steps.generate.outputs.has_changes == 'true'
         run: |
           set -e
-          echo "校验生成物与契约同步..."
-          node tools/openapi-gen.mjs --check
-          
-          # 基本语法检查（不需要完整 Gradle 构建 DJI 依赖）
-          echo "检查生成的 Kotlin 文件语法..."
+          # 仅校验生成器自身的产出形状（不需要 Gradle / DJI 依赖）。
+          # 注意：这里不跑 `--check`——登记表尚未适配时它必然失败，硬门禁在 master 的 CI。
           for file in app/src/main/java/com/fuwaki/djifly/platform/network/generated/*.kt; do
             if [ -f "$file" ]; then
               echo "  检查 $file"
-              # 简单语法检查：确保文件不为空且包含 package 声明
               if ! grep -q "^package com.fuwaki.djifly.platform.network.generated" "$file"; then
-                echo "错误：$file 缺少正确的 package 声明"
+                echo "::error::$file 缺少正确的 package 声明"
                 exit 1
               fi
             fi
           done
-          echo "✓ 基本语法检查通过"
-
-      - name: 检查调用清单是否失效
-        if: steps.generate.outputs.has_changes == 'true'
-        id: check-endpoints
-        run: |
-          set -e
-          
-          # 提取 tools/openapi-gen.mjs 中的 calledEndpoints
-          # 这里做简单检查：如果生成失败，说明契约与调用清单不一致
-          if node tools/openapi-gen.mjs --check 2>&1 | grep -q "本端调用点与契约不一致"; then
-            echo "警告：调用清单可能需要人工更新"
-            echo "needs_manual_review=true" >> "$GITHUB_OUTPUT"
-            
-            # 尝试捕获具体的不一致信息
-            ERRORS=$(node tools/openapi-gen.mjs 2>&1 | grep "本端调用点与契约不一致" || echo "")
-            if [ -n "$ERRORS" ]; then
-              echo "errors<<EOF" >> "$GITHUB_OUTPUT"
-              echo "$ERRORS" >> "$GITHUB_OUTPUT"
-              echo "EOF" >> "$GITHUB_OUTPUT"
-            fi
-          else
-            echo "needs_manual_review=false" >> "$GITHUB_OUTPUT"
-          fi
+          echo "✓ 生成物形状检查通过"
 
       - name: 创建或更新 PR
         if: steps.generate.outputs.has_changes == 'true' || github.event.inputs.force_update == 'true'
@@ -228,11 +206,16 @@ jobs:
             - 更新 `openapi/drone-backend.openapi.sha256`
             - 重新生成 `app/src/main/java/com/fuwaki/djifly/platform/network/generated/ApiPaths.kt`
             - 重新生成 `app/src/main/java/com/fuwaki/djifly/platform/network/generated/ApiModels.kt`
-            
-            ${{ steps.check-endpoints.outputs.needs_manual_review == 'true' && '### ⚠️ 需要人工处理\n\n契约变更可能导致调用清单失效，请检查以下项：\n\n```\n' || '' }}${{ steps.check-endpoints.outputs.errors || '' }}${{ steps.check-endpoints.outputs.needs_manual_review == 'true' && '\n```\n\n请更新 `tools/openapi-gen.mjs` 中的 `calledEndpoints` 列表。' || '' }}
-            
+
+            ### 待适配清单（本 PR 内处理）
+
+            ${{ steps.worklist.outputs.worklist }}
+
+            > 本 PR 只保证契约与生成物同源；业务适配（更新 `calledEndpoints`、改调用点）在本 PR 内完成。
+            > `master` 的 CI（`node tools/openapi-gen.mjs --check` + Gradle 单测）是最终门禁。
+
             ### 审核要点
-            
+
             1. ✅ 检查生成的 Kotlin 代码是否符合预期
             2. ✅ 确认现有调用点（`PlatformApiService`）是否需要适配
             3. ✅ 评审 API 变更的影响范围
