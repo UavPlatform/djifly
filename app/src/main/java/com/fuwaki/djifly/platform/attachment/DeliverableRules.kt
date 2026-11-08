@@ -5,6 +5,23 @@ import java.util.Locale
 /** 交付物类别 */
 enum class DeliverableKind { IMAGE, VIDEO }
 
+/**
+ * `DispatchMaterialUploadDTO.purpose` 的契约取值。
+ *
+ * 契约 pattern 为 `CARGO|START_SITE|END_SITE|PILOT_DELIVERY|SHIPPER_RECEIPT`；飞手送达凭证用
+ * [PILOT_DELIVERY]。历史上这里发过不在枚举内的 `DELIVERY_PROOF`，后端直接 400，别再用字面量。
+ */
+object DeliverablePurpose {
+    const val CARGO = "CARGO"
+    const val START_SITE = "START_SITE"
+    const val END_SITE = "END_SITE"
+    const val PILOT_DELIVERY = "PILOT_DELIVERY"
+    const val SHIPPER_RECEIPT = "SHIPPER_RECEIPT"
+
+    /** 与契约 pattern 保持一致的合法值集合，供测试与校验使用。 */
+    val ALL = setOf(CARGO, START_SITE, END_SITE, PILOT_DELIVERY, SHIPPER_RECEIPT)
+}
+
 /** 类型/大小限制校验结果（t43 契约：image/jpeg|png|webp ≤20MB、video/mp4|quicktime ≤500MB） */
 sealed interface DeliverableCheck {
     data class Ok(val kind: DeliverableKind) : DeliverableCheck

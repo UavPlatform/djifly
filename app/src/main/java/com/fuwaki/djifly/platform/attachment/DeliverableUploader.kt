@@ -59,7 +59,7 @@ class DeliverableUploader @Inject constructor(
                 body = ApiDispatchMaterialUploadDTO(
                     contentType = deliverable.contentType,
                     fileName = deliverable.fileName,
-                    purpose = "DELIVERY_PROOF",
+                    purpose = DeliverablePurpose.PILOT_DELIVERY,
                     sizeBytes = deliverable.sizeBytes
                 )
             )

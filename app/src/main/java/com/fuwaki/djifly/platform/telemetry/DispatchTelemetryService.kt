@@ -26,10 +26,12 @@ import com.fuwaki.djifly.platform.eventstream.RecordingOperation
 import com.fuwaki.djifly.platform.network.PlatformApiService
 import com.fuwaki.djifly.platform.network.PlatformEndpointResolver
 import com.fuwaki.djifly.platform.network.generated.ApiDispatchOrderVO
-import com.fuwaki.djifly.platform.network.generated.ApiEventReconciliationDraftDTO
 import com.fuwaki.djifly.sdk.DjiSdkManager
 import com.fuwaki.djifly.sdk.DjiSdkStatus
 import com.google.gson.Gson
+import com.google.gson.JsonArray
+import com.google.gson.JsonNull
+import com.google.gson.JsonObject
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -41,7 +43,10 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
+import okhttp3.RequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
 import java.util.UUID
 import kotlin.math.roundToLong
@@ -332,13 +337,17 @@ class DispatchTelemetryService @Inject constructor(
     }
 
     /**
-     * A fork means the local chain disagrees with what the backend already holds. The backend can state the height and
-     * hash of its contiguous prefix; adopt exactly that as the new local link so the next packet continues the real
-     * chain instead of restarting at height 1. Anything less certain (no usable prefix, or a prefix the local journal
-     * cannot corroborate) stays parked and visible: this never invents chain content.
+     * A fork means the local chain disagrees with what the backend already holds. The backend can state its contiguous
+     * prefix; adopt exactly that as the new local link so the next packet continues the real chain instead of
+     * restarting at height 1. Anything less certain stays parked and visible: this never invents chain content.
      *
      * Packets already recorded on the old link are NOT resent: their prevChainHash is now wrong and would fork again.
      * They stay in the journal for later explicit reconciliation, while live capture continues from the adopted link.
+     *
+     * Request shape is dictated by the backend, not by the OpenAPI illustration: EventReconciliationSchema requires the
+     * field set to equal exactly {schemaVersion, chainId, validationVersion, fromHeight, toHeight, cursor,
+     * missingCursor, limit, prefix}, with limit a positive int (1..200) and the three nullable cursors present as
+     * explicit nulls. Gson drops null fields by default, so this is built as a raw map and sent with serializeNulls.
      */
     private suspend fun reconcileChain(activeUploader: Stage1Uploader, operation: String, packetId: String) {
         val orderId = operationOrderId ?: return
@@ -350,34 +359,37 @@ class DispatchTelemetryService @Inject constructor(
             .getOrNull() ?: return
         val identity = expected.link.identity
         val response = runCatching {
-            api.reconcileEventChain(
-                orderId,
-                ApiEventReconciliationDraftDTO(
-                    chainId = identity.chainId,
-                    schemaVersion = 2,
-                    fromHeight = 1L,
-                    toHeight = expected.link.height,
-                ),
-            )
+            api.reconcileEventChain(orderId, reconciliationRequest(identity.chainId, expected.link))
         }.getOrNull()
         val data = response?.takeIf { it.isSuccessful }?.body()?.data
-        val contiguousHeight = data?.contiguousHeight
-        val contiguousHash = data?.contiguousHash
-        if (data == null || data.integrity != "OPEN" || contiguousHeight == null) {
-            lastUploadError = "事件链冲突，对账未取得可用共同前缀，上传暂停"
-            Log.w(TAG, "reconcile unusable: ${response?.code()} ${response?.body()?.errorCode}")
+        if (data == null) {
+            val code = response?.body()?.errorCode
+            lastUploadError = when {
+                // The backend already binds this order+airframe to a different chain id; it never reveals that id, and
+                // reconciliation is keyed by chain id, so this cannot be repaired from the device side.
+                code == EVENT_PACKET_CONFLICT -> "事件链与平台既有链不匹配，需在平台侧处理"
+                else -> "事件链冲突，对账失败（HTTP ${response?.code() ?: "无响应"}）"
+            }
+            Log.w(TAG, "reconcile failed: ${response?.code()} $code")
             return
         }
+        if (data.integrity != "OPEN") {
+            lastUploadError = "事件链在平台侧已分叉（${data.integrity}），需在平台侧对账"
+            Log.w(TAG, "reconcile: integrity=${data.integrity}")
+            return
+        }
+        val contiguousHeight = data.contiguousHeight ?: 0L
         if (contiguousHeight == 0L) {
-            // Backend holds no prefix for this chain, so the local anchor is a legal continuation point. Packets the
+            // Backend holds nothing for this chain id, so the local anchor is a legal continuation point. Packets the
             // journal already recorded at height 1 remain unconfirmed and are left parked rather than resent.
             previousLink = null
             lastPacketContext = null
             activeUploader.clearChainFork(identity.chainId)
-            lastUploadError = "事件链已按后端空链重置，历史未确认包保留待人工处理"
-            Log.i(TAG, "reconcile: backend has no prefix for ${identity.chainId}, continuing from anchor")
+            lastUploadError = "事件链已按平台空链重置，历史未确认包保留待处理"
+            Log.i(TAG, "reconcile: backend holds no prefix for ${identity.chainId}, continuing from anchor")
             return
         }
+        val contiguousHash = data.contiguousHash
         if (contiguousHash.isNullOrBlank()) {
             lastUploadError = "事件链冲突，对账返回缺少哈希，上传暂停"
             Log.w(TAG, "reconcile: non-zero height without contiguousHash")
@@ -385,7 +397,7 @@ class DispatchTelemetryService @Inject constructor(
         }
         val adopted = localLinkFor(operation, identity.chainId, contiguousHeight, contiguousHash)
         if (adopted == null) {
-            lastUploadError = "事件链冲突，后端前缀在本地无对应记录，需人工对账"
+            lastUploadError = "事件链冲突，平台前缀在本地无对应记录，需人工对账"
             Log.w(TAG, "reconcile: no local packet matches height=$contiguousHeight")
             return
         }
@@ -393,7 +405,36 @@ class DispatchTelemetryService @Inject constructor(
         lastPacketContext = null
         activeUploader.clearChainFork(identity.chainId)
         lastUploadError = null
+        // The UI reads lastError from published state; without this the stale rejection text survives until the next
+        // sampling tick even though the chain is healthy again.
+        publishLocalState(sdkManager.sdkStatus.value)
         Log.i(TAG, "reconcile: adopted backend prefix height=$contiguousHeight, live capture continues")
+    }
+
+    /**
+     * Exact request body required by EventReconciliationSchema: the nine keys must match exactly, nullable cursors
+     * must be present as explicit nulls, and limit must be a positive int. [prefix] carries the highest local link so
+     * the backend can answer commonPrefixHeight; without it that field is always null.
+     */
+    private fun reconciliationRequest(chainId: String, link: Stage1Link): RequestBody {
+        val body = JsonObject().apply {
+            addProperty("schemaVersion", RECON_SCHEMA_VERSION)
+            addProperty("chainId", chainId)
+            add("validationVersion", JsonNull.INSTANCE)
+            addProperty("fromHeight", 1L)
+            addProperty("toHeight", link.height)
+            add("cursor", JsonNull.INSTANCE)
+            add("missingCursor", JsonNull.INSTANCE)
+            addProperty("limit", RECON_LIMIT)
+            add("prefix", JsonArray().apply {
+                add(JsonObject().apply {
+                    addProperty("height", link.height)
+                    addProperty("chainHash", link.chainHash)
+                })
+            })
+        }
+        return body.toString().toByteArray(Charsets.UTF_8)
+            .toRequestBody("application/json; charset=utf-8".toMediaType())
     }
 
     /** Local packet at the backend's contiguous height, used as the trusted continuation point. */
@@ -480,7 +521,13 @@ class DispatchTelemetryService @Inject constructor(
         const val ORDER_REFRESH_MS = 30_000L
         const val DEFAULT_INTERVAL_MS = 2_000L
         const val MIN_INTERVAL_MS = 1_000L
+        /** ApiErrorCode.EVENT_PACKET_CONFLICT */
+        const val EVENT_PACKET_CONFLICT = "EVENT_PACKET_CONFLICT"
         /** Reconciliation is a repair step, not a polling loop: at most one attempt per minute per process. */
         const val RECONCILE_INTERVAL_MS = 60_000L
+        /** EventLimits.SCHEMA_VERSION */
+        const val RECON_SCHEMA_VERSION = 2
+        /** Within EventLimits.RECON_MAX_LIMIT (200); the page only needs to be non-empty to read chain state. */
+        const val RECON_LIMIT = 50
     }
 }

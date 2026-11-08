@@ -1,5 +1,6 @@
 package com.fuwaki.djifly.platform.network
 
+import com.fuwaki.djifly.platform.attachment.DeliverablePurpose
 import com.fuwaki.djifly.platform.network.generated.ApiPaths
 import com.fuwaki.djifly.platform.network.generated.ApiDispatchOrderVO
 import com.google.gson.Gson
@@ -140,10 +141,35 @@ class OpenApiContractTest {
         assertEquals(3L, order.assignmentVersion)
     }
 
+    /**
+     * upload-ticket 的 purpose 必须落在契约 pattern 内。历史缺陷：客户端发过 DELIVERY_PROOF（不在枚举里），
+     * 后端 400，表现为"上传失败，请重新拍摄"。
+     */
+    @Test
+    fun deliverable_upload_purpose_matches_the_spec_enum() {
+        val root = Gson().fromJson(specFile.readText(), Map::class.java) as? Map<String, Any?>
+            ?: missing("vendored 规格不是合法 JSON 对象")
+        val schemas = (root["components"] as? Map<*, *>)?.get("schemas") as? Map<*, *>
+            ?: missing("规格缺少 components.schemas")
+        val dto = schemas["DispatchMaterialUploadDTO"] as? Map<*, *>
+            ?: missing("规格缺少 DispatchMaterialUploadDTO")
+        val purpose = (dto["properties"] as? Map<*, *>)?.get("purpose") as? Map<*, *>
+            ?: missing("DispatchMaterialUploadDTO 缺少 purpose")
+        val pattern = purpose["pattern"] as? String
+            ?: missing("purpose 缺少 pattern，无法校验枚举")
+
+        val allowed = DeliverablePurpose.ALL
+        for (value in allowed) {
+            assertTrue("$value 不在契约 pattern 内：$pattern", Regex(pattern).matches(value))
+        }
+        // 飞手送达凭证固定用 PILOT_DELIVERY；此处防止有人改回不在枚举内的字面量。
+        assertEquals("PILOT_DELIVERY", DeliverablePurpose.PILOT_DELIVERY)
+        assertTrue(Regex(pattern).matches(DeliverablePurpose.PILOT_DELIVERY))
+    }
+
     // ═══════════════════════════════════════════════════════
     // 辅助
     // ═══════════════════════════════════════════════════════
-
     @Suppress("UNCHECKED_CAST")
     private fun specPaths(): Map<String, Any?> {
         val root = Gson().fromJson(specFile.readText(), Map::class.java) as? Map<String, Any?>

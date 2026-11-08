@@ -77,10 +77,14 @@ interface PlatformApiService {
         @Body packet: RequestBody
     ): Response<ApiResultEventPacketAckVO>
 
+    /**
+     * Reconciliation body is sent as exact bytes, not a DTO: the backend requires the field set to equal exactly nine
+     * keys (nullable cursors present as explicit nulls), which Gson's default null-skipping would silently violate.
+     */
     @POST(ApiPaths.DISPATCH_PILOT_ORDERS_EVENT_RECONCILIATION)
     suspend fun reconcileEventChain(
         @Path("orderId") orderId: String,
-        @Body request: ApiEventReconciliationDraftDTO
+        @Body request: RequestBody
     ): Response<ApiResultEventReconciliationVO>
 
     @GET(ApiPaths.DISPATCH_ORDERS_FLIGHT)

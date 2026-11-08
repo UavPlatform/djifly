@@ -18,6 +18,16 @@ data class UploadReportStatus(
 
 object UploadReportStatusResolver {
 
+    /**
+     * Only a whole-trip rejection means the trace will not be uploaded. A single packet being refused (HTTP 409 on one
+     * packet, a chain conflict, an auth pause) is a retryable transport condition and must not be reported as
+     * "this trip was rejected": that wording tells the pilot the flight was discarded, which is false.
+     */
+    private val WHOLE_TRIP_REJECTION_MARKERS = listOf(
+        "本趟被拒绝",
+        "订单被拒绝",
+    )
+
     fun resolve(
         hasFlyableOrder: Boolean,
         aircraftConfirmed: Boolean,
@@ -25,7 +35,8 @@ object UploadReportStatusResolver {
         pendingPackets: Int,
         lastError: String?,
     ): UploadReportStatus {
-        val rejected = !lastError.isNullOrBlank() && lastError.contains("拒绝")
+        val rejected = !lastError.isNullOrBlank() &&
+            WHOLE_TRIP_REJECTION_MARKERS.any { lastError.contains(it) }
         if (rejected) {
             return UploadReportStatus(
                 phase = UploadReportPhase.REJECTED,
@@ -53,10 +64,24 @@ object UploadReportStatusResolver {
         }
 
         val pending = pendingPackets.coerceAtLeast(0)
+        // Local capture is intact even when uploads are stuck; say so instead of implying data loss.
+        if (!lastError.isNullOrBlank() && pending > 0) {
+            return UploadReportStatus(
+                phase = UploadReportPhase.LOCAL_PENDING,
+                phrase = "已在本机记录 $pending 包，上传暂未成功：$lastError",
+            )
+        }
         if (pending > 0) {
             return UploadReportStatus(
                 phase = UploadReportPhase.LOCAL_PENDING,
                 phrase = "已在本机记录，等待上传（待传 $pending 包）",
+            )
+        }
+
+        if (!lastError.isNullOrBlank()) {
+            return UploadReportStatus(
+                phase = UploadReportPhase.LOCAL_PENDING,
+                phrase = "正在本机记录，上传暂未成功：$lastError",
             )
         }
 
