@@ -41,14 +41,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.fuwaki.djifly.ui.screen.FlightTaskContext
-import com.fuwaki.djifly.ui.widget.compose.ServerConnectionIndicatorDot
-import com.fuwaki.djifly.platform.registration.PlatformRegistrationState
+import com.fuwaki.djifly.ui.widget.compose.AircraftIdentityIndicatorDot
+import com.fuwaki.djifly.platform.registration.AircraftIdentityState
 
 @Composable
 fun FlightMinimalTopHud(
     batteryPercent: Int,
     gpsSatellites: Int,
-    registrationState: PlatformRegistrationState,
+    aircraftIdentityState: AircraftIdentityState,
     taskContext: FlightTaskContext.Ready?,
     showEngineerDetails: Boolean,
     productShortLabel: String,
@@ -96,7 +96,7 @@ fun FlightMinimalTopHud(
                 .padding(4.dp),
             contentAlignment = Alignment.Center
         ) {
-            ServerConnectionIndicatorDot(registrationState = registrationState)
+            AircraftIdentityIndicatorDot(aircraftIdentityState = aircraftIdentityState)
         }
 
         if (taskContext != null) {

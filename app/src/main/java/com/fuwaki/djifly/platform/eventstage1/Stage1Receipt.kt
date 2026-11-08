@@ -26,7 +26,7 @@ internal object Stage1Receipt {
     fun readSummary(bytes: ByteArray, pilotId: Long): ExpectedPacket {
         val o = Stage1Json.obj(Stage1Json.parse(bytes))
         require(Stage1Json.long(o["localSummaryVersion"]) == 1L && Stage1Json.text(o["pilotId"]) == pilotId.toString()) { "Operation belongs to another pilot" }
-        require(Stage1Json.long(o["schemaVersion"]) == 1L && Stage1Json.long(o["hashVersion"]) == 1L)
+        require(Stage1Json.long(o["schemaVersion"]) == 2L && Stage1Json.long(o["hashVersion"]) == 2L)
         val identity = Stage1Codec().identity(o)
         val id = Stage1Json.uuid(Stage1Json.text(o["packetId"]))
         val height = Stage1Json.long(o["height"]); require(height in 1..1000000)
@@ -42,7 +42,7 @@ internal object Stage1Receipt {
         require(envelope["success"]?.isJsonPrimitive == true && envelope["success"].asJsonPrimitive.isBoolean && envelope["success"].asBoolean)
         require(Stage1Json.long(envelope["code"]) == 200L)
         require(Stage1Json.nullableText(envelope["errorCode"]) == null)
-        val data = Stage1Json.obj(envelope["data"]); require(Stage1Json.long(data["schemaVersion"]) == 1L)
+        val data = Stage1Json.obj(envelope["data"]); require(Stage1Json.long(data["schemaVersion"]) == 2L)
         val receipt = validate(Stage1Json.obj(data["receipt"]), expected)
         // Fixed durability does not depend on dynamic progress. Malformed/missing progress is not synchronization proof.
         val progressRaw = data["progress"]

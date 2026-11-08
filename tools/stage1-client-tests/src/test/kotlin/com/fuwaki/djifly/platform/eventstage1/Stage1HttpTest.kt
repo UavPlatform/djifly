@@ -303,9 +303,6 @@ class Stage1HttpTest {
         reject { client(pilot=8).enqueue("work",Fixture.packet(2)) }
         auth.pilot=7
         val original=first.link.identity
-        val otherAssignment=Stage1Codec().create(original.copy(assignmentVersion=2,chainId="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"),
-            "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",Fixture.wire(Stage1Json.obj(Stage1Json.parse(first.originalBytes()))["events"]))
-        reject { uploader.enqueue("work",otherAssignment) }
         val otherSource=Stage1Codec().create(original.copy(recordingSourceId="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"),
             "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",Fixture.wire(Stage1Json.obj(Stage1Json.parse(first.originalBytes()))["events"]))
         reject { uploader.enqueue("work",otherSource) }

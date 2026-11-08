@@ -67,16 +67,14 @@ class HomeViewModel @Inject constructor(
         val upload = UploadReportStatusResolver.resolve(
             hasFlyableOrder = hasOrder,
             aircraftConfirmed = connected,
-            connection = dispatch.connection,
-            pendingSamples = dispatch.pendingSamples,
-            lastError = dispatch.lastError ?: dispatch.connection?.rejected,
+            recordingActive = dispatch.recordingActive,
+            pendingPackets = dispatch.pendingPackets,
+            lastError = dispatch.lastError,
         )
         val platformLabel = when {
             !connected -> "未连机"
-            dispatch.connection?.rejected != null -> "登记失败可重试"
-            dispatch.connection?.serverId != null -> "已在线"
-            dispatch.connection != null -> "正在登记"
-            else -> "等待登记"
+            dispatch.recordingActive -> "已连接，正在记录"
+            else -> "已连接，等待记录"
         }
         val next = when {
             !connected && recognizing -> "正在读取机身号，请稍候"
@@ -104,8 +102,8 @@ class HomeViewModel @Inject constructor(
             uploadStatus = UploadReportStatusResolver.resolve(
                 hasFlyableOrder = false,
                 aircraftConfirmed = false,
-                connection = null,
-                pendingSamples = 0,
+                recordingActive = false,
+                pendingPackets = 0,
                 lastError = null,
             ),
         )

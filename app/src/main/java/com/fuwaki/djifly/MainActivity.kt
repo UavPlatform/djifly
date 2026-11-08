@@ -34,8 +34,8 @@ import com.fuwaki.djifly.data.error.GlobalErrorHandler
 import com.fuwaki.djifly.ui.effect.GlobalErrorEffect
 import com.fuwaki.djifly.ui.viewmodel.AuthViewModel
 import com.fuwaki.djifly.platform.livestream.LiveStopCoordinator
-import com.fuwaki.djifly.platform.registration.PlatformRegistrationManager
-import com.fuwaki.djifly.platform.ws.WsCommunicationState
+import com.fuwaki.djifly.platform.registration.AircraftIdentityManager
+import com.fuwaki.djifly.platform.telemetry.TelemetryUiState
 import com.fuwaki.djifly.sdk.DjiSdkManager
 import com.fuwaki.djifly.ui.navigation.Routes
 import com.fuwaki.djifly.ui.screen.DroneManageScreen
@@ -61,8 +61,8 @@ import javax.inject.Inject
 class MainActivity : FragmentActivity() {
 
     @Inject lateinit var sdkManager: DjiSdkManager
-    @Inject lateinit var registrationManager: PlatformRegistrationManager
-    @Inject lateinit var wsCommunicationState: WsCommunicationState
+    @Inject lateinit var aircraftIdentityManager: AircraftIdentityManager
+    @Inject lateinit var telemetryUiState: TelemetryUiState
     @Inject lateinit var errorHandler: GlobalErrorHandler
     @Inject lateinit var liveStopCoordinator: LiveStopCoordinator
 
@@ -187,7 +187,7 @@ class MainActivity : FragmentActivity() {
                                 viewModel = taskVm,
                                 onBack = { navController.popBackStack() },
                                 onStartFlight = { navController.navigate(Routes.starter(taskNum)) },
-                                onStartLiveStream = { taskVm.requestRiderLiveStream() }
+                                onStartLiveStream = { taskVm.toggleDispatchLiveFromDetail(taskNum) }
                             )
                         }
 
@@ -209,7 +209,7 @@ class MainActivity : FragmentActivity() {
                         ) { backStackEntry ->
                             StarterScreen(
                                 sdkManager = sdkManager,
-                                registrationManager = registrationManager,
+                                aircraftIdentityManager = aircraftIdentityManager,
                                 taskNum = backStackEntry.arguments?.getString("taskNum"),
                                 onEnterFlight = { taskNum ->
                                     navController.navigate(Routes.flight(taskNum))
@@ -236,8 +236,8 @@ class MainActivity : FragmentActivity() {
                             DjiflyTheme(darkTheme = true) {
                                 FlightScreen(
                                     sdkManager = sdkManager,
-                                    registrationManager = registrationManager,
-                                    wsCommunicationState = wsCommunicationState,
+                                    aircraftIdentityManager = aircraftIdentityManager,
+                                    telemetryUiState = telemetryUiState,
                                     liveStopCoordinator = liveStopCoordinator,
                                     taskNum = backStackEntry.arguments?.getString("taskNum"),
                                     onBack = {

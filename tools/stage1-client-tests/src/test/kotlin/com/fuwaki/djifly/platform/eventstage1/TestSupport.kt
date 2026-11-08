@@ -6,7 +6,7 @@ import com.fuwaki.djifly.platform.eventstore.core.SqlSession
 import java.sql.DriverManager
 
 internal object Fixture {
-    val doc: JsonObject = JsonParser.parseString(javaClass.getResourceAsStream("/backend-d10fc1b/golden-vectors.json")!!.use { it.readBytes().toString(Charsets.UTF_8) }).asJsonObject
+    val doc: JsonObject = JsonParser.parseString(javaClass.getResourceAsStream("/backend-83c5975/golden-vectors.json")!!.use { it.readBytes().toString(Charsets.UTF_8) }).asJsonObject
     fun vector(index: Int) = doc.getAsJsonArray("vectors")[index].asJsonObject
     fun unhex(hex: String) = hex.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
     fun raw(index: Int = 0) = unhex(vector(index)["inputUtf8Hex"].asString)
@@ -38,7 +38,7 @@ internal object Fixture {
         }
         return JsonObject().also { e ->
             e.addProperty("success",true);e.addProperty("code",200);e.add("errorCode",JsonNull.INSTANCE);e.addProperty("message","操作成功")
-            e.add("data",JsonObject().also { it.addProperty("schemaVersion",1);it.add("receipt",receipt);it.add("progress",progress) })
+            e.add("data",JsonObject().also { it.addProperty("schemaVersion",2);it.add("receipt",receipt);it.add("progress",progress) })
         }
     }
     fun wire(json: JsonElement) = json.toString().toByteArray(Charsets.UTF_8)

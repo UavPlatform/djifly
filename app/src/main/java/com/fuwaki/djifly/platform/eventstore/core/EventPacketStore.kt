@@ -7,6 +7,7 @@ import java.security.MessageDigest
 data class PacketInput(val packetId: String, val serialNumber: String, val body: ByteArray, val summary: ByteArray)
 data class StoredPacket(val packetId: String, val serialNumber: String, val body: ByteArray?, val summary: ByteArray, val durableReceipt: ByteArray?, val localPosition: Long)
 data class OperationSnapshot(val orderId: String, val cutoff: ByteArray?, val packets: List<StoredPacket>)
+data class OperationRef(val operationId: String, val orderId: String)
 
 /**
  * Isolated foundation, NOT yet wired to SDK callbacks or Retrofit.
@@ -141,6 +142,18 @@ class EventPacketStore(private val sql: SqlSession, val recordingSourceId: Strin
 
     /** Bounded lookup APIs for isolated upload adapters; never recover full operation history to send one packet. */
     @Synchronized fun operationOrderId(operationId: String): String = sql.transaction { operationRow(operationId)[0] as String }
+
+    /** Small recovery index used by the process uploader; packet bodies remain the source of truth. */
+    @Synchronized fun operations(): List<OperationRef> = sql.transaction {
+        sql.query("SELECT id, order_id FROM operation ORDER BY rowid")
+            .map { OperationRef(it[0] as String, it[1] as String) }
+    }
+
+    @Synchronized fun pendingCount(operationId: String): Int = sql.transaction {
+        operationRow(operationId)
+        (sql.query("SELECT COUNT(*) FROM packet WHERE operation_id=? AND receipt IS NULL", operationId)
+            .single().single() as Number).toInt()
+    }
 
     @Synchronized fun packet(operationId: String, packetId: String): StoredPacket = sql.transaction {
         operationRow(operationId)

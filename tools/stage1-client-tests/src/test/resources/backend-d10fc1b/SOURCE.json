@@ -1,9 +1,0 @@
-{
-  "repository": "https://github.com/UavPlatform/backend",
-  "commit": "d10fc1bc116a6b952312beced2fd4fd8aa5a1d1b",
-  "clientBase": "8702b4324c65f7d1b5ab2c23ffc1478379fb74af",
-  "path": "spec/event-contract/golden-vectors.json",
-  "gitBlobSha": "4517840862976948633598fdd8dcadf08dd7ff4b",
-  "sha256": "08228ecea348d292db2cdf688112b0d2aae8ade3f1ac6daaaccf4e29e1b2a9b4",
-  "note": "Test fixture only, not a second contract authority. Current tree confirms Stage1 spec/service blobs identical to inspected d924e345; d10fc1b changes only deploy/Caddyfile."
-}

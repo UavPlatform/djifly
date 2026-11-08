@@ -23,7 +23,6 @@ import com.fuwaki.djifly.data.models.TaskVo
 import com.fuwaki.djifly.ui.components.*
 import com.fuwaki.djifly.ui.theme.*
 import com.fuwaki.djifly.ui.viewmodel.ActionState
-import com.fuwaki.djifly.platform.live.RiderLiveRequestState
 import com.fuwaki.djifly.ui.viewmodel.TaskViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -38,19 +37,7 @@ fun TaskDetailScreen(
     val taskDetail by viewModel.taskDetail.collectAsState()
     val loading by viewModel.detailLoading.collectAsState()
     val actionState by viewModel.actionState.collectAsState()
-    val liveRequestState by viewModel.liveRequestState.collectAsState()
     val toastContext = LocalContext.current
-
-    // 飞手主动开播结果提示（1B-4b：文案来自 RiderLiveRequestMapper 错误语义映射）
-    LaunchedEffect(liveRequestState) {
-        when (val state = liveRequestState) {
-            is RiderLiveRequestState.Success ->
-                Toast.makeText(toastContext, state.userMessage, Toast.LENGTH_SHORT).show()
-            is RiderLiveRequestState.Error ->
-                Toast.makeText(toastContext, state.userMessage, Toast.LENGTH_LONG).show()
-            else -> {}
-        }
-    }
 
     val snackbarHostState = remember { SnackbarHostState() }
 

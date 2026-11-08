@@ -50,13 +50,6 @@ fun DispatchOrderCard(
                 Spacer(Modifier.height(4.dp))
                 Text(text = "上报：$it", style = MaterialTheme.typography.bodyMedium)
             }
-            if (state.connection?.overweight == true) {
-                Text(
-                    "货物重量超过该机型登记载重，请注意飞行安全",
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
             state.cacheWarning?.let {
                 Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
             }

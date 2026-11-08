@@ -21,6 +21,7 @@
         <sourceDir>${project.basedir}/../../app/src/test/java/com/fuwaki/djifly/platform/network/OpenApiContractTest.kt</sourceDir>
         <sourceDir>${project.basedir}/../../app/src/test/java/com/fuwaki/djifly/platform/eventstore</sourceDir>
         <sourceDir>${project.basedir}/../../app/src/test/java/com/fuwaki/djifly/platform/eventstream</sourceDir>
+        <sourceDir>${project.basedir}/src/test/kotlin/com/fuwaki/djifly/platform/eventstage1/EventStreamPacketEncoderTest.kt</sourceDir>
       </sourceDirs></configuration>
       <executions><execution><id>test-compile</id><phase>test-compile</phase><goals><goal>test-compile</goal></goals></execution></executions>
     </plugin>

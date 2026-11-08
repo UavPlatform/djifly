@@ -2,9 +2,7 @@ package com.fuwaki.djifly.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.fuwaki.djifly.data.error.AppErrorMapping
 import com.fuwaki.djifly.data.error.GlobalErrorHandler
-import com.fuwaki.djifly.data.error.apiCall
 import com.fuwaki.djifly.data.models.TaskVo
 import com.fuwaki.djifly.platform.attachment.DeliverableCheck
 import com.fuwaki.djifly.platform.attachment.DeliverableItemPhase
@@ -14,10 +12,7 @@ import com.fuwaki.djifly.platform.attachment.DeliverableUploadOutcome
 import com.fuwaki.djifly.platform.attachment.DeliverableRetention
 import com.fuwaki.djifly.platform.attachment.DeliverableUploader
 import com.fuwaki.djifly.platform.attachment.PendingDeliverable
-import com.fuwaki.djifly.platform.live.RiderLiveRequestMapper
 import com.fuwaki.djifly.platform.livestream.DispatchLivePublisher
-import com.fuwaki.djifly.platform.live.RiderLiveRequestState
-import com.fuwaki.djifly.platform.registration.PlatformRegistrationStore
 import com.fuwaki.djifly.platform.network.PlatformApiService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,7 +31,6 @@ sealed class ActionState {
 @HiltViewModel
 class TaskViewModel @Inject constructor(
     private val api: PlatformApiService,
-    private val registrationStore: PlatformRegistrationStore,
     private val deliverableUploader: DeliverableUploader,
     private val dispatchLivePublisher: DispatchLivePublisher,
     val errorHandler: GlobalErrorHandler // 暴露给 UI 层的 GlobalErrorEffect 使用
@@ -52,9 +46,6 @@ class TaskViewModel @Inject constructor(
     private val _actionState = MutableStateFlow<ActionState>(ActionState.Idle)
     val actionState: StateFlow<ActionState> = _actionState
 
-    // 飞手主动开播（1B-4b，Q3=C）
-    private val _liveRequestState = MutableStateFlow<RiderLiveRequestState>(RiderLiveRequestState.Idle)
-    val liveRequestState: StateFlow<RiderLiveRequestState> = _liveRequestState
     val dispatchLiveState = dispatchLivePublisher.state
 
     fun toggleDispatchLive(orderId: String) = dispatchLivePublisher.toggle(orderId)
@@ -144,33 +135,7 @@ class TaskViewModel @Inject constructor(
      * 飞手主动开播（1B-4b）：对本人在平台注册且绑定的在线设备下发开播。
      * deviceId 取最近注册快照的 serialNumber；未注册直接本地报错（与后端 404 语义一致）。
      */
-    fun requestRiderLiveStream() {
-        viewModelScope.launch {
-            _liveRequestState.value = RiderLiveRequestState.Loading
-            val deviceId = registrationStore.latestRegistration.firstOrNull()?.serialNumber
-            if (deviceId.isNullOrBlank()) {
-                _liveRequestState.value = RiderLiveRequestState.Error(
-                    RiderLiveRequestMapper.userMessageFor(
-                        com.fuwaki.djifly.data.error.AppError.Http(404, "设备未注册")
-                    )
-                )
-                return@launch
-            }
-            apiCall(errorHandler) { api.requestRiderLive(deviceId) }
-                .onSuccess { vo ->
-                    _liveRequestState.value = RiderLiveRequestState.Success(
-                        userMessage = RiderLiveRequestMapper.successMessage(vo),
-                        liveState = vo.liveState,
-                        alreadyRunning = RiderLiveRequestMapper.isAlreadyRunning(vo)
-                    )
-                }
-                .onError { error ->
-                    _liveRequestState.value = RiderLiveRequestState.Error(
-                        RiderLiveRequestMapper.userMessageFor(error)
-                    )
-                }
-        }
-    }
+    fun toggleDispatchLiveFromDetail(orderId: String) = dispatchLivePublisher.toggle(orderId)
 
     // -----------------------------------------------------------------------
     // 交付物上传（1B-9b）

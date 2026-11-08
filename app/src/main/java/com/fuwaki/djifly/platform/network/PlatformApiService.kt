@@ -1,27 +1,28 @@
 package com.fuwaki.djifly.platform.network
 
 import com.fuwaki.djifly.data.models.ApiResult
-import com.fuwaki.djifly.data.models.LiveStartVo
 import com.fuwaki.djifly.data.models.LoginResponse
 import com.fuwaki.djifly.data.models.RefreshResponse
-import com.fuwaki.djifly.platform.network.generated.ApiDispatchLiveHeartbeatDTO
-import com.fuwaki.djifly.platform.network.generated.ApiDispatchLiveStartDTO
-import com.fuwaki.djifly.platform.network.generated.ApiResultDispatchLiveStatusVO
-import com.fuwaki.djifly.platform.network.generated.ApiResultDispatchLiveCredentialsVO
 import com.fuwaki.djifly.platform.network.generated.ApiDispatchAssignmentDTO
 import com.fuwaki.djifly.platform.network.generated.ApiDispatchDeliveryDTO
+import com.fuwaki.djifly.platform.network.generated.ApiDispatchLiveHeartbeatDTO
+import com.fuwaki.djifly.platform.network.generated.ApiDispatchLiveStartDTO
 import com.fuwaki.djifly.platform.network.generated.ApiDispatchMaterialUploadDTO
-import com.fuwaki.djifly.platform.network.generated.ApiFlightConnectDTO
-import com.fuwaki.djifly.platform.network.generated.ApiFlightSampleBatchDTO
+import com.fuwaki.djifly.platform.network.generated.ApiEventReconciliationDraftDTO
+import com.fuwaki.djifly.platform.network.generated.ApiPaths
+import com.fuwaki.djifly.platform.network.generated.ApiResultDispatchLiveCredentialsVO
+import com.fuwaki.djifly.platform.network.generated.ApiResultDispatchLiveStatusVO
 import com.fuwaki.djifly.platform.network.generated.ApiResultDispatchMaterialVO
 import com.fuwaki.djifly.platform.network.generated.ApiResultDispatchOrderVO
 import com.fuwaki.djifly.platform.network.generated.ApiResultDispatchUploadTicketVO
-import com.fuwaki.djifly.platform.network.generated.ApiResultFlightConnectionVO
-import com.fuwaki.djifly.platform.network.generated.ApiResultFlightSampleBatchVO
+import com.fuwaki.djifly.platform.network.generated.ApiResultEventPacketAckVO
+import com.fuwaki.djifly.platform.network.generated.ApiResultEventReconciliationVO
+import com.fuwaki.djifly.platform.network.generated.ApiResultFlightEventPageVO
+import com.fuwaki.djifly.platform.network.generated.ApiResultFlightProjectionVO
 import com.fuwaki.djifly.platform.network.generated.ApiResultListDispatchMaterialVO
 import com.fuwaki.djifly.platform.network.generated.ApiResultListDispatchOrderVO
-import com.fuwaki.djifly.platform.network.generated.ApiPaths
 import com.fuwaki.djifly.platform.network.generated.ApiUserLoginDto
+import okhttp3.RequestBody
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
@@ -30,49 +31,14 @@ import retrofit2.http.POST
 import retrofit2.http.Path
 import retrofit2.http.Query
 
+/** Single HTTP boundary for the dispatch client. */
 interface PlatformApiService {
 
-    @POST(ApiPaths.APP_UAV_ADD)
-    suspend fun registerDrone(
-        @Body request: RegisterDroneRequest
-    ): Response<RegisterDroneResponse>
-
-    @POST(ApiPaths.API_WS_REQUEST)
-    suspend fun requestDroneWebSocketConnection(
-        @Query("deviceId") deviceId: String
-    ): Response<RequestDroneWebSocketConnectionResponse>
-
     @POST(ApiPaths.USER_LOGIN)
-    suspend fun login(
-        @Body request: ApiUserLoginDto
-    ): Response<ApiResult<LoginResponse>>
+    suspend fun login(@Body request: ApiUserLoginDto): Response<ApiResult<LoginResponse>>
 
     @POST(ApiPaths.USER_REFRESH)
-    suspend fun refreshToken(
-        @Header("Refresh-Token") refreshToken: String
-    ): Response<ApiResult<RefreshResponse>>
-
-    @POST(ApiPaths.LIVE_RIDER_REQ)
-    suspend fun requestRiderLive(@Query("deviceId") deviceId: String): Response<ApiResult<LiveStartVo>>
-
-    @POST(ApiPaths.DISPATCH_PILOT_ORDERS_LIVE)
-    suspend fun startDispatchLive(
-        @Path("orderId") orderId: String,
-        @Body request: ApiDispatchLiveStartDTO
-    ): Response<ApiResultDispatchLiveCredentialsVO>
-
-    @POST(ApiPaths.DISPATCH_PILOT_ORDERS_LIVE_HEARTBEAT)
-    suspend fun heartbeatDispatchLive(
-        @Path("orderId") orderId: String,
-        @Path("liveId") liveId: String,
-        @Body request: ApiDispatchLiveHeartbeatDTO
-    ): Response<ApiResultDispatchLiveStatusVO>
-
-    @POST(ApiPaths.DISPATCH_PILOT_ORDERS_LIVE_STOP)
-    suspend fun stopDispatchLive(
-        @Path("orderId") orderId: String,
-        @Path("liveId") liveId: String
-    ): Response<ApiResult<Unit>>
+    suspend fun refreshToken(@Header("Refresh-Token") refreshToken: String): Response<ApiResult<RefreshResponse>>
 
     @GET(ApiPaths.DISPATCH_PILOT_ORDERS)
     suspend fun getMyDispatchOrders(): Response<ApiResultListDispatchOrderVO>
@@ -104,45 +70,71 @@ interface PlatformApiService {
         @Path("materialId") materialId: String
     ): Response<ApiResultDispatchMaterialVO>
 
-    @POST(ApiPaths.DISPATCH_PILOT_ORDERS_FLIGHT_CONNECTIONS)
-    suspend fun connectFlight(
+    /** Uploads the already encoded v2 packet; this method never builds protocol JSON. */
+    @POST(ApiPaths.DISPATCH_PILOT_ORDERS_EVENT_PACKETS)
+    suspend fun uploadEventPacket(
         @Path("orderId") orderId: String,
-        @Body request: ApiFlightConnectDTO
-    ): Response<ApiResultFlightConnectionVO>
+        @Body packet: RequestBody
+    ): Response<ApiResultEventPacketAckVO>
 
-    @POST(ApiPaths.DISPATCH_PILOT_ORDERS_FLIGHT_CONNECTIONS_SAMPLES_BATCH)
-    suspend fun uploadFlightSamples(
+    @POST(ApiPaths.DISPATCH_PILOT_ORDERS_EVENT_RECONCILIATION)
+    suspend fun reconcileEventChain(
         @Path("orderId") orderId: String,
-        @Path("connectionId") connectionId: String,
-        @Body request: ApiFlightSampleBatchDTO
-    ): Response<ApiResultFlightSampleBatchVO>
+        @Body request: ApiEventReconciliationDraftDTO
+    ): Response<ApiResultEventReconciliationVO>
 
-    @POST(ApiPaths.DISPATCH_PILOT_ORDERS_FLIGHT_CONNECTIONS_CLOSE)
-    suspend fun closeFlight(
+    @GET(ApiPaths.DISPATCH_ORDERS_FLIGHT)
+    suspend fun getFlightProjection(
+        @Path("orderId") orderId: String
+    ): Response<ApiResultFlightProjectionVO>
+
+    @GET(ApiPaths.DISPATCH_ORDERS_FLIGHT_TRACK)
+    suspend fun getFlightTrack(
         @Path("orderId") orderId: String,
-        @Path("connectionId") connectionId: String
+        @Query("after") after: Long? = null,
+        @Query("limit") limit: Int? = null
+    ): Response<ApiResultFlightEventPageVO>
+
+    @GET(ApiPaths.DISPATCH_ORDERS_FLIGHT_HISTORY)
+    suspend fun getFlightHistory(
+        @Path("orderId") orderId: String,
+        @Query("afterCapturedAt") afterCapturedAt: Long? = null,
+        @Query("afterEventId") afterEventId: String? = null,
+        @Query("limit") limit: Int? = null,
+        @Query("serialNumber") serialNumber: String? = null,
+        @Query("serialSource") serialSource: String? = null
+    ): Response<ApiResultFlightEventPageVO>
+
+    @POST(ApiPaths.DISPATCH_PILOT_ORDERS_LIVE)
+    suspend fun startDispatchLive(
+        @Path("orderId") orderId: String,
+        @Body request: ApiDispatchLiveStartDTO
+    ): Response<ApiResultDispatchLiveCredentialsVO>
+
+    @POST(ApiPaths.DISPATCH_PILOT_ORDERS_LIVE_HEARTBEAT)
+    suspend fun heartbeatDispatchLive(
+        @Path("orderId") orderId: String,
+        @Path("liveId") liveId: String,
+        @Body request: ApiDispatchLiveHeartbeatDTO
+    ): Response<ApiResultDispatchLiveStatusVO>
+
+    @POST(ApiPaths.DISPATCH_PILOT_ORDERS_LIVE_STOP)
+    suspend fun stopDispatchLive(
+        @Path("orderId") orderId: String,
+        @Path("liveId") liveId: String
     ): Response<ApiResult<Unit>>
+
+    @GET(ApiPaths.DISPATCH_ORDERS_LIVE)
+    suspend fun getDispatchLive(
+        @Path("orderId") orderId: String
+    ): Response<ApiResultDispatchLiveStatusVO>
+
+    @POST(ApiPaths.DISPATCH_ORDERS_LIVE_WATCH)
+    suspend fun watchDispatchLive(
+        @Path("orderId") orderId: String,
+        @Path("liveId") liveId: String
+    ): Response<ApiResultDispatchLiveCredentialsVO>
 }
-
-data class RegisterDroneRequest(
-    val uavName: String,
-    val onlineStatus: Char,
-    val djiId: String,
-    val controllerModel: String
-)
-
-data class RegisterDroneResponse(
-    val success: Boolean = false,
-    val id: Long? = null,
-    val name: String? = null,
-    val message: String? = null
-)
-
-data class RequestDroneWebSocketConnectionResponse(
-    val success: Boolean = false,
-    val code: String? = null,
-    val message: String? = null
-)
 
 data class PlatformApiErrorResponse(
     val success: Boolean = false,

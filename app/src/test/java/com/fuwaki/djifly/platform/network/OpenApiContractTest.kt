@@ -25,9 +25,6 @@ class OpenApiContractTest {
     private val calledEndpoints: List<List<String>> = listOf(
         listOf("post", "user/login"),
         listOf("post", "user/refresh"),
-        listOf("post", "appUav/add"),
-        listOf("post", "api/ws/request"),
-        listOf("post", "live/rider/req"),
         listOf("get", "dispatch/pilot/orders"),
         listOf("post", "dispatch/orders/{orderId}/start-transport"),
         listOf("post", "dispatch/orders/{orderId}/deliver"),
@@ -35,12 +32,15 @@ class OpenApiContractTest {
         listOf("post", "dispatch/orders/{orderId}/materials/upload-ticket"),
         listOf("post", "dispatch/orders/{orderId}/materials/{materialId}/confirm"),
         listOf("post", "dispatch/pilot/orders/{orderId}/event-packets"),
-        listOf("post", "dispatch/pilot/orders/{orderId}/flight-connections"),
-        listOf("post", "dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/samples/batch"),
-        listOf("post", "dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/close"),
-        listOf("post", "dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/live"),
-        listOf("post", "dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/live/{liveId}/heartbeat"),
-        listOf("post", "dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/live/{liveId}/stop"),
+        listOf("post", "dispatch/pilot/orders/{orderId}/event-reconciliation"),
+        listOf("get", "dispatch/orders/{orderId}/flight"),
+        listOf("get", "dispatch/orders/{orderId}/flight/track"),
+        listOf("get", "dispatch/orders/{orderId}/flight/history"),
+        listOf("post", "dispatch/pilot/orders/{orderId}/live"),
+        listOf("post", "dispatch/pilot/orders/{orderId}/live/{liveId}/heartbeat"),
+        listOf("post", "dispatch/pilot/orders/{orderId}/live/{liveId}/stop"),
+        listOf("get", "dispatch/orders/{orderId}/live"),
+        listOf("post", "dispatch/orders/{orderId}/live/{liveId}/watch"),
     )
 
     private val specFile: File by lazy { resolveSpecFile() }

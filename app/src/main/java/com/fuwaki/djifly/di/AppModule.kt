@@ -1,10 +1,13 @@
 package com.fuwaki.djifly.di
 
+import android.content.Context
 import com.fuwaki.djifly.BuildConfig
 import com.fuwaki.djifly.data.auth.AuthInterceptor
 import com.fuwaki.djifly.data.auth.TokenAuthenticator
 import com.fuwaki.djifly.platform.network.PlatformApiService
 import com.fuwaki.djifly.platform.network.PlatformEndpointResolver
+import com.fuwaki.djifly.platform.eventstore.android.AndroidEventStore
+import com.fuwaki.djifly.platform.eventstore.core.EventPacketStore
 import com.google.gson.Gson
 import dagger.Module
 import dagger.Provides
@@ -26,6 +29,10 @@ import javax.inject.Singleton
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
 annotation class ApplicationScope
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class EventUploadClient
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -81,6 +88,35 @@ object AppModule {
             .build()
             .create(PlatformApiService::class.java)
     }
+
+    @Provides
+    @Singleton
+    fun provideEventPacketStore(
+        @dagger.hilt.android.qualifiers.ApplicationContext context: Context,
+    ): EventPacketStore {
+        val directory = java.io.File(context.noBackupFilesDir, "event-packets")
+        val database = java.io.File(directory, "packets.sqlite")
+        val identity = java.io.File(directory, "recording-source")
+        return if (database.isFile || identity.isFile) {
+            AndroidEventStore.recover(context)
+        } else {
+            AndroidEventStore.initializeNew(context)
+        }
+    }
+
+    @Provides
+    @Singleton
+    @EventUploadClient
+    fun provideEventUploadClient(): OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(15, TimeUnit.SECONDS)
+        .writeTimeout(15, TimeUnit.SECONDS)
+        .callTimeout(30, TimeUnit.SECONDS)
+        .retryOnConnectionFailure(false)
+        .followRedirects(false)
+        .followSslRedirects(false)
+        .cookieJar(okhttp3.CookieJar.NO_COOKIES)
+        .build()
 }
 
 private class PlatformHeadersInterceptor : Interceptor {

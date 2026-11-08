@@ -1,7 +1,7 @@
 // GENERATED — DO NOT EDIT.
 // 契约路径表：调用点只允许引用 ApiPaths 常量，禁止散落路径字面量。
 // 生成器：tools/openapi-gen.mjs
-// 事实源：openapi/drone-backend.openapi.json (sha256: 2ba6bb1a876ac4d131c77031aa5e286f1e4585bc0a47004ad2dfe866f7f9193e)
+// 事实源：openapi/drone-backend.openapi.json (sha256: 7ec87cd38ffd367a84174f871d1f48d9bbc694f59397e96e012650f4d397bf82)
 // 生成命令：cd djifly && node tools/openapi-gen.mjs
 
 package com.fuwaki.djifly.platform.network.generated
@@ -19,15 +19,6 @@ object ApiPaths {
 
     /** POST user/refresh */
     const val USER_REFRESH = "user/refresh"
-
-    /** POST appUav/add */
-    const val APP_UAV_ADD = "appUav/add"
-
-    /** POST api/ws/request */
-    const val API_WS_REQUEST = "api/ws/request"
-
-    /** POST live/rider/req */
-    const val LIVE_RIDER_REQ = "live/rider/req"
 
     /** GET dispatch/pilot/orders */
     const val DISPATCH_PILOT_ORDERS = "dispatch/pilot/orders"
@@ -50,14 +41,17 @@ object ApiPaths {
     /** POST dispatch/pilot/orders/{orderId}/event-packets */
     const val DISPATCH_PILOT_ORDERS_EVENT_PACKETS = "dispatch/pilot/orders/{orderId}/event-packets"
 
-    /** POST dispatch/pilot/orders/{orderId}/flight-connections */
-    const val DISPATCH_PILOT_ORDERS_FLIGHT_CONNECTIONS = "dispatch/pilot/orders/{orderId}/flight-connections"
+    /** POST dispatch/pilot/orders/{orderId}/event-reconciliation */
+    const val DISPATCH_PILOT_ORDERS_EVENT_RECONCILIATION = "dispatch/pilot/orders/{orderId}/event-reconciliation"
 
-    /** POST dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/samples/batch */
-    const val DISPATCH_PILOT_ORDERS_FLIGHT_CONNECTIONS_SAMPLES_BATCH = "dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/samples/batch"
+    /** GET dispatch/orders/{orderId}/flight */
+    const val DISPATCH_ORDERS_FLIGHT = "dispatch/orders/{orderId}/flight"
 
-    /** POST dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/close */
-    const val DISPATCH_PILOT_ORDERS_FLIGHT_CONNECTIONS_CLOSE = "dispatch/pilot/orders/{orderId}/flight-connections/{connectionId}/close"
+    /** GET dispatch/orders/{orderId}/flight/track */
+    const val DISPATCH_ORDERS_FLIGHT_TRACK = "dispatch/orders/{orderId}/flight/track"
+
+    /** GET dispatch/orders/{orderId}/flight/history */
+    const val DISPATCH_ORDERS_FLIGHT_HISTORY = "dispatch/orders/{orderId}/flight/history"
 
     /** POST dispatch/pilot/orders/{orderId}/live */
     const val DISPATCH_PILOT_ORDERS_LIVE = "dispatch/pilot/orders/{orderId}/live"
@@ -68,6 +62,12 @@ object ApiPaths {
     /** POST dispatch/pilot/orders/{orderId}/live/{liveId}/stop */
     const val DISPATCH_PILOT_ORDERS_LIVE_STOP = "dispatch/pilot/orders/{orderId}/live/{liveId}/stop"
 
+    /** GET dispatch/orders/{orderId}/live */
+    const val DISPATCH_ORDERS_LIVE = "dispatch/orders/{orderId}/live"
+
+    /** POST dispatch/orders/{orderId}/live/{liveId}/watch */
+    const val DISPATCH_ORDERS_LIVE_WATCH = "dispatch/orders/{orderId}/live/{liveId}/watch"
+
     /** 事实源规格 openapi/drone-backend.openapi.json 的 sha256（门禁测试对账）。 */
-    const val GENERATED_FROM_SHA256 = "2ba6bb1a876ac4d131c77031aa5e286f1e4585bc0a47004ad2dfe866f7f9193e"
+    const val GENERATED_FROM_SHA256 = "7ec87cd38ffd367a84174f871d1f48d9bbc694f59397e96e012650f4d397bf82"
 }

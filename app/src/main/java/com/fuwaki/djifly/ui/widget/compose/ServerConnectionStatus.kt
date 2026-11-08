@@ -35,72 +35,47 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.fuwaki.djifly.platform.registration.PlatformRegistrationState
-import com.fuwaki.djifly.platform.ws.WsMessageDirection
-import com.fuwaki.djifly.platform.ws.WsMessageLog
+import com.fuwaki.djifly.platform.registration.AircraftIdentityState
+import com.fuwaki.djifly.platform.telemetry.TelemetryMessageDirection
+import com.fuwaki.djifly.platform.telemetry.TelemetryMessageLog
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-data class ServerConnectionUiModel(
+data class AircraftIdentityUiModel(
     val status: String,
     val detail: String,
     val color: Color,
     val isConnected: Boolean
 )
 
-fun PlatformRegistrationState.toServerConnectionUiModel(): ServerConnectionUiModel = when (this) {
-    PlatformRegistrationState.WaitingForAircraft -> ServerConnectionUiModel(
+fun AircraftIdentityState.toAircraftIdentityUiModel(): AircraftIdentityUiModel = when (this) {
+    AircraftIdentityState.WaitingForAircraft -> AircraftIdentityUiModel(
         status = "待连接",
-        detail = "等待飞机连接并读取序列号后再向服务器注册",
+        detail = "等待飞机连接并读取身份",
         color = Color(0xFF90A4AE),
         isConnected = false
     )
 
-    is PlatformRegistrationState.Registering -> ServerConnectionUiModel(
-        status = "连接中",
-        detail = "正在向服务器登记 ${serialNumber}",
-        color = Color(0xFF1E88E5),
-        isConnected = false
-    )
-
-    is PlatformRegistrationState.RetryScheduled -> ServerConnectionUiModel(
-        status = "重试中",
-        detail = "${retryAfterSeconds} 秒后发起第 ${nextAttempt} 次重试",
-        color = Color(0xFFFB8C00),
-        isConnected = false
-    )
-
-    is PlatformRegistrationState.Registered -> ServerConnectionUiModel(
+    is AircraftIdentityState.Registered -> AircraftIdentityUiModel(
         status = "已连接",
         detail = buildString {
             append(droneName)
-            if (droneId != null) {
-                append(" · ID ")
-                append(droneId)
-            }
             append(" · ")
             append(serialNumber)
         },
         color = Color(0xFF2E7D32),
         isConnected = true
     )
-
-    is PlatformRegistrationState.Failed -> ServerConnectionUiModel(
-        status = "连接异常",
-        detail = reason,
-        color = Color(0xFFC62828),
-        isConnected = false
-    )
 }
 
 @Composable
-fun ServerConnectionChip(
-    registrationState: PlatformRegistrationState,
+fun AircraftIdentityChip(
+    aircraftIdentityState: AircraftIdentityState,
     modifier: Modifier = Modifier,
     showDetail: Boolean = true
 ) {
-    val uiModel = registrationState.toServerConnectionUiModel()
+    val uiModel = aircraftIdentityState.toAircraftIdentityUiModel()
 
     Surface(
         modifier = modifier,
@@ -141,11 +116,11 @@ fun ServerConnectionChip(
 }
 
 @Composable
-fun ServerConnectionIndicatorDot(
-    registrationState: PlatformRegistrationState,
+fun AircraftIdentityIndicatorDot(
+    aircraftIdentityState: AircraftIdentityState,
     modifier: Modifier = Modifier
 ) {
-    val uiModel = registrationState.toServerConnectionUiModel()
+    val uiModel = aircraftIdentityState.toAircraftIdentityUiModel()
 
     Box(
         modifier = modifier,
@@ -162,8 +137,8 @@ fun ServerConnectionIndicatorDot(
 }
 
 @Composable
-fun WebSocketMessageHistoryDialog(
-    messages: List<WsMessageLog>,
+fun TelemetryEventHistoryDialog(
+    messages: List<TelemetryMessageLog>,
     onDismiss: () -> Unit
 ) {
     Dialog(
@@ -252,7 +227,7 @@ fun WebSocketMessageHistoryDialog(
                                 items = messages.asReversed(),
                                 key = { it.stableKey() }
                             ) { log ->
-                                WebSocketMessageItem(log)
+                                TelemetryEventItem(log)
                             }
                         }
                     }
@@ -263,11 +238,11 @@ fun WebSocketMessageHistoryDialog(
 }
 
 @Composable
-fun WebSocketMessageHistory(
-    messages: List<WsMessageLog>,
+fun TelemetryEventHistory(
+    messages: List<TelemetryMessageLog>,
     modifier: Modifier = Modifier,
     maxItems: Int = 50,
-    header: String = "WebSocket 日志",
+    header: String = "遥测事件记录",
     emptyMessage: String = "暂无消息"
 ) {
     val displayMessages = messages.takeLast(maxItems).asReversed()
@@ -315,7 +290,7 @@ fun WebSocketMessageHistory(
                         items = displayMessages,
                         key = { it.stableKey() }
                     ) { log ->
-                        WebSocketMessageItem(log)
+                        TelemetryEventItem(log)
                     }
                 }
             }
@@ -323,24 +298,24 @@ fun WebSocketMessageHistory(
     }
 }
 
-private fun WsMessageLog.stableKey(): String {
+private fun TelemetryMessageLog.stableKey(): String {
     return "$timestamp-${direction.name}-$type-${name.orEmpty()}-${content.hashCode()}"
 }
 
 @Composable
-private fun WebSocketMessageItem(log: WsMessageLog) {
+private fun TelemetryEventItem(log: TelemetryMessageLog) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 5.dp)
     ) {
         val directionColor = when (log.direction) {
-            WsMessageDirection.SENT -> Color(0xFF4CAF50)
-            WsMessageDirection.RECEIVED -> Color(0xFF2196F3)
+            TelemetryMessageDirection.SENT -> Color(0xFF4CAF50)
+            TelemetryMessageDirection.RECEIVED -> Color(0xFF2196F3)
         }
         val directionText = when (log.direction) {
-            WsMessageDirection.SENT -> "↑"
-            WsMessageDirection.RECEIVED -> "↓"
+            TelemetryMessageDirection.SENT -> "↑"
+            TelemetryMessageDirection.RECEIVED -> "↓"
         }
         Row(
             modifier = Modifier.fillMaxWidth(),

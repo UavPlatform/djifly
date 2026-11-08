@@ -52,8 +52,8 @@ class Stage1CodecTest {
         assertEquals("[2,1]",Stage1Json.canonical(Stage1Json.parse("[2,1]".toByteArray())).toString(Charsets.UTF_8))
         assertNotEquals(Stage1Json.sha(Stage1Json.canonical(Stage1Json.parse("{\"s\":\"é\"}".toByteArray()))),Stage1Json.sha(Stage1Json.canonical(Stage1Json.parse("{\"s\":\"e\\u0301\"}".toByteArray()))))
     }
-    @Test fun identityAndAssignmentCannotDefaultOrChangeInsideChain() {
-        val p=Fixture.packet();reject { p.link.identity.copy(assignmentVersion=0) };reject { p.link.identity.copy(assignmentVersion=Stage1Json.SAFE+1) }
+    @Test fun identityCannotChangeInsideChain() {
+        val p=Fixture.packet()
         reject { codec.create(p.link.identity.copy(serialSource="PRODUCT"),"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","[]".toByteArray(),p.link) }
         reject { p.link.identity.copy(serialNumber=" SN") };reject { p.link.identity.copy(serialSource="product") }
         reject { codec.decode(p.originalBytes(),"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa") }
@@ -77,9 +77,9 @@ class Stage1CodecTest {
         assertEquals("UNKNOWN_EVENT",Stage1Json.obj(Stage1Json.parse(encoded.originalBytes()))["events"].asJsonArray[0].asJsonObject["type"].asString)
     }
     @Test fun fixtureSourceIsPinnedToActualBackendNotAnotherAuthority() {
-        val source=javaClass.getResourceAsStream("/backend-d10fc1b/SOURCE.json")!!.use { JsonParser.parseString(it.readBytes().toString(Charsets.UTF_8)).asJsonObject }
-        assertEquals("d10fc1bc116a6b952312beced2fd4fd8aa5a1d1b",source["commit"].asString)
-        val bytes=javaClass.getResourceAsStream("/backend-d10fc1b/golden-vectors.json")!!.use { it.readBytes() }
+        val source=javaClass.getResourceAsStream("/backend-83c5975/SOURCE.json")!!.use { JsonParser.parseString(it.readBytes().toString(Charsets.UTF_8)).asJsonObject }
+        assertEquals("83c597508d4b8728b64d914cb3b9c656f3481b11",source["commit"].asString)
+        val bytes=javaClass.getResourceAsStream("/backend-83c5975/golden-vectors.json")!!.use { it.readBytes() }
         assertEquals(source["sha256"].asString,Stage1Json.sha(bytes))
         val gitBlob=java.security.MessageDigest.getInstance("SHA-1").digest(("blob ${bytes.size}\u0000").toByteArray()+bytes)
             .joinToString(""){"%02x".format(it.toInt() and 255)}

@@ -53,7 +53,7 @@ data class DispatchPublisherState(
     val error: String? = null
 )
 
-/** Owns the publisher and lease for one server-registered flight connection. */
+/** Owns the publisher and lease for one order-level live session. */
 @Singleton
 class DispatchLivePublisher @Inject constructor(
     private val api: PlatformApiService,
@@ -114,7 +114,7 @@ class DispatchLivePublisher @Inject constructor(
 
     private suspend fun start(orderId: String) {
         if (video.isSessionActive) {
-            fail("已有设备直播正在运行，请先关闭后再开启订单直播")
+            fail("已有图传会话正在运行，请先关闭后再开启订单直播")
             return
         }
         _state.value = DispatchPublisherState(orderId)
@@ -156,7 +156,7 @@ class DispatchLivePublisher @Inject constructor(
             return
         }
         if (video.isSessionActive) {
-            finish(current, "飞行连接或直播状态已变化，请重新开播")
+            finish(current, "图传状态已变化，请重新开播")
             return
         }
 

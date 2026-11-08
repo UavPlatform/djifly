@@ -78,7 +78,6 @@ import com.fuwaki.djifly.platform.attachment.DeliverableItemUi
 import com.fuwaki.djifly.platform.attachment.DeliveryCompletionGate
 import com.fuwaki.djifly.platform.attachment.FpvFramePhotoCapture
 import com.fuwaki.djifly.platform.attachment.FpvPhotoResult
-import com.fuwaki.djifly.platform.live.RiderLiveRequestState
 import com.fuwaki.djifly.platform.livestream.LiveStopCoordinator
 import com.fuwaki.djifly.ui.viewmodel.ActionState
 import com.fuwaki.djifly.ui.viewmodel.TaskViewModel
@@ -87,11 +86,11 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import com.fuwaki.djifly.platform.registration.PlatformRegistrationManager
-import com.fuwaki.djifly.platform.registration.PlatformRegistrationState
-import com.fuwaki.djifly.platform.ws.WsCommunicationState
-import com.fuwaki.djifly.platform.ws.WsConnectionState
-import com.fuwaki.djifly.platform.ws.WsMessageLog
+import com.fuwaki.djifly.platform.registration.AircraftIdentityManager
+import com.fuwaki.djifly.platform.registration.AircraftIdentityState
+import com.fuwaki.djifly.platform.telemetry.TelemetryUiState
+import com.fuwaki.djifly.platform.telemetry.TelemetryStreamState
+import com.fuwaki.djifly.platform.telemetry.TelemetryMessageLog
 import com.fuwaki.djifly.sdk.DjiSdkManager
 import com.fuwaki.djifly.sdk.DjiSdkStatus
 import com.fuwaki.djifly.sdk.SdkConnectionState
@@ -101,10 +100,10 @@ import com.fuwaki.djifly.ui.widget.HorizontalSituationIndicatorWidget
 import com.fuwaki.djifly.ui.widget.LensControlWidget
 import com.fuwaki.djifly.ui.widget.compose.CameraConfigBar
 import com.fuwaki.djifly.ui.widget.compose.ReturnHomeButton
-import com.fuwaki.djifly.ui.widget.compose.ServerConnectionChip
-import com.fuwaki.djifly.ui.widget.compose.ServerConnectionIndicatorDot
+import com.fuwaki.djifly.ui.widget.compose.AircraftIdentityChip
+import com.fuwaki.djifly.ui.widget.compose.AircraftIdentityIndicatorDot
 import com.fuwaki.djifly.ui.widget.compose.TakeOffButton
-import com.fuwaki.djifly.ui.widget.compose.WebSocketMessageHistory
+import com.fuwaki.djifly.ui.widget.compose.TelemetryEventHistory
 import com.fuwaki.djifly.ui.components.FlightEdgeCameraButton
 import com.fuwaki.djifly.ui.components.FlightMinimalTopHud
 import com.fuwaki.djifly.ui.components.FlightToolsMenuSheet
@@ -134,7 +133,7 @@ private enum class FlightBottomPanel(
     ),
     Link(
         title = "链路与通讯",
-        subtitle = "服务器注册、WebSocket 状态与消息历史"
+        subtitle = "飞机身份、遥测事件与上传状态"
     ),
     Info(
         title = "机体与系统",
@@ -170,8 +169,8 @@ private fun Context.findFragmentActivity(): FragmentActivity? {
 @Composable
 fun FlightScreen(
     sdkManager: DjiSdkManager,
-    registrationManager: PlatformRegistrationManager,
-    wsCommunicationState: WsCommunicationState,
+    aircraftIdentityManager: AircraftIdentityManager,
+    telemetryUiState: TelemetryUiState,
     liveStopCoordinator: LiveStopCoordinator,
     taskNum: String? = null,
     onBack: () -> Unit,
@@ -225,21 +224,11 @@ fun FlightScreen(
     var capturingEvidence by remember { mutableStateOf(false) }
 
     val deliverables = taskViewModel.deliverables.collectAsState()
-    val liveRequestState by taskViewModel.liveRequestState.collectAsState()
     val dispatchLive by taskViewModel.dispatchLiveState.collectAsState()
     LaunchedEffect(dispatchLive.error) {
         dispatchLive.error?.let { Toast.makeText(toastContext, it, Toast.LENGTH_LONG).show() }
     }
 
-    LaunchedEffect(liveRequestState) {
-        when (val state = liveRequestState) {
-            is RiderLiveRequestState.Success ->
-                Toast.makeText(toastContext, state.userMessage, Toast.LENGTH_SHORT).show()
-            is RiderLiveRequestState.Error ->
-                Toast.makeText(toastContext, state.userMessage, Toast.LENGTH_LONG).show()
-            else -> {}
-        }
-    }
 
     LaunchedEffect(actionState, awaitingCompleteResult) {
         if (!awaitingCompleteResult) return@LaunchedEffect
@@ -279,9 +268,9 @@ fun FlightScreen(
     val connectionState by connectionStateFlow.collectAsState(
         initial = sdkManager.sdkStatus.value.connectionState
     )
-    val registrationState by registrationManager.state.collectAsState()
-    val wsConnectionState by wsCommunicationState.connectionState.collectAsState()
-    val wsMessages by wsCommunicationState.messages.collectAsState()
+    val aircraftIdentityState by aircraftIdentityManager.state.collectAsState()
+    val telemetryState by telemetryUiState.streamState.collectAsState()
+    val wsMessages by telemetryUiState.messages.collectAsState()
 
     if (flightGateReason != null) {
         FlightGateBlockedScreen(
@@ -297,8 +286,8 @@ fun FlightScreen(
             val readyTask = (taskContext as? FlightTaskContext.Ready)?.takeUnless { taskCompleted }
             ImmersiveFlightScreenContent(
                 sdkManager = sdkManager,
-                registrationState = registrationState,
-                wsConnectionState = wsConnectionState,
+                aircraftIdentityState = aircraftIdentityState,
+                telemetryState = telemetryState,
                 wsMessages = wsMessages,
                 taskContext = readyTask,
                 onBack = requestLeave
@@ -344,8 +333,8 @@ fun FlightScreen(
     } else {
         // 断连留在飞行页等飞机回来（DS-DJIFLY-002），不踢回「回首页」死页
         ConnectionWaitingScreen(
-            registrationState = registrationState,
-            wsConnectionState = wsConnectionState,
+            aircraftIdentityState = aircraftIdentityState,
+            telemetryState = telemetryState,
             onBack = requestLeave
         )
     }
@@ -474,8 +463,8 @@ private fun FlightGateBlockedScreen(
 
 @Composable
 private fun ConnectionWaitingScreen(
-    registrationState: PlatformRegistrationState,
-    wsConnectionState: WsConnectionState,
+    aircraftIdentityState: AircraftIdentityState,
+    telemetryState: TelemetryStreamState,
     onBack: () -> Unit
 ) {
     Surface(
@@ -524,14 +513,14 @@ private fun ConnectionWaitingScreen(
                 StatusCard(title = "连接状态") {
                     StatusLine(label = "飞机", value = "未连接", valueColor = Color(0xFFFFB300))
                     StatusLine(
-                        label = "服务器注册",
-                        value = registrationState.statusLabel(),
-                        valueColor = registrationState.statusColor()
+                        label = "飞机身份",
+                        value = aircraftIdentityState.statusLabel(),
+                        valueColor = aircraftIdentityState.statusColor()
                     )
                     StatusLine(
-                        label = "WebSocket",
-                        value = wsConnectionState.statusLabel(),
-                        valueColor = wsConnectionState.statusColor()
+                        label = "遥测事件",
+                        value = telemetryState.statusLabel(),
+                        valueColor = telemetryState.statusColor()
                     )
                 }
                 Spacer(modifier = Modifier.height(20.dp))
@@ -546,9 +535,9 @@ private fun ConnectionWaitingScreen(
 @Composable
 private fun ImmersiveFlightScreenContent(
     sdkManager: DjiSdkManager,
-    registrationState: PlatformRegistrationState,
-    wsConnectionState: WsConnectionState,
-    wsMessages: List<WsMessageLog>,
+    aircraftIdentityState: AircraftIdentityState,
+    telemetryState: TelemetryStreamState,
+    wsMessages: List<TelemetryMessageLog>,
     taskContext: FlightTaskContext.Ready?,
     onBack: () -> Unit
 ) {
@@ -630,7 +619,7 @@ private fun ImmersiveFlightScreenContent(
                 FlightMinimalTopHud(
                     batteryPercent = summary.batteryPercentage,
                     gpsSatellites = summary.gpsSatelliteCount,
-                    registrationState = registrationState,
+                    aircraftIdentityState = aircraftIdentityState,
                     taskContext = taskContext,
                     showEngineerDetails = engineerMode,
                     productShortLabel = summary.productName.ifBlank { "飞行" },
@@ -738,8 +727,8 @@ private fun ImmersiveFlightScreenContent(
                     FlightBottomDrawer(
                         activePanel = activePanel ?: FlightBottomPanel.Camera,
                         summary = summary,
-                        registrationState = registrationState,
-                        wsConnectionState = wsConnectionState,
+                        aircraftIdentityState = aircraftIdentityState,
+                        telemetryState = telemetryState,
                         wsMessages = wsMessages,
                         isCompact = isCompact,
                         onSelectPanel = { activePanel = it },
@@ -798,9 +787,9 @@ private fun FlightHsiPanel(
 private fun FlightBottomDrawer(
     activePanel: FlightBottomPanel,
     summary: FlightScreenSummary,
-    registrationState: PlatformRegistrationState,
-    wsConnectionState: WsConnectionState,
-    wsMessages: List<WsMessageLog>,
+    aircraftIdentityState: AircraftIdentityState,
+    telemetryState: TelemetryStreamState,
+    wsMessages: List<TelemetryMessageLog>,
     isCompact: Boolean,
     onSelectPanel: (FlightBottomPanel) -> Unit,
     onClose: () -> Unit,
@@ -872,16 +861,16 @@ private fun FlightBottomDrawer(
                 when (activePanel) {
                     FlightBottomPanel.Camera -> CameraPanelContent()
                     FlightBottomPanel.Link -> LinkPanelContent(
-                        registrationState = registrationState,
-                        wsConnectionState = wsConnectionState,
+                        aircraftIdentityState = aircraftIdentityState,
+                        telemetryState = telemetryState,
                         wsMessages = wsMessages,
                         summary = summary,
                         isCompact = isCompact
                     )
                     FlightBottomPanel.Info -> InfoPanelContent(
                         summary = summary,
-                        registrationState = registrationState,
-                        wsConnectionState = wsConnectionState,
+                        aircraftIdentityState = aircraftIdentityState,
+                        telemetryState = telemetryState,
                         isCompact = isCompact
                     )
                 }
@@ -939,9 +928,9 @@ private fun CameraPanelContent() {
 
 @Composable
 private fun LinkPanelContent(
-    registrationState: PlatformRegistrationState,
-    wsConnectionState: WsConnectionState,
-    wsMessages: List<WsMessageLog>,
+    aircraftIdentityState: AircraftIdentityState,
+    telemetryState: TelemetryStreamState,
+    wsMessages: List<TelemetryMessageLog>,
     summary: FlightScreenSummary,
     isCompact: Boolean
 ) {
@@ -953,15 +942,15 @@ private fun LinkPanelContent(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 LinkSummaryCard(
-                    registrationState = registrationState,
-                    wsConnectionState = wsConnectionState,
+                    aircraftIdentityState = aircraftIdentityState,
+                    telemetryState = telemetryState,
                     summary = summary,
                     modifier = Modifier.fillMaxWidth()
                 )
-                WebSocketMessageHistory(
+                TelemetryEventHistory(
                     messages = wsMessages,
-                    header = "最近通讯记录",
-                    emptyMessage = wsConnectionState.logEmptyStateLabel(),
+                    header = "最近遥测事件",
+                    emptyMessage = telemetryState.logEmptyStateLabel(),
                     maxItems = 100,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -974,15 +963,15 @@ private fun LinkPanelContent(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 LinkSummaryCard(
-                    registrationState = registrationState,
-                    wsConnectionState = wsConnectionState,
+                    aircraftIdentityState = aircraftIdentityState,
+                    telemetryState = telemetryState,
                     summary = summary,
                     modifier = Modifier.width(300.dp)
                 )
-                WebSocketMessageHistory(
+                TelemetryEventHistory(
                     messages = wsMessages,
-                    header = "最近通讯记录",
-                    emptyMessage = wsConnectionState.logEmptyStateLabel(),
+                    header = "最近遥测事件",
+                    emptyMessage = telemetryState.logEmptyStateLabel(),
                     maxItems = 100,
                     modifier = Modifier
                         .weight(1f)
@@ -995,8 +984,8 @@ private fun LinkPanelContent(
 
 @Composable
 private fun LinkSummaryCard(
-    registrationState: PlatformRegistrationState,
-    wsConnectionState: WsConnectionState,
+    aircraftIdentityState: AircraftIdentityState,
+    telemetryState: TelemetryStreamState,
     summary: FlightScreenSummary,
     modifier: Modifier = Modifier
 ) {
@@ -1010,15 +999,15 @@ private fun LinkSummaryCard(
             modifier = Modifier.padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            ServerConnectionChip(
-                registrationState = registrationState,
+            AircraftIdentityChip(
+                aircraftIdentityState = aircraftIdentityState,
                 modifier = Modifier.fillMaxWidth(),
                 showDetail = true
             )
             InfoMetricCell(
-                label = "WebSocket",
-                value = wsConnectionState.statusLabel(),
-                accentColor = wsConnectionState.statusColor(),
+                label = "遥测事件",
+                value = telemetryState.statusLabel(),
+                accentColor = telemetryState.statusColor(),
                 modifier = Modifier.fillMaxWidth()
             )
             InfoMetricCell(
@@ -1031,8 +1020,8 @@ private fun LinkSummaryCard(
             )
             InfoMetricCell(
                 label = "链路详情",
-                value = wsConnectionState.logEmptyStateLabel(),
-                accentColor = wsConnectionState.statusColor(),
+                value = telemetryState.logEmptyStateLabel(),
+                accentColor = telemetryState.statusColor(),
                 modifier = Modifier.fillMaxWidth()
             )
         }
@@ -1077,8 +1066,8 @@ private fun CameraAssistCard(
 @Composable
 private fun InfoPanelContent(
     summary: FlightScreenSummary,
-    registrationState: PlatformRegistrationState,
-    wsConnectionState: WsConnectionState,
+    aircraftIdentityState: AircraftIdentityState,
+    telemetryState: TelemetryStreamState,
     isCompact: Boolean
 ) {
     Column(
@@ -1136,15 +1125,15 @@ private fun InfoPanelContent(
                 )
                 InfoMetricCell(
                     label = "服务器",
-                    value = registrationState.statusLabel(),
-                    accentColor = registrationState.statusColor(),
+                    value = aircraftIdentityState.statusLabel(),
+                    accentColor = aircraftIdentityState.statusColor(),
                     modifier = Modifier.weight(1f)
                 )
             }
             InfoMetricCell(
-                label = "WebSocket",
-                value = wsConnectionState.statusLabel(),
-                accentColor = wsConnectionState.statusColor(),
+                label = "遥测事件",
+                value = telemetryState.statusLabel(),
+                accentColor = telemetryState.statusColor(),
                 modifier = Modifier.fillMaxWidth()
             )
         } else {
@@ -1199,14 +1188,14 @@ private fun InfoPanelContent(
                 )
                 InfoMetricCell(
                     label = "服务器",
-                    value = registrationState.statusLabel(),
-                    accentColor = registrationState.statusColor(),
+                    value = aircraftIdentityState.statusLabel(),
+                    accentColor = aircraftIdentityState.statusColor(),
                     modifier = Modifier.weight(1f)
                 )
                 InfoMetricCell(
-                    label = "WebSocket",
-                    value = wsConnectionState.statusLabel(),
-                    accentColor = wsConnectionState.statusColor(),
+                    label = "遥测事件",
+                    value = telemetryState.statusLabel(),
+                    accentColor = telemetryState.statusColor(),
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -1486,53 +1475,47 @@ private fun StatusLine(
     }
 }
 
-private fun PlatformRegistrationState.statusLabel(): String {
+private fun AircraftIdentityState.statusLabel(): String {
     return when (this) {
-        PlatformRegistrationState.WaitingForAircraft -> "等待飞机"
-        is PlatformRegistrationState.Registering -> "注册中"
-        is PlatformRegistrationState.RetryScheduled -> "${retryAfterSeconds} 秒后重试"
-        is PlatformRegistrationState.Registered -> "已连接"
-        is PlatformRegistrationState.Failed -> "连接失败"
+        AircraftIdentityState.WaitingForAircraft -> "等待飞机"
+        is AircraftIdentityState.Registered -> "已连接"
     }
 }
 
-private fun PlatformRegistrationState.statusColor(): Color {
+private fun AircraftIdentityState.statusColor(): Color {
     return when (this) {
-        PlatformRegistrationState.WaitingForAircraft -> Color(0xFF90A4AE)
-        is PlatformRegistrationState.Registering -> Color(0xFF1E88E5)
-        is PlatformRegistrationState.RetryScheduled -> Color(0xFFFB8C00)
-        is PlatformRegistrationState.Registered -> Color(0xFF2E7D32)
-        is PlatformRegistrationState.Failed -> Color(0xFFC62828)
+        AircraftIdentityState.WaitingForAircraft -> Color(0xFF90A4AE)
+        is AircraftIdentityState.Registered -> Color(0xFF2E7D32)
     }
 }
 
-private fun WsConnectionState.statusLabel(): String {
+private fun TelemetryStreamState.statusLabel(): String {
     return when (this) {
-        WsConnectionState.Idle -> "空闲"
-        WsConnectionState.Connecting -> "连接中"
-        WsConnectionState.Connected -> "已连接"
-        is WsConnectionState.Disconnected -> "已断开"
-        is WsConnectionState.Error -> "异常"
+        TelemetryStreamState.Idle -> "空闲"
+        TelemetryStreamState.Connecting -> "连接中"
+        TelemetryStreamState.Connected -> "已连接"
+        is TelemetryStreamState.Disconnected -> "已断开"
+        is TelemetryStreamState.Error -> "异常"
     }
 }
 
-private fun WsConnectionState.statusColor(): Color {
+private fun TelemetryStreamState.statusColor(): Color {
     return when (this) {
-        WsConnectionState.Idle -> Color(0xFF90A4AE)
-        WsConnectionState.Connecting -> Color(0xFF1E88E5)
-        WsConnectionState.Connected -> Color(0xFF2E7D32)
-        is WsConnectionState.Disconnected -> Color(0xFFFB8C00)
-        is WsConnectionState.Error -> Color(0xFFC62828)
+        TelemetryStreamState.Idle -> Color(0xFF90A4AE)
+        TelemetryStreamState.Connecting -> Color(0xFF1E88E5)
+        TelemetryStreamState.Connected -> Color(0xFF2E7D32)
+        is TelemetryStreamState.Disconnected -> Color(0xFFFB8C00)
+        is TelemetryStreamState.Error -> Color(0xFFC62828)
     }
 }
 
-private fun WsConnectionState.logEmptyStateLabel(): String {
+private fun TelemetryStreamState.logEmptyStateLabel(): String {
     return when (this) {
-        WsConnectionState.Idle -> "等待建立连接后开始记录消息"
-        WsConnectionState.Connecting -> "连接建立中，日志将在握手完成后刷新"
-        WsConnectionState.Connected -> "当前已连接，等待首条消息"
-        is WsConnectionState.Disconnected -> reason
-        is WsConnectionState.Error -> message
+        TelemetryStreamState.Idle -> "等待本地事件记录"
+        TelemetryStreamState.Connecting -> "等待遥测事件记录"
+        TelemetryStreamState.Connected -> "等待首个遥测事件"
+        is TelemetryStreamState.Disconnected -> reason
+        is TelemetryStreamState.Error -> message
     }
 }
 

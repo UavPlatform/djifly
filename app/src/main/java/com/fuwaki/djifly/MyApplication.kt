@@ -3,7 +3,7 @@ package com.fuwaki.djifly
 import android.app.Application
 import android.content.Context
 import android.util.Log
-import com.fuwaki.djifly.platform.registration.PlatformRegistrationManager
+import com.fuwaki.djifly.platform.registration.AircraftIdentityManager
 import com.fuwaki.djifly.sdk.DjiSdkManager
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
@@ -13,7 +13,7 @@ class MyApplication : Application() {
 
     private val TAG = this::class.simpleName
     @Inject lateinit var sdkManager: DjiSdkManager
-    @Inject lateinit var platformRegistrationManager: PlatformRegistrationManager
+    @Inject lateinit var aircraftIdentityManager: AircraftIdentityManager
     @Inject lateinit var dispatchTelemetryService: com.fuwaki.djifly.platform.telemetry.DispatchTelemetryService
 
     override fun attachBaseContext(base: Context?) {
@@ -29,7 +29,7 @@ class MyApplication : Application() {
         Log.i(TAG, "MyApplication onCreate - Initializing DJI SDK")
 
         sdkManager.initSdk(this)
-        platformRegistrationManager.start()
+        aircraftIdentityManager.start()
         dispatchTelemetryService.start()
     }
 }

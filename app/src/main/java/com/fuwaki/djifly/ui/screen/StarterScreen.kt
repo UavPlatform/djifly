@@ -59,8 +59,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.ui.unit.dp
 import com.fuwaki.djifly.data.models.FlightEntryGate
-import com.fuwaki.djifly.platform.registration.PlatformRegistrationManager
-import com.fuwaki.djifly.platform.registration.PlatformRegistrationState
+import com.fuwaki.djifly.platform.registration.AircraftIdentityManager
+import com.fuwaki.djifly.platform.registration.AircraftIdentityState
 import com.fuwaki.djifly.sdk.DjiSdkManager
 import com.fuwaki.djifly.sdk.DjiSdkStatus
 import com.fuwaki.djifly.sdk.SdkConnectionState
@@ -76,13 +76,13 @@ import java.util.Locale
 @Composable
 fun StarterScreen(
     sdkManager: DjiSdkManager,
-    registrationManager: PlatformRegistrationManager,
+    aircraftIdentityManager: AircraftIdentityManager,
     taskNum: String? = null,
     onEnterFlight: (String?) -> Unit = {},
     taskViewModel: TaskViewModel = hiltViewModel()
 ) {
     val sdkStatus by sdkManager.sdkStatus.collectAsState()
-    val registrationState by registrationManager.state.collectAsState()
+    val aircraftIdentityState by aircraftIdentityManager.state.collectAsState()
     val context = LocalContext.current
 
     // 1B-8：任务上下文（自由飞行 taskNum 为空 → FreeFlight，不加载任务）
@@ -107,13 +107,13 @@ fun StarterScreen(
         }
     }
 
-    val serverPanel = buildServerPanelState(registrationState)
+    val aircraftPanel = buildAircraftPanelState(aircraftIdentityState)
 
     var diagnosticsExpanded by rememberSaveable { mutableStateOf(false) }
-    var serverStateUpdatedAtMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    var identityUpdatedAtMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
 
-    LaunchedEffect(registrationState) {
-        serverStateUpdatedAtMillis = System.currentTimeMillis()
+    LaunchedEffect(aircraftIdentityState) {
+        identityUpdatedAtMillis = System.currentTimeMillis()
     }
 
     Column(
@@ -145,8 +145,8 @@ fun StarterScreen(
 
         PreflightStepsCard(
             aircraftConnected = sdkStatus.isProductConnected,
-            cloudControlAvailable = serverPanel.cloudControlAvailable,
-            serverPanel = serverPanel,
+            aircraftIdentityReady = aircraftPanel.aircraftIdentityReady,
+            aircraftPanel = aircraftPanel,
             gateVerifying = gateVerifying,
             gateReason = flightGateReason,
             hasOrder = taskContext is FlightTaskContext.Ready
@@ -159,7 +159,7 @@ fun StarterScreen(
                 // 携任务进入（1B-8）：FreeFlight 时传 null 保持自由飞行语义
                 onEnterFlight((taskContext as? FlightTaskContext.Ready)?.taskNum)
             },
-            cloudControlAvailable = serverPanel.cloudControlAvailable,
+            aircraftIdentityReady = aircraftPanel.aircraftIdentityReady,
             aircraftConnected = sdkStatus.isProductConnected
         )
 
@@ -167,10 +167,9 @@ fun StarterScreen(
             expanded = diagnosticsExpanded,
             onToggle = { diagnosticsExpanded = !diagnosticsExpanded },
             sdkStatus = sdkStatus,
-            registrationState = registrationState,
-            serverPanel = serverPanel,
-            stateUpdatedAtMillis = serverStateUpdatedAtMillis,
-            onRetryNow = { registrationManager.retryNow() },
+            aircraftIdentityState = aircraftIdentityState,
+            aircraftPanel = aircraftPanel,
+            stateUpdatedAtMillis = identityUpdatedAtMillis,
             onCopyDiagnostics = { text ->
                 copyToClipboard(context, text)
                 Toast.makeText(context, "诊断信息已复制", Toast.LENGTH_SHORT).show()
@@ -184,23 +183,22 @@ private enum class StepDotState { Pending, Active, Done, Error }
 @Composable
 private fun PreflightStepsCard(
     aircraftConnected: Boolean,
-    cloudControlAvailable: Boolean,
-    serverPanel: ServerPanelState,
+    aircraftIdentityReady: Boolean,
+    aircraftPanel: AircraftPanelState,
     gateVerifying: Boolean,
     gateReason: String?,
     hasOrder: Boolean
 ) {
     val step1 = if (aircraftConnected) StepDotState.Done else StepDotState.Pending
     val step2 = when {
-        cloudControlAvailable -> StepDotState.Done
-        aircraftConnected && serverPanel.showRetryAction -> StepDotState.Error
+        aircraftIdentityReady -> StepDotState.Done
         aircraftConnected -> StepDotState.Active
         else -> StepDotState.Pending
     }
     val step3 = when {
         gateVerifying -> StepDotState.Active
         gateReason != null -> StepDotState.Error
-        aircraftConnected && cloudControlAvailable -> StepDotState.Done
+        aircraftConnected && aircraftIdentityReady -> StepDotState.Done
         else -> StepDotState.Pending
     }
 
@@ -226,7 +224,7 @@ private fun PreflightStepsCard(
             )
             PreflightStepRow(
                 title = "平台在线",
-                subtitle = serverPanel.primaryReason,
+                subtitle = aircraftPanel.primaryReason,
                 state = step2
             )
             PreflightStepRow(
@@ -290,20 +288,20 @@ private fun FlightEntryCard(
     gateReason: String? = null,
     gateVerifying: Boolean = false,
     onEnterFlight: () -> Unit,
-    cloudControlAvailable: Boolean,
+    aircraftIdentityReady: Boolean,
     aircraftConnected: Boolean
 ) {
     val hint = when {
         gateReason != null -> gateReason
         !aircraftConnected -> "可先进入作业页，但当前未检测到飞机连接。"
-        !cloudControlAvailable -> "可先进入作业页，平台设备通道尚未就绪。"
-        else -> "飞机与平台均已连接，可以开始作业。"
+        !aircraftIdentityReady -> "可先进入作业页，飞机身份尚未读取。"
+        else -> "飞机身份已读取，可以开始作业。"
     }
 
     val hintColor = when {
         gateReason != null -> Color(0xFFFB8C00)
         !aircraftConnected -> Color(0xFFFB8C00)
-        !cloudControlAvailable -> Color(0xFFC62828)
+        !aircraftIdentityReady -> Color(0xFFC62828)
         else -> Color(0xFF2E7D32)
     }
 
@@ -337,10 +335,9 @@ private fun DiagnosticsCard(
     expanded: Boolean,
     onToggle: () -> Unit,
     sdkStatus: DjiSdkStatus,
-    registrationState: PlatformRegistrationState,
-    serverPanel: ServerPanelState,
+    aircraftIdentityState: AircraftIdentityState,
+    aircraftPanel: AircraftPanelState,
     stateUpdatedAtMillis: Long,
-    onRetryNow: () -> Unit,
     onCopyDiagnostics: (String) -> Unit
 ) {
     Card(
@@ -376,7 +373,7 @@ private fun DiagnosticsCard(
             }
             if (!expanded) {
                 Text(
-                    text = "遥控器、平台通道与启动流程详情",
+                    text = "遥控器、飞机身份与启动流程详情",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp)
@@ -417,28 +414,20 @@ private fun DiagnosticsCard(
                     )
 
                     Text(
-                        text = "平台通道",
+                        text = "飞机身份",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 4.dp)
                     )
-                    SummaryItem(label = "状态", value = serverPanel.status, valueColor = serverPanel.color)
-                    SummaryItem(label = "说明", value = serverPanel.primaryReason)
+                    SummaryItem(label = "状态", value = aircraftPanel.status, valueColor = aircraftPanel.color)
+                    SummaryItem(label = "说明", value = aircraftPanel.primaryReason)
 
-                    if (serverPanel.showRetryAction) {
-                        OutlinedButton(
-                            onClick = onRetryNow,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("立即重试连接")
-                        }
-                    }
                     OutlinedButton(
                         onClick = {
                             onCopyDiagnostics(
-                                buildServerDiagnosticText(
-                                    registrationState = registrationState,
+                                buildAircraftDiagnosticText(
+                                    aircraftIdentityState = aircraftIdentityState,
                                     sdkStatus = sdkStatus,
                                     stateUpdatedAtMillis = stateUpdatedAtMillis
                                 )
@@ -467,7 +456,7 @@ private fun DiagnosticsCard(
                     )
                     buildStartupDiagnosticSteps(
                         sdkStatus = sdkStatus,
-                        registrationState = registrationState
+                        aircraftIdentityState = aircraftIdentityState
                     ).forEach { step ->
                         SummaryItem(
                             label = step.title,
@@ -544,53 +533,27 @@ private fun SummaryItem(
     }
 }
 
-private fun buildServerPanelState(registrationState: PlatformRegistrationState): ServerPanelState {
-    return when (registrationState) {
-        PlatformRegistrationState.WaitingForAircraft -> ServerPanelState(
+private fun buildAircraftPanelState(aircraftIdentityState: AircraftIdentityState): AircraftPanelState {
+    return when (aircraftIdentityState) {
+        AircraftIdentityState.WaitingForAircraft -> AircraftPanelState(
             status = "待连接",
-            primaryReason = "等待飞机连接并读取 SN 后发起注册",
+            primaryReason = "等待飞机连接并读取身份",
             color = Color(0xFF90A4AE),
-            cloudControlAvailable = false,
-            showRetryAction = false
+            aircraftIdentityReady = false,
         )
 
-        is PlatformRegistrationState.Registering -> ServerPanelState(
-            status = "连接中",
-            primaryReason = "正在向服务器登记 ${registrationState.serialNumber}",
-            color = Color(0xFF1E88E5),
-            cloudControlAvailable = false,
-            showRetryAction = false
-        )
-
-        is PlatformRegistrationState.RetryScheduled -> ServerPanelState(
-            status = "重试中",
-            primaryReason = "${registrationState.retryAfterSeconds} 秒后进行第 ${registrationState.nextAttempt} 次重试",
-            color = Color(0xFFFB8C00),
-            cloudControlAvailable = false,
-            showRetryAction = true
-        )
-
-        is PlatformRegistrationState.Registered -> ServerPanelState(
+        is AircraftIdentityState.Registered -> AircraftPanelState(
             status = "已连接",
-            primaryReason = "已成功建立服务器连接",
+            primaryReason = "飞机身份已就绪",
             color = Color(0xFF2E7D32),
-            cloudControlAvailable = true,
-            showRetryAction = false
-        )
-
-        is PlatformRegistrationState.Failed -> ServerPanelState(
-            status = "连接异常",
-            primaryReason = registrationState.reason,
-            color = Color(0xFFC62828),
-            cloudControlAvailable = false,
-            showRetryAction = true
+            aircraftIdentityReady = true,
         )
     }
 }
 
 private fun buildStartupDiagnosticSteps(
     sdkStatus: DjiSdkStatus,
-    registrationState: PlatformRegistrationState
+    aircraftIdentityState: AircraftIdentityState
 ): List<StartupDiagnosticStep> {
     val serialReady = hasRealValue(sdkStatus.productInfo.serialNumber)
 
@@ -642,51 +605,33 @@ private fun buildStartupDiagnosticSteps(
         )
     }
 
-    val serverStep = when (registrationState) {
-        PlatformRegistrationState.WaitingForAircraft -> StartupDiagnosticStep(
-            title = "服务器注册",
+    val identityStep = when (aircraftIdentityState) {
+        AircraftIdentityState.WaitingForAircraft -> StartupDiagnosticStep(
+            title = "飞机身份",
             stateLabel = "等待",
             detail = "等待飞机接入与 SN"
         )
 
-        is PlatformRegistrationState.Registering -> StartupDiagnosticStep(
-            title = "服务器注册",
-            stateLabel = "进行中",
-            detail = "正在注册 ${registrationState.serialNumber}"
-        )
-
-        is PlatformRegistrationState.RetryScheduled -> StartupDiagnosticStep(
-            title = "服务器注册",
-            stateLabel = "重试",
-            detail = "${registrationState.retryAfterSeconds} 秒后重试"
-        )
-
-        is PlatformRegistrationState.Registered -> StartupDiagnosticStep(
-            title = "服务器注册",
+        is AircraftIdentityState.Registered -> StartupDiagnosticStep(
+            title = "飞机身份",
             stateLabel = "完成",
             detail = "已连接"
         )
-
-        is PlatformRegistrationState.Failed -> StartupDiagnosticStep(
-            title = "服务器注册",
-            stateLabel = "异常",
-            detail = registrationState.reason
-        )
     }
 
-    return listOf(sdkStep, aircraftStep, serialStep, serverStep)
+    return listOf(sdkStep, aircraftStep, serialStep, identityStep)
 }
 
-private fun buildServerDiagnosticText(
-    registrationState: PlatformRegistrationState,
+private fun buildAircraftDiagnosticText(
+    aircraftIdentityState: AircraftIdentityState,
     sdkStatus: DjiSdkStatus,
     stateUpdatedAtMillis: Long
 ): String {
     return buildString {
         appendLine("timestamp=${formatLocalTime(System.currentTimeMillis())}")
         appendLine("state_updated_at=${formatLocalTime(stateUpdatedAtMillis)}")
-        appendLine("registration_state=${registrationStateLabel(registrationState)}")
-        appendLine("cloud_control_available=${registrationState is PlatformRegistrationState.Registered}")
+        appendLine("aircraft_identity_state=${aircraftIdentityStateLabel(aircraftIdentityState)}")
+        appendLine("aircraft_identity_available=${aircraftIdentityState is AircraftIdentityState.Registered}")
         appendLine("sdk_state=${sdkStatus.sdkStatusText}")
         appendLine("sdk_progress=${sdkStatus.initProgress.coerceIn(0, 100)}")
         appendLine("product_connected=${sdkStatus.isProductConnected}")
@@ -695,45 +640,23 @@ private fun buildServerDiagnosticText(
         appendLine("uplink_quality=${signalValue(sdkStatus.flightData.uplinkQuality, sdkStatus.isProductConnected)}")
         appendLine("downlink_quality=${signalValue(sdkStatus.flightData.downlinkQuality, sdkStatus.isProductConnected)}")
 
-        when (registrationState) {
-            PlatformRegistrationState.WaitingForAircraft -> {
+        when (aircraftIdentityState) {
+            AircraftIdentityState.WaitingForAircraft -> {
                 appendLine("detail=waiting_for_aircraft")
             }
 
-            is PlatformRegistrationState.Registering -> {
-                appendLine("serial=${registrationState.serialNumber}")
-            }
-
-            is PlatformRegistrationState.RetryScheduled -> {
-                appendLine("serial=${registrationState.serialNumber}")
-                appendLine("next_attempt=${registrationState.nextAttempt}")
-                appendLine("retry_after_seconds=${registrationState.retryAfterSeconds}")
-                appendLine("last_error=${registrationState.lastError}")
-            }
-
-            is PlatformRegistrationState.Registered -> {
-                appendLine("serial=${registrationState.serialNumber}")
-                appendLine("drone_id=${registrationState.droneId ?: "N/A"}")
-                appendLine("drone_name=${registrationState.droneName}")
-                appendLine("created_on_server=${registrationState.createdOnServer}")
-            }
-
-            is PlatformRegistrationState.Failed -> {
-                appendLine("serial=${registrationState.serialNumber ?: "N/A"}")
-                appendLine("retryable=${registrationState.retryable}")
-                appendLine("reason=${registrationState.reason}")
+            is AircraftIdentityState.Registered -> {
+                appendLine("serial=${aircraftIdentityState.serialNumber}")
+                appendLine("drone_name=${aircraftIdentityState.droneName}")
             }
         }
     }
 }
 
-private fun registrationStateLabel(state: PlatformRegistrationState): String {
+private fun aircraftIdentityStateLabel(state: AircraftIdentityState): String {
     return when (state) {
-        PlatformRegistrationState.WaitingForAircraft -> "WaitingForAircraft"
-        is PlatformRegistrationState.Registering -> "Registering"
-        is PlatformRegistrationState.RetryScheduled -> "RetryScheduled"
-        is PlatformRegistrationState.Registered -> "Registered"
-        is PlatformRegistrationState.Failed -> "Failed"
+        AircraftIdentityState.WaitingForAircraft -> "WaitingForAircraft"
+        is AircraftIdentityState.Registered -> "Registered"
     }
 }
 
@@ -764,12 +687,11 @@ private fun formatLocalTime(timeMillis: Long): String {
     return formatter.format(Date(timeMillis))
 }
 
-private data class ServerPanelState(
+private data class AircraftPanelState(
     val status: String,
     val primaryReason: String,
     val color: Color,
-    val cloudControlAvailable: Boolean,
-    val showRetryAction: Boolean
+    val aircraftIdentityReady: Boolean,
 )
 
 private data class StartupDiagnosticStep(

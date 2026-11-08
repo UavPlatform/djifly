@@ -23,6 +23,7 @@ class TokenStore @Inject constructor(
 ) {
     // ── 可观察的登录状态 ──
     val userId: Flow<Long?> = appContext.authDataStore.data.map { it[USER_ID] }
+    val accessToken: Flow<String?> = appContext.authDataStore.data.map { it[ACCESS_TOKEN] }
     val userName: Flow<String?> = appContext.authDataStore.data.map { it[USER_NAME] }
     val userRole: Flow<Int?> = appContext.authDataStore.data.map { it[USER_ROLE] }
 
